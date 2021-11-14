@@ -9,8 +9,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Shared", "Shared\Shared.vcx
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Disassembler", "Disassembler\Disassembler.vcxproj", "{BC5AD780-760A-42ED-BAB4-F6D65B7B03AD}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Linker", "Linker\Linker.vcxproj", "{9ED7E249-43F8-4CD3-B568-E667C38A1A29}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		Shared\Shared.vcxitems*{9ed7e249-43f8-4cd3-b568-e667c38a1a29}*SharedItemsImports = 4
 		Shared\Shared.vcxitems*{a7c7589b-aec2-41fd-b99d-e424d7b6b9d0}*SharedItemsImports = 9
 		Shared\Shared.vcxitems*{af6afe87-523a-4f5d-bd1e-168552ab996a}*SharedItemsImports = 4
 		Shared\Shared.vcxitems*{bc5ad780-760a-42ed-bab4-f6d65b7b03ad}*SharedItemsImports = 4
@@ -38,6 +41,14 @@ Global
 		{BC5AD780-760A-42ED-BAB4-F6D65B7B03AD}.Release|x64.Build.0 = Release|x64
 		{BC5AD780-760A-42ED-BAB4-F6D65B7B03AD}.Release|x86.ActiveCfg = Release|Win32
 		{BC5AD780-760A-42ED-BAB4-F6D65B7B03AD}.Release|x86.Build.0 = Release|Win32
+		{9ED7E249-43F8-4CD3-B568-E667C38A1A29}.Debug|x64.ActiveCfg = Debug|x64
+		{9ED7E249-43F8-4CD3-B568-E667C38A1A29}.Debug|x64.Build.0 = Debug|x64
+		{9ED7E249-43F8-4CD3-B568-E667C38A1A29}.Debug|x86.ActiveCfg = Debug|Win32
+		{9ED7E249-43F8-4CD3-B568-E667C38A1A29}.Debug|x86.Build.0 = Debug|Win32
+		{9ED7E249-43F8-4CD3-B568-E667C38A1A29}.Release|x64.ActiveCfg = Release|x64
+		{9ED7E249-43F8-4CD3-B568-E667C38A1A29}.Release|x64.Build.0 = Release|x64
+		{9ED7E249-43F8-4CD3-B568-E667C38A1A29}.Release|x86.ActiveCfg = Release|Win32
+		{9ED7E249-43F8-4CD3-B568-E667C38A1A29}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
