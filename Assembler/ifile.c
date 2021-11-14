@@ -224,7 +224,7 @@ void reset_pc(IFILE* ifile) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_new_ifile(CuTest* tc) {
   IFILE* ifile;

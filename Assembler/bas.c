@@ -99,7 +99,7 @@ static char* default_object_name(const char* source) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 extern CuSuite* utils_test_suite(void);
 extern CuSuite* source_test_suite(void);

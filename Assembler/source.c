@@ -142,7 +142,7 @@ void print_source(const SOURCE* src) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_line_length(CuTest* tc) {
   CuAssertIntEquals(tc, 0, line_length(""));

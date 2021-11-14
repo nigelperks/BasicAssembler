@@ -35,7 +35,7 @@ void source_pass(IFILE* ifile, const Options* options) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_blank(CuTest* tc) {
   CuAssertIntEquals(tc, TRUE, blank(""));

@@ -166,7 +166,7 @@ DWORD padded_length(const SEGMENT* seg) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_new_segment(CuTest* tc) {
   SEGMENT* p;

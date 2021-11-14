@@ -63,7 +63,7 @@ void process_argv(int argc, char* argv[], Options* opts) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_new_options(CuTest* tc) {
   Options* opt;

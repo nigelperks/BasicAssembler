@@ -754,7 +754,7 @@ static SYMBOL_ID parse_label(STATE* state, IFILE* ifile, LEX* lex, const char* o
 #ifdef UNIT_TEST
 
 #include <string.h>
-#include "cutest.h"
+#include "CuTest.h"
 #include "sourcepass.h"
 
 static void test_init_state(CuTest* tc) {

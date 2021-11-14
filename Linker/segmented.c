@@ -31,7 +31,7 @@ void delete_segmented(SEGMENTED* segs) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_segmented(CuTest* tc) {
   SEGMENTED* p = new_segmented("Salad", CASE_SENSITIVE);

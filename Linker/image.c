@@ -236,7 +236,7 @@ IMAGE* build_image(SEGMENTED* prog, int verbose) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_new_image(CuTest* tc) {
   IMAGE* image = new_image();

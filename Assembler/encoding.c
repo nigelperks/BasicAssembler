@@ -1790,7 +1790,7 @@ static BYTE encode_modrm(unsigned mod, unsigned reg, unsigned rm) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_reloc(CuTest* tc) {
   RELOC_LIST list;

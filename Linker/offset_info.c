@@ -157,7 +157,7 @@ int add_group_fixup(FIXUPS* p, SEGNO holding_seg, WORD holding_offset,
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_new_fixups(CuTest* tc) {
   FIXUPS* p;

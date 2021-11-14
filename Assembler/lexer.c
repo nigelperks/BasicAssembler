@@ -273,7 +273,7 @@ static void lex_fatal(LEX* lex, const char* fmt, ...) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_new_lex(CuTest* tc) {
   SOURCE source;

@@ -89,7 +89,7 @@ unsigned add_group(GROUP_LIST* list, const char* name) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_group_list(CuTest* tc) {
   GROUP_LIST* list = new_group_list(CASE_INSENSITIVE);

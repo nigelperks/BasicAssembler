@@ -129,7 +129,7 @@ int main(int argc, char* argv[]) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 extern CuSuite* symbol_test_suite(void);
 extern CuSuite* offset_info_test_suite(void);

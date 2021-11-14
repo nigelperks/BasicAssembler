@@ -391,7 +391,7 @@ const char* sreg_name(unsigned reg) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_directive(CuTest* tc) {
   CuAssertIntEquals(tc, FALSE, token_is_directive(0));

@@ -257,7 +257,7 @@ int sym_next(SYMTAB* st, int id) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_new_symbol_table(CuTest* tc) {
   SYMTAB* st;

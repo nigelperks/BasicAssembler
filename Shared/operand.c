@@ -84,7 +84,7 @@ BOOL has_flag(const OPERAND* op, int flag) {
 #ifdef UNIT_TEST
 
 #include <string.h>
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_init_operand(CuTest* tc) {
   OPERAND op;

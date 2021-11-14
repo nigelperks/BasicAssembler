@@ -629,7 +629,7 @@ int repeat_token(BYTE repcode, int op_token) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_find_instruc(CuTest* tc) {
   const INSDEF* def;

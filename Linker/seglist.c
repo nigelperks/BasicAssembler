@@ -181,7 +181,7 @@ void dump_segments(const SEGMENT_LIST* list) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_segment_list(CuTest* tc) {
   SEGMENT_LIST* list = new_segment_list(CASE_INSENSITIVE);

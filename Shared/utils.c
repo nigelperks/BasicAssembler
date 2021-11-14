@@ -142,7 +142,7 @@ void delete_vector(VECTOR* vec) {
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_sizes(CuTest* tc) {
   CuAssertIntEquals(tc, 1, sizeof(BYTE));

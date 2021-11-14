@@ -121,7 +121,7 @@ static BOOL resolve_group_absolute_jump(unsigned j, const FIXUP* fix, SEGMENT_LI
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_report_undefined_symbols(CuTest* tc) {
   SYMTAB* st = new_symbol_table(CASE_INSENSITIVE);

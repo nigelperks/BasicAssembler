@@ -255,7 +255,7 @@ static void update_symbol_definitions_for_new_segment_number_and_base(
 
 #ifdef UNIT_TEST
 
-#include "cutest.h"
+#include "CuTest.h"
 
 static void test_update_offsets(CuTest* tc) {
   SEGMENTED* prog = new_segmented("PROG", CASE_INSENSITIVE);

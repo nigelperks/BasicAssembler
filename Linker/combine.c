@@ -414,7 +414,7 @@ static void add_segment_data(SEGNO destno, SEGMENT* dest, SEGNO srcno, SEGMENT* 
 #ifdef UNIT_TEST
 
 #include <string.h>
-#include "cutest.h"
+#include "CuTest.h"
 #include "symbol.h"
 
 static void test_new_segment_map(CuTest* tc) {
