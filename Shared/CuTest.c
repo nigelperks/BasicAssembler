@@ -1,3 +1,6 @@
+/* CuTest C Unit Testing Framework */
+/* Altered version with modifications by Nigel Perks, clearly commented below. */
+
 #include <assert.h>
 #include <setjmp.h>
 #include <stdlib.h>
@@ -229,6 +232,17 @@ void CuAssertPtrEquals_LineMsg(CuTest* tc, const char* file, int line, const cha
 	sprintf(buf, "expected pointer <0x%p> but was <0x%p>", expected, actual);
 	CuFail_Line(tc, file, line, message, buf);
 }
+
+/* NIGEL PERKS MODIFICATION BEGINS */
+void CuAssertLongLongEquals_LineMsg(CuTest* tc, const char* file, int line, const char* message,
+	long long expected, long long actual)
+{
+	char buf[STRING_MAX];
+	if (expected == actual) return;
+	sprintf(buf, "expected <%lld> but was <%lld>", expected, actual);
+	CuFail_Line(tc, file, line, message, buf);
+}
+/* NIGEL PERKS MODIFICATION ENDS */
 
 
 /*-------------------------------------------------------------------------*

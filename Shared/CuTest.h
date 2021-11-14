@@ -1,3 +1,6 @@
+/* CuTest C Unit Testing Framework */
+/* Altered version with modifications by Nigel Perks, clearly commented below. */
+
 #ifndef CU_TEST_H
 #define CU_TEST_H
 
@@ -71,6 +74,12 @@ void CuAssertPtrEquals_LineMsg(CuTest* tc,
 	const char* file, int line, const char* message, 
 	void* expected, void* actual);
 
+/* NIGEL PERKS MODIFICATION BEGINS */
+void CuAssertLongLongEquals_LineMsg(CuTest* tc,
+    const char* file, int line, const char* message,
+	long long expected, long long actual);
+/* NIGEL PERKS MODIFICATION ENDS */
+
 /* public assert functions */
 
 #define CuFail(tc, ms)                        CuFail_Line(  (tc), __FILE__, __LINE__, NULL, (ms))
@@ -85,6 +94,11 @@ void CuAssertPtrEquals_LineMsg(CuTest* tc,
 #define CuAssertDblEquals_Msg(tc,ms,ex,ac,dl) CuAssertDblEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac),(dl))
 #define CuAssertPtrEquals(tc,ex,ac)           CuAssertPtrEquals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
 #define CuAssertPtrEquals_Msg(tc,ms,ex,ac)    CuAssertPtrEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
+
+/* NIGEL PERKS MODIFICATION BEGINS */
+#define CuAssertLongLongEquals(tc,ex,ac)           CuAssertLongLongEquals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
+#define CuAssertLongLongEquals_Msg(tc,ms,ex,ac)    CuAssertLongLongEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
+/* NIGEL PERKS MODIFICATION ENDS */
 
 #define CuAssertPtrNotNull(tc,p)        CuAssert_Line((tc),__FILE__,__LINE__,"null pointer unexpected",(p != NULL))
 #define CuAssertPtrNotNullMsg(tc,msg,p) CuAssert_Line((tc),__FILE__,__LINE__,(msg),(p != NULL))
