@@ -1,0 +1,25 @@
+	; segment name in DW
+
+	IDEAL
+
+	ASSUME	CS: SEG1
+
+	SEGMENT	SEG1
+start:
+	int	20h
+
+	ENDS	SEG1
+
+	SEGMENT	SEG2
+
+	DW	SEG1, SEG2
+
+	ENDS	SEG2
+
+	SEGMENT	SEG1
+
+	DW	SEG1, SEG2
+
+	ENDS	SEG1
+
+	END	start

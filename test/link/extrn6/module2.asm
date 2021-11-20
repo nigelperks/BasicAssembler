@@ -1,0 +1,15 @@
+	IDEAL
+
+	ASSUME	CS:SEG2
+
+	SEGMENT	SEG2 PUBLIC
+
+	EXTRN	start: PROC
+
+	jmp	start
+
+	ENDS
+
+	GROUP	GROUP1 SEG2
+
+	END

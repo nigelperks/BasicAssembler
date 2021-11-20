@@ -1,0 +1,17 @@
+	IDEAL
+
+	SEGMENT	SEG1
+
+	ASSUME	CS: SEG1
+
+start:
+	jmp	FAR 1234h:5678h
+	call	FAR 1234h:5678h
+
+	ENDS	SEG1
+
+	SEGMENT	_STACK STACK
+	DB	10h DUP (0)
+	ENDS	_STACK
+
+	END	start

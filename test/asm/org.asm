@@ -1,0 +1,14 @@
+	IDEAL
+
+	SEGMENT	SEG1
+
+	ASSUME	CS:SEG1
+
+	ORG	100H
+
+start:
+	int	20h
+
+	ENDS	SEG1
+
+	END	start

@@ -1,0 +1,28 @@
+	IDEAL
+
+	SEGMENT	SEG1 PUBLIC
+
+	ASSUME	CS: SEG1
+
+start:
+	jmp	FAR quit
+	call	FAR quit
+
+	ENDS	SEG1
+
+	SEGMENT	SEG2 PUBLIC
+
+	ASSUME	CS: SEG2
+
+	db	'padding'
+
+quit:
+	dw	0
+
+	ENDS
+
+	SEGMENT	_STACK STACK
+	DB	10h DUP (0)
+	ENDS	_STACK
+
+	END	start

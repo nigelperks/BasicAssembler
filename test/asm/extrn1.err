@@ -1,0 +1,4 @@
+Error: extrn1.asm: 5: EXTRN outside segment:
+    EXTRN   blurt: WORD
+            ^
+Errors: 1

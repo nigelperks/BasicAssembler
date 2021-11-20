@@ -1,0 +1,17 @@
+	IDEAL
+
+	ASSUME	CS:SEG1
+
+	SEGMENT	SEG1 PUBLIC
+
+	ORG	100h
+start:
+	int	20h
+
+	ENDS	SEG1
+
+	PUBLIC	start
+
+	GROUP	GROUP1 SEG1
+
+	END	start

@@ -1,0 +1,20 @@
+	IDEAL
+
+CR	EQU	0DH
+
+	SEGMENT	SEG1
+
+	ASSUME	CS: SEG1
+
+start:
+	int	20h
+
+	DD	1,2,3
+val	DD	CR, -1, '*'
+	DD	12345678H
+
+	ENDS	SEG1
+
+	GROUP	GROUP1 SEG1
+
+	END	start

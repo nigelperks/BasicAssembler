@@ -1,0 +1,18 @@
+	IDEAL
+	ASSUME CS:_CODE,DS:_DATA,ES:_DATA,SS:_DATA
+	SEGMENT	_CODE PUBLIC
+	ORG	100h
+start:
+	jmp	nobbly
+	mov	ax, 1234h
+	mov	dx, OFFSET fred
+	int	21h
+nobbly:
+	ENDS	_CODE
+	SEGMENT	_DATA PUBLIC
+fred	DW	9999h
+	DW	8888h
+	DW	7777h
+	ENDS	_DATA
+	GROUP	DGROUP	_CODE, _DATA
+	END	start

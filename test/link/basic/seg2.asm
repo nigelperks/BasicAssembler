@@ -1,0 +1,11 @@
+	IDEAL
+	ASSUME CS:SEG2, DS:SEG2, ES:SEG2, SS:SEG2
+	SEGMENT SEG2
+info	DW	1234h
+  	DW	final
+	DW	0DEADh
+	DW	0FACEh
+final:
+	jmp	near CS:40h
+	ENDS
+	END

@@ -5,10 +5,11 @@ BASIC INTEL 8086 ASSEMBLER AND LINKER
 Please see LICENSE.
 
 1. How to build
-2. How to use
-3. Language supported
-4. Design choices
-5. References
+2. How to test
+3. How to use
+4. Language supported
+5. Design choices
+6. References
 
 
 1. HOW TO BUILD
@@ -19,7 +20,20 @@ Visual Studio solution file is included.
 Only configuration x64 Debug is set up.
 
 
-2. HOW TO USE
+2. HOW TO TEST
+--------------
+Unit tests:
+
+  bas -unittest
+  blink -unittest
+
+Functional & system tests:
+
+  change into directory "test"
+  run test.py
+
+
+3. HOW TO USE
 -------------
 Executables in x64\Debug.
 
@@ -64,7 +78,7 @@ EXE tool:
   exetool -c a.exe b.exe    -- compare two EXE files
 
 
-3. LANGUAGE SUPPORTED
+4. LANGUAGE SUPPORTED
 ---------------------
 All 8086 instructions.
 8087 in progress.
@@ -97,7 +111,7 @@ PUBLIC   -- make specified symbols public
 SEGMENT  -- open named segment
 
 
-4. DESIGN CHOICES
+5. DESIGN CHOICES
 -----------------
 1. The aim was simply to write my own assembler and linker from scratch.
 2. Target 16-bit MS-DOS to get something simple working.
@@ -107,8 +121,11 @@ SEGMENT  -- open named segment
 6. Custom object format in order to understand linking.
 
 
-5. REFERENCES
+6. REFERENCES
 -------------
+The single most instructive and inspiring text was David Salomon's "Assemblers
+and Loaders".
+
 Borland "Turbo Assembler Quick Reference", version 4.0, 1993
 Borland "Turbo Assembler User's Guide", version 4.0, 1993
 Intel "iAPX 86/88, 186/188 User's Manual: Programmer's Reference", 1983

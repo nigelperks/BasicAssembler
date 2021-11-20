@@ -1,0 +1,4 @@
+Error: address1.asm: 10: not accessible via any segment register: stuff:
+    mov ax, [stuff]
+                   ^
+Errors: 1
