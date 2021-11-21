@@ -119,13 +119,13 @@ static unsigned instruction(const DECODER* dec, FILE* fp, const DWORD addr, int 
 }
 
 static const INSDEF short_jmp = {
-//  instruc  oper1    oper2    opcodes            +opc R/M reg imm cpu
-    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xEB, 0x00, 0, RMN, 0,  1, P86
+//  instruc  oper1    oper2    opcodes            +opc R/M reg rm imm cpu
+    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xEB, 0x00, 0, RMN, 0,  0, 1, P86
 };
 
 static const INSDEF near_jmp = {
-//  instruc  oper1    oper2    opcodes            +opc R/M reg imm cpu
-    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xE9, 0x00, 0, RMN, 0,  2, P86
+//  instruc  oper1    oper2    opcodes            +opc R/M reg rm imm cpu
+    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xE9, 0x00, 0, RMN, 0,  0, 2, P86
 };
 
 static unsigned fetch_prefixes(FILE*, int first_byte, int *rep, int *sreg_override, int *next, BOOL hex);
