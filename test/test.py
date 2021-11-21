@@ -2,6 +2,7 @@
 # Python 3.
 # Currently specialised in how reference outputs are obtained.
 # Currently not documented.
+# Copyright (c) 2021 Nigel Perks
 
 import os
 import sys
@@ -10,24 +11,21 @@ import filecmp
 from glob import glob
 from copy import copy
 
+from testlib import *
+
 
 ######################
 # GLOBAL FIXED NAMES #
 ######################
 
-TOOLS = ["bas", "blink", "exetool"]
-CONFIG_NAME = "test.cfg"
 LINKING_ERROR_REFERENCE = "a.err"
 DIFFERENCER = "diff"
+SUPPRESS = "Suppress"
 
 
 #####################
 # GENERAL UTILITIES #
 #####################
-
-def fatal(msg):
-  print("FATAL:", msg)
-  sys.exit(1)
 
 def bare_name(p):
   name = os.path.basename(p)
@@ -43,15 +41,6 @@ def extension(p):
     ext = ""
   return ext
 
-def remove(s):
-  if os.path.isfile(s):
-    os.remove(s)
-
-def banner(msg):
-  print((len(msg) + 4) * "*")
-  print("*", msg, "*")
-  print((len(msg) + 4) * "*")
-
 def run(cmd):
   print(">", cmd)
   r = os.system(cmd)
@@ -62,52 +51,6 @@ def check(cmd):
   r = run(cmd)
   if r != 0:
     fatal("command failed: " + cmd)
-
-
-#################
-# CONFIGURATION #
-#################
-
-def find_tool(p, name):
-  p = os.path.abspath(os.path.join(p, name + ".exe"))
-  if not os.path.isfile(p):
-    fatal("Tool not found: " + p)
-  return p
-
-def find_tools(p):
-  tools = {}
-  for t in TOOLS:
-    tools[t] = find_tool(p, t)
-  return tools
-
-def print_tools(tools):
-  for t in TOOLS:
-    print("%s=%s" % (t, tools[t]))
-
-def process_config_line(config, line):
-  L = line.split("=", 1)
-  if len(L) != 2:
-    fatal("Invalid config line: " + line)
-  config[L[0].strip()] = L[1].strip()
-
-def add_config(config, name):
-  with open(name) as f:
-    line = f.readline()
-    while line != "":
-      process_config_line(config, line)
-      line = f.readline()
-
-def print_config(config):
-  for x in config.keys():
-    print(x + "=" + config[x])
-
-def config_on(config, name):
-  if name in config:
-    val = config[name].lower()
-    if val.isdigit():
-      return int(val) > 0
-    return val == "on" or val == "true"
-  return False
 
 
 ########################################
@@ -271,13 +214,14 @@ def test_dir(tools, config, name):
   os.chdir(name)
   if os.path.isfile(CONFIG_NAME):
     add_config(cfg, CONFIG_NAME)
-  if config_on(cfg, "link"):
-    sources = glob("*.asm")
-    if sources != []:
-      test(tools, cfg, sources)
-  else:
-    for x in glob("*.asm"):
-      test(tools, cfg, [x])
+  if not config_on(cfg, SUPPRESS):
+    if config_on(cfg, "link"):
+      sources = glob("*.asm")
+      if sources != []:
+        test(tools, cfg, sources)
+    else:
+      for x in glob("*.asm"):
+        test(tools, cfg, [x])
   for x in glob("*"):
     if os.path.isdir(x):
       test_dir(tools, cfg, x)
@@ -320,17 +264,15 @@ def main(argv):
       clean(argv[2:])
     else:
       fatal("test.py: unrecognised parameters")
-  tools = find_tools(os.path.join("..", "x64", "Debug"))
+
+  tools = find_tools(os.path.join("..", "x64", "Debug"), ["bas","blink","exetool"])
   print_tools(tools)
-  config = {}
-  if os.path.isfile(CONFIG_NAME):
-    add_config(config, CONFIG_NAME)
-  else:
-    print("Warning: no root configuration file:", CONFIG_NAME)
-  print_config(config)
+  config = load_root_config(CONFIG_NAME)
+
   for name in glob("*"):
     if os.path.isdir(name):
       test_dir(tools, config, name)
+
   print()
   print("        *********************")
   print("        *    ALL PASSED!    *")

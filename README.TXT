@@ -32,6 +32,11 @@ Functional & system tests:
   change into directory "test"
   run test.py
 
+Generated tests (if suitable reference assembler & linker are installed):
+
+  change into directory "test"
+  run testgen.py
+
 
 3. HOW TO USE
 -------------
