@@ -113,12 +113,13 @@ SEGMENT  -- open named segment
 
 5. DESIGN CHOICES
 -----------------
-1. The aim was simply to write my own assembler and linker from scratch.
+1. The aim was to write my own assembler and linker from scratch.
 2. Target 16-bit MS-DOS to get something simple working.
 3. Implemented in C so that a future C compiler can compile itself.
 4. Matches Borland Turbo Assembler IDEAL syntax for testing purposes.
-5. Performance is of no particular interest; get it working first.
-6. Custom object format in order to understand linking.
+5. Speed and memory performance of the tools are later tasks, not present aims.
+6. Good quality generated code: optimise jump sizes.
+7. Custom object format in order to understand linking.
 
 
 6. REFERENCES
