@@ -227,6 +227,32 @@ def test_dir(tools, config, name):
       test_dir(tools, cfg, x)
   os.chdir("..")
 
+# Given a test directory or source file, test it
+# by processing the configurations on the path.
+def test_source(tools, config, source):
+  cfg = copy(config)
+  components = source.split(os.sep)
+  saved = os.getcwd()
+  if len(components) > 1:
+    for i, name in enumerate(components[:-1]):
+      if not os.path.isdir(name):
+        fatal("Test directory not found: " + os.sep.join(components[:i+1]))
+      print("Test directory found: " + os.sep.join(components[:i+1]))
+      os.chdir(name)
+      if os.path.isfile(CONFIG_NAME):
+        add_config(cfg, CONFIG_NAME)
+  name = components[-1]
+  if os.path.isdir(name):
+    test_dir(tools, cfg, name)
+  elif os.path.isfile(name):
+    if name.lower().endswith(".asm"):
+      test(tools, cfg, [name])
+    else:
+      fatal("Not a .asm source file: " + source)
+  else:
+    fatal("Not a test directory or source file: " + source)
+  os.chdir(saved)
+
 def clean_file(name):
   ext = extension(name).lower()
   if ext in ["com","exe","obj"] or name in ["err"]:
@@ -258,20 +284,41 @@ def clean(names):
         fatal("Nothing to clean: " + name)
   sys.exit(0)
 
+def help():
+  print("Usage: test.py [--clean] [sources]")
+  sys.exit(1)
+
 def main(argv):
-  if len(argv) > 1:
-    if argv[1] == "-clean":
-      clean(argv[2:])
+  sources = []
+  cleaning = False
+
+  for arg in argv[1:]:
+    if arg[0] == '-':
+      if arg == "-clean" or arg == "--clean":
+        cleaning = True
+      elif arg in ["-?", "-h", "--help"]:
+        help()
+      else:
+        fatal("test.py: unknown option: " + arg)
+    elif arg == "/?":
+      help()
     else:
-      fatal("test.py: unrecognised parameters")
+      sources.append(arg)
+
+  if cleaning:
+    clean(sources)
 
   tools = find_tools(os.path.join("..", "x64", "Debug"), ["bas","blink","exetool"])
   print_tools(tools)
   config = load_root_config(CONFIG_NAME)
 
-  for name in glob("*"):
-    if os.path.isdir(name):
-      test_dir(tools, config, name)
+  if sources == []:
+    for name in glob("*"):
+      if os.path.isdir(name):
+        test_dir(tools, config, name)
+  else:
+    for source in sources:
+      test_source(tools, config, source)
 
   print()
   print("        *********************")
