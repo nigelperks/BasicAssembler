@@ -1,6 +1,6 @@
 // EXE analysis tool
-// Copyright (c) 2021 Nigel Perks
-// exetool options.
+// Copyright (c) 2021-2 Nigel Perks
+// Command line options.
 
 #ifndef OPTIONS_H
 #define OPTIONS_H
@@ -10,6 +10,7 @@
 #include "utils.h"
 
 typedef struct {
+  BOOL help;
   BOOL compare;
   const char* file_name;
   const char* second_file_name;

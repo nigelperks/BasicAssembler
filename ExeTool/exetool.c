@@ -1,5 +1,5 @@
 // EXE analysis tool
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // exetool main.
 
 #include <stdio.h>
@@ -14,6 +14,7 @@
 #include "dump.h"
 #include "loadexe.h"
 
+static void help(void);
 static void dump_exe(const OPTIONS*);
 static void compare_exe(const OPTIONS*);
 
@@ -23,12 +24,32 @@ int main(int argc, char* argv[])
 
     OPTIONS* opt = parse_options(argc, argv);
 
+    if (opt->help)
+      help();
+
     if (opt->compare)
       compare_exe(opt);
     else
       dump_exe(opt);
 
     return 0;
+}
+
+static void help(void) {
+  puts("Usage: exetool [options] file");
+  puts("       exetool -c file1 file2");
+  putchar('\n');
+  puts("-?   help");
+  puts("-A   print data after program image (default)");
+  puts("-a   do not print data after program image");
+  puts("-h   help");
+  puts("-I   dump program image as well as EXE header (default)");
+  puts("-i   do not dump program image");
+  puts("-X   extract program image to raw binary (BIN) and COM files");
+  puts("-x   do not extract program image to files (default)");
+  putchar('\n');
+  puts("-c   compare two EXE files");
+  exit(EXIT_FAILURE);
 }
 
 static int sig_char(int c)

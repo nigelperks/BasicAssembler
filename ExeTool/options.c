@@ -1,11 +1,13 @@
 // EXE analysis tool
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
+// Command line options.
 
 #include <stdlib.h>
 #include <string.h>
 #include "options.h"
 
 static void init_options(OPTIONS* opt) {
+  opt->help = FALSE;
   opt->compare = FALSE;
   opt->file_name = NULL;
   opt->second_file_name = NULL;
@@ -27,9 +29,17 @@ OPTIONS* parse_options(int argc, char* argv[]) {
     const char* a = argv[i];
 
     if (a[0] == '-') {
+      if (a[1] == '-') {
+        if (strcmp(a, "--help") == 0) {
+          opt->help = TRUE;
+          return opt;
+        }
+        fatal("invalid option: %s\n", a);
+      }
       size_t len = strlen(a);
       for (size_t j = 1; j < len; j++) {
         switch (a[j]) {
+          case 'h': case '?': opt->help = TRUE; return opt;
           case 'a': opt->after_image = FALSE; break;
           case 'A': opt->after_image = TRUE; break;
           case 'c': opt->compare = TRUE; break;
@@ -42,12 +52,16 @@ OPTIONS* parse_options(int argc, char* argv[]) {
       }
     }
     else {
-       if (opt->file_name == NULL)
-         opt->file_name = argv[i];
-       else if (opt->second_file_name == NULL)
-         opt->second_file_name = argv[i];
-       else
-         fatal("unexpected argument: %s\n", argv[i]);
+      if (strcmp(a, "/?") == 0) {
+        opt->help = TRUE;
+        return opt;
+      }
+      if (opt->file_name == NULL)
+        opt->file_name = argv[i];
+      else if (opt->second_file_name == NULL)
+        opt->second_file_name = argv[i];
+      else
+        fatal("unexpected argument: %s\n", argv[i]);
     }
   }
 
