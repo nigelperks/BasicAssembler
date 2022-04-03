@@ -2,7 +2,7 @@
 # Python 3.
 # Currently specialised in how reference outputs are obtained.
 # Currently not documented.
-# Copyright (c) 2021 Nigel Perks
+# Copyright (c) 2021-2 Nigel Perks
 
 import os
 import sys
@@ -285,10 +285,12 @@ def clean(names):
   sys.exit(0)
 
 def help():
-  print("Usage: test.py [--clean] [sources]")
+  print("Usage: test.py --clean [sources]")
+  print("       test.py executables-directory [sources]")
   sys.exit(1)
 
 def main(argv):
+  executables = None
   sources = []
   cleaning = False
 
@@ -302,13 +304,18 @@ def main(argv):
         fatal("test.py: unknown option: " + arg)
     elif arg == "/?":
       help()
+    elif executables is None and not cleaning:
+      executables = arg
     else:
       sources.append(arg)
 
   if cleaning:
     clean(sources)
 
-  tools = find_tools(os.path.join("..", "x64", "Debug"), ["bas","blink","exetool"])
+  if executables is None:
+    fatal("Usage: test.py executables-directory [sources]")
+
+  tools = find_tools(executables, ["bas","blink","exetool"])
   print_tools(tools)
   config = load_root_config(CONFIG_NAME)
 

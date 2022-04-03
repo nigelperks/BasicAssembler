@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Lexical analyser.
 
 #include <stdlib.h>
@@ -315,7 +315,7 @@ static void test_discard_line(CuTest* tc) {
   SOURCE* src = NULL;
   LEX* lex = NULL;
 
-  static const char text[] = "crumbly walls are cool";
+  static const char text[] = "this is a test string";
   const unsigned LEN = strlen(text);
 
   src = load_source_mem(text);
@@ -394,7 +394,7 @@ static void test_get_token(CuTest* tc) {
 
 static void test_string(CuTest* tc) {
   LEX lex;
-  const char* STRING = "flarg\nspange\n\\n";
+  const char* STRING = "hello\ngoodbye\n\\n";
   const size_t LEN = strlen(STRING);
   BYTE* buf = NULL;
   size_t len = 0;

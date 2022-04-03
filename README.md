@@ -17,7 +17,8 @@ Please see LICENSE.
 I am using **autocrlf=true** (CRLF on disk, LF committed).
 Developed on Windows with Microsoft Visual Studio Community Edition.
 Visual Studio solution file is included.
-Only configuration x64 Debug is set up.
+Debug builds are configured for both Win 32 (x86) and x64
+but x64 produces several compile-time warnings about sizes of types.
 
 
 ## 2. How to test
@@ -29,13 +30,15 @@ Unit tests:
 
 Functional & system tests:
 
-    change into directory "test"
-    run test.py
+    cd test
+    test.py ..\Debug
 
 Generated tests (if suitable reference assembler & linker are installed):
 
-    change into directory "test"
-    run testgen.py
+    cd test
+    testgen.py ..\Debug
+
+where ..\Debug holds the builds to be tested.
 
 
 ## 3. How to use

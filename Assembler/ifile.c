@@ -175,7 +175,7 @@ void inc_segment_pc(IFILE* ifile, unsigned seg, DWORD size) {
   assert(seg < ifile->nseg);
   ASM_SEGMENT* segment = &ifile->segments[seg];
   if ((DWORD)(-1) - segment->pc < size)
-    fatal("PC gone mad\n");
+    fatal("PC too high\n");
   segment->pc += size;
 }
 

@@ -4,7 +4,7 @@
 # e.g. "ADC r/m8, r8" ~ ("ADC", "r/m8", "r8").
 # Requires the particular third party assembler & linker to generate golden
 # references.
-# Copyright (c) 2021 Nigel Perks
+# Copyright (c) 2021-2 Nigel Perks
 
 # testgen clean       -- delete working subdirectory "temp"
 # testgen list [NAME] -- list all cases, or cases for opcode name
@@ -854,10 +854,16 @@ def main(argv):
       delete_test_dir(TEMP_DIR)
       sys.exit(0)
 
-  if argc > 2:
-    fatal("invalid arguments")
+  if argc < 2 or argc > 3:
+    fatal("Usage: testgen.py executables-directory [pattern]")
 
-  tools = find_tools(os.path.join("..", "x64", "Debug"), ["bas","blink","bdis"])
+  executables = argv[1]
+  pattern = argv[2] if argc >= 3 else None
+
+  if not os.path.isdir(executables):
+    fatal("Usage: testgen.py executables-directory [pattern]")
+
+  tools = find_tools(executables, ["bas","blink","bdis"])
   print_tools(tools)
   config = load_root_config(CONFIG_NAME)
 
@@ -874,12 +880,11 @@ def main(argv):
   with open("test.cfg", "w") as f:
     f.write("Suppress=1\n")
 
-  if argc > 1:
-    arg = argv[1]
-    if arg.isdigit():
-      generate_test_number(int(arg), 1, files)
+  if pattern is not None:
+    if pattern.isdigit():
+      generate_test_number(int(pattern), 1, files)
     else:
-      generate_test_named(arg, files)
+      generate_test_named(pattern, files)
   else:
     generate_no_operand_instructions(None, files)
     generate_instructions_with_operands(files)
