@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // blink main.
 
 #include <stdlib.h>
@@ -21,16 +21,7 @@
 void RunAllTests(void);
 #endif
 
-
-// TODO: put this code, or equivalent, somewhere appropriate.
-#if 0
-  if (ifile->start_label == NO_SYM)
-    fatal("no start symbol\n");
-
-  org = sym_val(ifile->st, ifile->start_label);
-  if (org != 0x100)
-    fatal("incorrect start address: %04Xh\n", org);
-#endif
+static void help(void);
 
 int main(int argc, char* argv[]) {
   STRINGLIST* files = new_stringlist();
@@ -43,7 +34,14 @@ int main(int argc, char* argv[]) {
 
   for (int i = 1; i < argc; i++) {
     const char* arg = argv[i];
+    if (strcmp(arg, "/?") == 0)
+      help();
     if (arg[0] == '-') {
+      if (arg[1] == '-') {
+        if (strcmp(arg+2, "help") == 0)
+          help();
+        fatal("unknown option: %s\n", arg);
+      }
 #ifdef UNIT_TEST
       if (strcmp(arg, "-unittest") == 0) {
         RunAllTests();
@@ -63,10 +61,11 @@ int main(int argc, char* argv[]) {
       }
       else {
         for (int j = 1; arg[j]; j++) {
-          if (arg[j] == 'v')
-            verbose++;
-          else
-            fatal("unknown option: %c\n", arg[j]);
+          switch (arg[j]) {
+            case 'h': case '?': help(); break;
+            case 'v': verbose++; break;
+            default: fatal("unknown option: %c\n", arg[j]); break;
+          }
         }
       }
     }
@@ -125,6 +124,19 @@ int main(int argc, char* argv[]) {
   delete_stringlist(files);
 
   return 0;
+}
+
+static void help(void) {
+  puts("Usage: blink [options] file ...\n");
+  puts("  -?          help");
+  puts("  -fFMT       output format: com, exe");
+  puts("  -h          help");
+  puts("  -o FILE     output file");
+#ifdef UNIT_TEST
+  puts("  -unittest   run unit tests");
+#endif
+  puts("  -vvvv       1-4 verbosity levels");
+  exit(EXIT_FAILURE);
 }
 
 #ifdef UNIT_TEST
