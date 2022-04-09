@@ -66,6 +66,10 @@ Executables in x64\Debug.
       -unittest     -- run unit tests (using CuTest) and quit
       -vvvv         -- 1-4 verbosity levels for debugging the linker
 
+### Basic Object tool
+
+    bob test.obj    -- human-readable dump of custom-format object file
+
 ### Basic Disassembler
 
     bdis test.com   -- disassemble COM file
