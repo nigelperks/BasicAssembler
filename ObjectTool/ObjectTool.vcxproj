@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{af6afe87-523a-4f5d-bd1e-168552ab996a}</ProjectGuid>
-    <RootNamespace>Assembler</RootNamespace>
+    <ProjectGuid>{d8d2ca2a-6e0c-4c28-a605-4d502607eb30}</ProjectGuid>
+    <RootNamespace>ObjectTool</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -73,14 +73,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>bas</TargetName>
+    <TargetName>bob</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>bas</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -89,8 +88,9 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS;UNIT_TEST</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -117,9 +117,8 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS;UNIT_TEST</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\Shared</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -143,32 +142,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="bas.c" />
-    <ClCompile Include="common.c" />
-    <ClCompile Include="encoding.c" />
-    <ClCompile Include="ifile.c" />
-    <ClCompile Include="lexer.c" />
-    <ClCompile Include="options.c" />
-    <ClCompile Include="parse.c" />
-    <ClCompile Include="pass1.c" />
-    <ClCompile Include="resize.c" />
-    <ClCompile Include="source.c" />
-    <ClCompile Include="sourcepass.c" />
-    <ClCompile Include="symbol.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="common.h" />
-    <ClInclude Include="encoding.h" />
-    <ClInclude Include="ifile.h" />
-    <ClInclude Include="lexer.h" />
-    <ClInclude Include="options.h" />
-    <ClInclude Include="parse.h" />
-    <ClInclude Include="pass1.h" />
-    <ClInclude Include="reloc.h" />
-    <ClInclude Include="resize.h" />
-    <ClInclude Include="source.h" />
-    <ClInclude Include="sourcepass.h" />
-    <ClInclude Include="symbol.h" />
+    <ClCompile Include="bob.c" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Update="C:\GitHub\BasicAssembler\Shared\disassemble.c">

@@ -84,10 +84,9 @@ int main(int argc, char* argv[]) {
   SEGMENTED* segmented_program = new_segmented(output_name, case_sensitivity);
 
   for (unsigned i = 0; i < stringlist_count(files); i++) {
-    OFILE* ofile = new_ofile();
     if (verbose)
       printf("Load object file: %s\n", stringlist_item(files, i));
-    load_object_file(ofile, stringlist_item(files, i));
+    OFILE* ofile = load_object_file(stringlist_item(files, i));
 
     SEGMENTED* module_segments = build_module_segments(ofile, case_sensitivity, verbose, stringlist_item(files, i));
 

@@ -8,7 +8,8 @@
 #include "utils.h"
 
 enum object_record_type {
-  OBJ_DATA,
+  OBJ_CODE,
+  OBJ_DS,
   OBJ_DB,
   OBJ_DW,
   OBJ_DD,
@@ -64,6 +65,7 @@ typedef struct {
   }u;
 } OREC;
 
+void dump_orec(const OREC*);
 void print_orec(const OREC*);
 
 typedef struct {
@@ -88,6 +90,6 @@ void emit_object_qword(OFILE*, int type, QWORD);
 void emit_object_data(OFILE*, int type, const BYTE*, unsigned size);
 
 void save_object_file(const OFILE*, const char* filename);
-void load_object_file(OFILE*, const char* filename);
+OFILE* load_object_file(const char* filename);
 
 #endif // OBJECT_H

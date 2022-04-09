@@ -570,7 +570,7 @@ static DWORD generate_byte_data(STATE* state, IFILE* ifile, OFILE* ofile, const 
         break;
       case DB_STR: {
         size_t len = strlen(node->u.str);
-        emit_object_data(ofile, OBJ_DATA, node->u.str, len);
+        emit_object_data(ofile, OBJ_DS, node->u.str, len);
         inc_segment_pc(ifile, state->curseg, len);
         size += len;
         break;
@@ -1028,7 +1028,7 @@ static void process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
     exit(EXIT_FAILURE);
   }
 
-  emit_object_data(ofile, OBJ_DATA, buf, irec->size);
+  emit_object_data(ofile, OBJ_CODE, buf, irec->size);
 
   for (unsigned i = 0; i < relocs.count; i++)
     emit_relocation(state, ifile, relocs.relocs + i, ofile);

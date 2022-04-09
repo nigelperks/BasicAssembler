@@ -210,6 +210,7 @@ static const INSDEF instable[] = {
   { TOK_JS,     OF_JUMP,  OF_NONE,  1, NOPR, 0x78, 0x00, 0,  RMN, 0,  0, 1, P86 },
   { TOK_JZ,     OF_JUMP,  OF_NONE,  1, NOPR, 0x74, 0x00, 0,  RMN, 0,  0, 1, P86 },
 
+//  instruc     oper1     oper2     opcodes             +opc R/M reg rm imm cpu
   { TOK_LAHF,   OF_NONE,  OF_NONE,  1, NOPR, 0x9F, 0x00, 0,  RMN, 0,  0, 0, P86 },
 
   // Optimize LEA r16, [addr] to MOV r16, OFFSET addr

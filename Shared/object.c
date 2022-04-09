@@ -9,6 +9,9 @@
 #include "object.h"
 #include "utils.h"
 
+static const BYTE SIG[] = { 0x43, 0xD0, 0xAB, 0x1F };
+static const BYTE VER[] = { 0x00, 0x00 };
+
 enum object_kind {
   OK_INVALID,
   OK_SIGNAL,
@@ -23,7 +26,8 @@ static const struct {
   const char* name;
   char kind;
 } types[] = {
-  /* OBJ_DATA */                 { "DATA",                 OK_DATA },
+  /* OBJ_CODE */                 { "CODE",                 OK_DATA },
+  /* OBJ_DS */                   { "DS",                   OK_DATA },
   /* OBJ_DB */                   { "DB",                   OK_BYTE },
   /* OBJ_DW */                   { "DW",                   OK_WORD },
   /* OBJ_DD */                   { "DD",                   OK_DWORD },
@@ -68,16 +72,18 @@ static const struct {
 void clear_orec(OREC* rec) {
   assert(rec != NULL);
 
-  if (rec->type == OBJ_DATA) {
-    free(rec->u.data.buf);
-    rec->u.data.buf = NULL;
-    rec->u.data.size = 0;
+  if (rec->type >= 0 && rec->type < sizeof types / sizeof types[0]) {
+    if (types[rec->type].kind == OK_DATA) {
+      free(rec->u.data.buf);
+      rec->u.data.buf = NULL;
+      rec->u.data.size = 0;
+    }
   }
 }
 
-static BOOL all_ascii(const BYTE*, unsigned len);
+static BOOL printable(const BYTE*, unsigned len);
 
-void print_orec(const OREC* rec) {
+void dump_orec(const OREC* rec) {
   assert(rec != NULL);
 
   if (rec->type < 0 || rec->type >= sizeof types / sizeof types[0]) {
@@ -106,25 +112,33 @@ void print_orec(const OREC* rec) {
     case OK_DATA:
       printf(": %u:", (unsigned) rec->u.data.size);
       for (unsigned i = 0; i < rec->u.data.size; i++)
-        printf(" %02x", (unsigned) rec->u.data.buf[i]);    
-      if (all_ascii(rec->u.data.buf, rec->u.data.size)) {
+        printf(" %02x", (unsigned) rec->u.data.buf[i]);
+      if (rec->type == OBJ_CODE)
+        ;
+      else if (printable(rec->u.data.buf, rec->u.data.size)) {
         fputs(": ", stdout);
-        for (unsigned i = 0; i < rec->u.data.size; i++)
-          putchar(rec->u.data.buf[i]);
+        for (unsigned i = 0; i < rec->u.data.size; i++) {
+          int c = rec->u.data.buf[i];
+          putchar(isprint(c) ? c : '.');
+        }
       }
       break;
     default:
       assert(0 && "unknown object record kind");
   }
-
-  fputc('\n', stdout);
 }
 
-static BOOL all_ascii(const BYTE* s, unsigned len) {
-  for (unsigned i = 0; i < len; i++)
-    if (!isascii(s[i]))
-      return FALSE;
+void print_orec(const OREC* rec) {
+  dump_orec(rec);
+  putchar('\n');
+}
 
+static BOOL printable(const BYTE* s, unsigned len) {
+  while (len--) {
+    int c = *s++;
+    if (!isprint(c) && strchr("\t\n\r\b", c) == NULL)
+      return FALSE;
+  }
   return TRUE;
 }
 
@@ -249,12 +263,14 @@ void emit_object_data(OFILE* ofile, int type, const BYTE* buf, unsigned size) {
 }
 
 static void write_sig(FILE*);
+static void write_ver(FILE*);
 static void write_record(FILE*, const OREC*);
 
 void save_object_file(const OFILE* ofile, const char* filename) {
   FILE* fp = efopen(filename, "wb", "writing object file");
 
   write_sig(fp);
+  write_ver(fp);
 
   for (unsigned i = 0; i < ofile->used; i++)
     write_record(fp, ofile->recs + i);
@@ -263,22 +279,29 @@ void save_object_file(const OFILE* ofile, const char* filename) {
 }
 
 static void read_sig(FILE*, const char* filename);
+static void read_ver(FILE*, const char* filename);
 static void read_record(FILE*, const char* filename, int type, OREC*);
 
-void load_object_file(OFILE* ofile, const char* filename) {
+OFILE* load_object_file(const char* filename) {
   FILE* fp = efopen(filename, "rb", "reading object file");
+  OFILE* ofile = new_ofile();
 
   read_sig(fp, filename);
+  read_ver(fp, filename);
 
   int c;
   while ((c = getc(fp)) != EOF)
     read_record(fp, filename, c, next(ofile));
-}
 
-static const BYTE SIG[] = { 0x43, 0x98, 0xAB, 0x1F };
+  return ofile;
+}
 
 static void write_sig(FILE* fp) {
   fwrite(SIG, 1, sizeof SIG, fp);
+}
+
+static void write_ver(FILE* fp) {
+  fwrite(VER, 1, sizeof VER, fp);
 }
 
 static void read_sig(FILE* fp, const char* filename) {
@@ -289,6 +312,16 @@ static void read_sig(FILE* fp, const char* filename) {
 
   if (memcmp(buf, SIG, sizeof SIG) != 0)
     fatal("not a recognised object file: %s\n", filename);
+}
+
+static void read_ver(FILE* fp, const char* filename) {
+  BYTE buf[sizeof VER];
+
+  if (fread(buf, 1, sizeof buf, fp) != sizeof buf)
+    fatal("error reading object file version: %s\n", filename);
+
+  if (memcmp(buf, VER, sizeof VER) != 0)
+    fatal("incompatible object file version: %s\n", filename);
 }
 
 static void putnum(FILE*, QWORD val, unsigned size);

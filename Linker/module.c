@@ -240,7 +240,8 @@ static void process_segment_fragment(STATE* state, const OFILE* ofile, SEGMENTED
         state->segno = NO_SEG;
         state->seg = NULL;
         return;
-      case OBJ_DATA:
+      case OBJ_CODE:
+      case OBJ_DS:
         emit_segment_data(state->seg, rec->u.data.buf, rec->u.data.size);
         break;
       case OBJ_DB:
