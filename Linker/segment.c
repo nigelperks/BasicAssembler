@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Segment-handling in linker.
 
 #include <stdlib.h>

@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Pass to resize jumps as necessary.
 
 #include <stdio.h>
@@ -17,7 +17,6 @@
 #include "instable.h"
 #include "operand.h"
 #include "parse.h"
-#include "reloc.h"
 
 static BOOL process_irec(STATE*, IFILE*, LEX*);
 
@@ -95,7 +94,8 @@ static void define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
     error2(state, lex, "phase error: label in unexpected segment: %s", sym_name(ifile->st, irec->label));
   else {
     unsigned data_size = token_data_size(irec->op);
-    sym_define_relative(ifile->st, irec->label, state->curseg, data_size, segment_pc(ifile, state->curseg));
+    DWORD val = segment_pc(ifile, state->curseg);
+    sym_define_relative(ifile->st, irec->label, state->curseg, data_size, val);
   }
 }
 
@@ -415,7 +415,8 @@ static long signed_displacement(DWORD from, DWORD to) {
   return to - from; // TODO: can this be made more portable?
 }
 
-static unsigned rm_disp_len(IFILE*, const OPERAND*);
+static unsigned rm_disp_len(STATE*, IFILE*, const OPERAND*);
+
 static unsigned instruction_segment_override_size(STATE*, IFILE*, IREC*, LEX*, const OPERAND* oper1, const OPERAND* oper2);
 
 static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
@@ -450,12 +451,12 @@ static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
     irec->size += 1;
     switch (irec->def->modrm) {
       case RRM:
-        irec->size += rm_disp_len(ifile, oper2);
+        irec->size += rm_disp_len(state, ifile, oper2);
         break;
       case RMR:
       case RMC:
       case MMC:
-        irec->size += rm_disp_len(ifile, oper1);
+        irec->size += rm_disp_len(state, ifile, oper1);
         break;
       case SIS:
       case SSI:
@@ -595,12 +596,17 @@ static BOOL addressable_at_all(STATE* state, IFILE* ifile, SEGNO symbol_seg, int
   return FALSE;
 }
 
-static long known_displacement(IFILE*, const struct mem * const, BOOL *extrn);
+static unsigned disp_length(long disp, unsigned min) {
+  if (disp == 0)
+    return min;
 
-static unsigned rm_disp_len(IFILE* ifile, const OPERAND* op) {
-  const struct mem * const m = &op->val.mem;
-  long disp;
+  if (disp >= -0x80 && disp < 0x80)
+    return 1;
 
+  return 2;
+}
+
+static unsigned rm_disp_len(STATE* state, IFILE* ifile, const OPERAND* op) {
   assert(ifile != NULL);
   assert(op != NULL);
   assert(op->type == OT_MEM || op->type == OT_REG);
@@ -611,50 +617,42 @@ static unsigned rm_disp_len(IFILE* ifile, const OPERAND* op) {
   if (op->type != OT_MEM)
     fatal("internal: compute_rm: unexpected operand type\n");
 
+  const struct mem * const m = &op->val.mem;
+
   // [addr]
   if (m->base_reg == NO_REG && m->index_reg == NO_REG) {
     assert(m->disp_type != NO_DISP);
     return 2;
   }
 
-  if (m->disp_type == NO_DISP) {
-    if (m->base_reg == REG_BP && m->index_reg == NO_REG) // [BP]
-      return 1;
-    return 0;
-  }
+  unsigned min = (m->base_reg == REG_BP && m->index_reg == NO_REG) ? 1 : 0;
 
-  BOOL extrn = FALSE;
-  disp = known_displacement(ifile, m, &extrn);
-  if (extrn)
-    return 2;
-  if (disp == 0) {
-    if (m->base_reg == REG_BP && m->index_reg == NO_REG) // [BP]
-      return 1;
-    return 0;    
-  }
-  return (disp >= -0x80 && disp < 0x80) ? 1 : 2;
-}
+  if (m->disp_type == NO_DISP)
+    return min;
 
-static long known_displacement(IFILE* ifile, const struct mem * const m, BOOL *extrn) {
-  unsigned long val;
+  // [...+disp]
 
-  assert(ifile != NULL);
-  assert(m != NULL);
-  assert(m->disp_type != NO_DISP);
+  // Either the displacement is length 2 because the symbol is external or relocatable,
+  // or the length is calculated from its value.
 
-  if (m->disp_type == ABS_DISP) {
-    *extrn = FALSE;
-    return m->disp.sval;
-  }
+  if (m->disp_type == ABS_DISP)
+    return disp_length(m->disp.sval, min);
 
   assert(m->disp_type == REL_DISP);
-  assert(sym_defined(ifile->st, m->disp.label));
+  assert(m->disp.label != NO_SYM);
   assert(sym_type(ifile->st, m->disp.label) == SYM_RELATIVE);
+  assert(sym_defined(ifile->st, m->disp.label));
 
-  *extrn = sym_external(ifile->st, m->disp.label);
+  if (sym_external(ifile->st, m->disp.label))
+    return 2;
 
-  val = sym_relative_value(ifile->st, m->disp.label);
-  if (val > LONG_MAX)
-    fatal("address out of range for signed displacement\n");
-  return val;
+  if (relocatable_relative(ifile, m->disp.label))
+    return 2;
+
+  DWORD val = sym_relative_value(ifile->st, m->disp.label);
+  if (val > LONG_MAX) {
+    error(state, ifile, "address out of range for signed displacement\n");
+    return min;
+  }
+  return disp_length(val, min);
 }

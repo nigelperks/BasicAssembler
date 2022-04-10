@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Intermediate file.
 
 #ifndef IFILE_H
@@ -74,6 +74,8 @@ BOOL segment_public(const IFILE*, unsigned seg);
 void set_segment_public(IFILE*, unsigned seg);
 BOOL segment_stack(const IFILE*, unsigned seg);
 void set_segment_stack(IFILE*, unsigned seg);
+
+BOOL relocatable_relative(const IFILE*, SYMBOL_ID);
 
 unsigned group_count(const IFILE*);
 int create_group(IFILE*, const char* name);

@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Resolve fixups.
 
 #include <assert.h>
@@ -54,15 +54,10 @@ static BOOL resolve_external(unsigned i, const FIXUP* e, SYMTAB* st, SEGMENT_LIS
   assert(segs != NULL);
 
   if (verbose >= 3)
-    printf("EXTUSE %u: in seg %u at 0x%04x (%u bytes): symbol %d: %s: value 0x%04x\n",
+    printf("EXTUSE %u: in seg %u at 0x%04x: symbol %d: %s: value 0x%04x\n",
         i,
-        (unsigned) e->holding_seg, (unsigned) e->holding_offset, (unsigned) e->holding_len,
+        (unsigned) e->holding_seg, (unsigned) e->holding_offset,
         (int) e->u.ext.id, sym_name(st, e->u.ext.id), (unsigned) sym_offset(st, e->u.ext.id));
-
-  if (e->holding_len != 2) {
-    fprintf(stderr, "External offset is not of WORD length: %s\n", sym_name(st, e->u.ext.id));
-    return FALSE;
-  }
 
   SEGMENT* seg = get_segment(segs, e->holding_seg);
   if (seg->hi < 2 || e->holding_offset > seg->hi - 2) {
@@ -83,7 +78,7 @@ static BOOL resolve_external(unsigned i, const FIXUP* e, SYMTAB* st, SEGMENT_LIS
       return FALSE;
     }
 
-    DWORD eoi = e->holding_offset + e->holding_len;
+    DWORD eoi = e->holding_offset + 2;
     long disp = (long)sym_offset(st, e->u.ext.id) - (long)eoi;
     WORD val = (WORD) disp;
     if (verbose >= 3)
@@ -107,7 +102,7 @@ static BOOL resolve_group_absolute_jump(unsigned j, const FIXUP* fix, SEGMENT_LI
   // Work out jump displacement to the destination offset value within the group.
   SEGMENT* holding_seg = get_segment(segs, fix->holding_seg);
   WORD target = read_word_le(seg_data(holding_seg) + fix->holding_offset);
-  long disp = (long)target - (long)(fix->holding_offset + fix->holding_len);
+  long disp = (long)target - (long)(fix->holding_offset + 2);
   if (disp <= -10000L || disp >= 10000L) {
     fprintf(stderr, "displacement to group absolute offset is out of 16-bit range\n");
     return FALSE;
@@ -155,38 +150,33 @@ static void test_resolve_external(CuTest* tc) {
 
   // Inter-segment data fixup
   int data0_sym = sym_insert_public(st, "AAA", s0, 0x1234);
-  int ext_interseg_data = add_external_fixup(ext, s1, 0x08, 2, data0_sym, FALSE);
+  int ext_interseg_data = add_external_fixup(ext, s1, 0x08, data0_sym, FALSE);
   succ = resolve_external(ext_interseg_data, fixup(ext, ext_interseg_data), st, segs, verbose);
   CuAssertIntEquals(tc, FALSE, succ);
 
   // Inter-segment jump fixup
   int jump0_sym = sym_insert_public(st, "BBB", s0, 0x567d);
-  int ext_interseg_jump = add_external_fixup(ext, s1, 0x10, 2, jump0_sym, TRUE);
+  int ext_interseg_jump = add_external_fixup(ext, s1, 0x10, jump0_sym, TRUE);
   succ = resolve_external(ext_interseg_jump, fixup(ext, ext_interseg_jump), st, segs, verbose);
   CuAssertIntEquals(tc, FALSE, succ);
 
-  // Offset length != 2
-  int ext_bad_length = add_external_fixup(ext, s0, 0x04, 4, data0_sym, FALSE);
-  succ = resolve_external(ext_bad_length, fixup(ext, ext_bad_length), st, segs, verbose);
-  CuAssertIntEquals(tc, FALSE, succ);
-
   // Offset beyond segment
-  int ext_beyond = add_external_fixup(ext, s0, sizeof DATA0 - 1, 2, data0_sym, FALSE);
+  int ext_beyond = add_external_fixup(ext, s0, sizeof DATA0 - 1, data0_sym, FALSE);
   succ = resolve_external(ext_beyond, fixup(ext, ext_beyond), st, segs, verbose);
   CuAssertIntEquals(tc, FALSE, succ);
 
   // Data reference contents are not initially zero
-  int ext_data_bad_contents = add_external_fixup(ext, s0, 8, 2, data0_sym, FALSE);
+  int ext_data_bad_contents = add_external_fixup(ext, s0, 8, data0_sym, FALSE);
   succ = resolve_external(ext_data_bad_contents, fixup(ext, ext_data_bad_contents), st, segs, verbose);
   CuAssertIntEquals(tc, FALSE, succ);
 
   // Jump reference contents are not initially zero
-  int ext_jump_bad_contents = add_external_fixup(ext, s0, 8, 2, jump0_sym, TRUE);
+  int ext_jump_bad_contents = add_external_fixup(ext, s0, 8, jump0_sym, TRUE);
   succ = resolve_external(ext_jump_bad_contents, fixup(ext, ext_jump_bad_contents), st, segs, verbose);
   CuAssertIntEquals(tc, FALSE, succ);
 
   // Fixup data reference
-  int ext_data_good = add_external_fixup(ext, s0, 7, 2, data0_sym, FALSE);
+  int ext_data_good = add_external_fixup(ext, s0, 7, data0_sym, FALSE);
   succ = resolve_external(ext_data_good, fixup(ext, ext_data_good), st, segs, verbose);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, 0x12, seg0->data[8]);
@@ -194,7 +184,7 @@ static void test_resolve_external(CuTest* tc) {
 
   // Fixup jump reference: displacement from end of instruction (end of offset location) to symbol
   // From 13 to 0x567d is 0x5670
-  int ext_jump_good = add_external_fixup(ext, s0, 11, 2, jump0_sym, TRUE);
+  int ext_jump_good = add_external_fixup(ext, s0, 11, jump0_sym, TRUE);
   succ = resolve_external(ext_jump_good, fixup(ext, ext_jump_good), st, segs, verbose);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, 0x56, seg0->data[12]);

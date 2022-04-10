@@ -26,7 +26,15 @@ unsigned token_data_size(int tok);
 
 BOOL parse_operands(STATE*, IFILE*, LEX*, OPERAND* op1, OPERAND* op2);
 
-enum expression_type { ET_ERR, ET_ABS, ET_REL, ET_STR, ET_SEC, ET_SEG, ET_OFFSET };
+enum expression_type {
+  ET_ERR,    // invalid expression
+  ET_ABS,    // absolute symbol or number literal
+  ET_REL,    // relative symbol
+  ET_STR,    // '...' or "..."
+  ET_SEC,    // section (segment or group) name
+  ET_SEG,    // SEG name
+  ET_OFFSET  // OFFSET name
+};
 
 #define MAX_EXPR_STR (128)
 

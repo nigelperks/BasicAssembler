@@ -164,7 +164,6 @@
     <ClInclude Include="options.h" />
     <ClInclude Include="parse.h" />
     <ClInclude Include="pass1.h" />
-    <ClInclude Include="reloc.h" />
     <ClInclude Include="resize.h" />
     <ClInclude Include="source.h" />
     <ClInclude Include="sourcepass.h" />

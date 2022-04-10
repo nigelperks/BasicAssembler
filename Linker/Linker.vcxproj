@@ -147,11 +147,11 @@
     <ClCompile Include="combine.c" />
     <ClCompile Include="consolidate.c" />
     <ClCompile Include="exefile.c" />
+    <ClCompile Include="fixup.c" />
     <ClCompile Include="format.c" />
     <ClCompile Include="grouplist.c" />
     <ClCompile Include="image.c" />
     <ClCompile Include="module.c" />
-    <ClCompile Include="offset_info.c" />
     <ClCompile Include="output.c" />
     <ClCompile Include="resolve.c" />
     <ClCompile Include="seglist.c" />
@@ -163,11 +163,11 @@
     <ClInclude Include="combine.h" />
     <ClInclude Include="consolidate.h" />
     <ClInclude Include="exefile.h" />
+    <ClInclude Include="fixup.h" />
     <ClInclude Include="format.h" />
     <ClInclude Include="grouplist.h" />
     <ClInclude Include="image.h" />
     <ClInclude Include="module.h" />
-    <ClInclude Include="offset_info.h" />
     <ClInclude Include="output.h" />
     <ClInclude Include="resolve.h" />
     <ClInclude Include="seglist.h" />

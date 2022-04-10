@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Segmented program: segments, groups, symbols.
 
 #ifndef SEGMENTED_H
@@ -7,7 +7,7 @@
 
 #include "seglist.h"
 #include "grouplist.h"
-#include "offset_info.h"
+#include "fixup.h"
 
 typedef struct {
   SEGNO segno;

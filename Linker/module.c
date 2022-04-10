@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // The logic for processing one object module,
 // using the mechanisms of OFILE and SEGMENTS.
 
@@ -307,7 +307,6 @@ static void process_offset_info(STATE* state, const OFILE* ofile, SEGMENTED* seg
   assert(rec->type == OBJ_BEGIN_OFFSET);
 
   WORD offset_pos = 0;
-  unsigned offset_len = 0;
   BOOL have_pos = FALSE;
   SEGNO offset_segno = NO_SEG;
 
@@ -321,20 +320,13 @@ static void process_offset_info(STATE* state, const OFILE* ofile, SEGMENTED* seg
       case OBJ_END_OFFSET:
         if (!have_pos)
           fatal("offset information does not specify position\n");
-        if (offset_len == 0)
-          fatal("offset information does not specify length\n");
         if (offset_segno == NO_SEG)
           fatal("offset information does not specify segment number\n");
-        add_offset_fixup(segs->fixups, state->segno, offset_pos, offset_len, offset_segno);
+        add_offset_fixup(segs->fixups, state->segno, offset_pos, offset_segno);
         return;
       case OBJ_POS:
         offset_pos = objword(rec);
         have_pos = TRUE;
-        break;
-      case OBJ_LEN1:
-        if (objbyte(rec) != 1 && objbyte(rec) != 2)
-          fatal("unexpected offset length: %u\n", (unsigned) objbyte(rec));
-        offset_len = (WORD) objbyte(rec);
         break;
       case OBJ_SEGNO:
         offset_segno = objbyte(rec);
@@ -361,7 +353,6 @@ static void process_extern_use(STATE* state, const OFILE* ofile, SEGMENTED* segs
 
   WORD offset_pos = 0;
   BOOL have_pos = FALSE;
-  unsigned offset_len = 0;
   int ext_id = NO_SYM;
   BOOL jump = FALSE;
 
@@ -375,22 +366,15 @@ static void process_extern_use(STATE* state, const OFILE* ofile, SEGMENTED* segs
       case OBJ_END_EXTRN_USE:
         if (!have_pos)
           fatal("external use does not specify position\n");
-        if (offset_len == 0)
-          fatal("external use does not specify length\n");
         if (ext_id == NO_SYM)
           fatal("external use does not specify symbol ID\n");
         if (ext_id < 0 || ext_id >= (int) sym_count(segs->st))
           fatal("external use ID out of range\n");
-        add_external_fixup(segs->fixups, state->segno, offset_pos, offset_len, ext_id, jump);
+        add_external_fixup(segs->fixups, state->segno, offset_pos, ext_id, jump);
         return;
       case OBJ_POS:
         offset_pos = objword(rec);
         have_pos = TRUE;
-        break;
-      case OBJ_LEN1:
-        if (objbyte(rec) != 1 && objbyte(rec) != 2)
-          fatal("unexpected offset length: %u\n", (unsigned) objbyte(rec));
-        offset_len = objbyte(rec);
         break;
       case OBJ_ID:
         ext_id = objword(rec);
@@ -582,7 +566,6 @@ static void process_group_absolute_jump(STATE* state, const OFILE* ofile, SEGMEN
 
   WORD offset_pos = 0;
   BOOL have_pos = FALSE;
-  unsigned offset_len = 0;
   GROUPNO groupno = NO_GROUP;
 
   for (state->pos++; state->pos < ofile->used; state->pos++) {
@@ -595,22 +578,15 @@ static void process_group_absolute_jump(STATE* state, const OFILE* ofile, SEGMEN
       case OBJ_END_GROUP_ABS_JUMP:
         if (!have_pos)
           fatal("group absolute jump does not specify position\n");
-        if (offset_len == 0)
-          fatal("group absolute jump does not specify length\n");
         if (groupno == NO_GROUP)
           fatal("group absolute jump does not specify group number\n");
         if (groupno < 0 || groupno >= group_list_count(segs->groups))
           fatal("group number out of range\n");
-        add_group_absolute_jump_fixup(segs->fixups, state->segno, offset_pos, offset_len, groupno);
+        add_group_absolute_jump_fixup(segs->fixups, state->segno, offset_pos, groupno);
         return;
       case OBJ_POS:
         offset_pos = objword(rec);
         have_pos = TRUE;
-        break;
-      case OBJ_LEN1:
-        if (objbyte(rec) != 1 && objbyte(rec) != 2)
-          fatal("unexpected offset length: %u\n", (unsigned) objbyte(rec));
-        offset_len = objbyte(rec);
         break;
       case OBJ_GROUPNO:
         groupno = objbyte(rec);
@@ -635,7 +611,6 @@ static void process_segment_address_use(STATE* state, const OFILE* ofile, SEGMEN
 
   WORD pos = 0;
   BOOL have_pos = FALSE;
-  unsigned len = 0;
   SEGNO segno = NO_SEG;
 
   for (state->pos++; state->pos < ofile->used; state->pos++) {
@@ -648,20 +623,13 @@ static void process_segment_address_use(STATE* state, const OFILE* ofile, SEGMEN
       case OBJ_END_SEG_ADDR:
         if (!have_pos)
           fatal("segment address use does not specify position\n");
-        if (len == 0)
-          fatal("segment address use does not specify length\n");
         if (segno == NO_SEG)
           fatal("segment address use does not specify segment number\n");
-        add_segment_fixup(segs->fixups, state->segno, pos, len, segno);
+        add_segment_fixup(segs->fixups, state->segno, pos, segno);
         return;
       case OBJ_POS:
         pos = objword(rec);
         have_pos = TRUE;
-        break;
-      case OBJ_LEN1:
-        if (objbyte(rec) != 2)
-          fatal("unexpected offset length: %u\n", (unsigned) objbyte(rec));
-        len = (WORD) objbyte(rec);
         break;
       case OBJ_SEGNO:
         if (objbyte(rec) >= segment_list_count(segs->segs))
@@ -688,7 +656,6 @@ static void process_group_address_use(STATE* state, const OFILE* ofile, SEGMENTE
 
   WORD pos = 0;
   BOOL have_pos = FALSE;
-  unsigned len = 0;
   GROUPNO groupno = NO_GROUP;
 
   for (state->pos++; state->pos < ofile->used; state->pos++) {
@@ -701,20 +668,13 @@ static void process_group_address_use(STATE* state, const OFILE* ofile, SEGMENTE
       case OBJ_END_GROUP_ADDR:
         if (!have_pos)
           fatal("group address use does not specify position\n");
-        if (len == 0)
-          fatal("group address use does not specify length\n");
         if (groupno == NO_GROUP)
           fatal("group address use does not specify group number\n");
-        add_group_fixup(segs->fixups, state->segno, pos, len, groupno);
+        add_group_fixup(segs->fixups, state->segno, pos, groupno);
         return;
       case OBJ_POS:
         pos = objword(rec);
         have_pos = TRUE;
-        break;
-      case OBJ_LEN1:
-        if (objbyte(rec) != 2)
-          fatal("unexpected offset length: %u\n", (unsigned) objbyte(rec));
-        len = (WORD) objbyte(rec);
         break;
       case OBJ_GROUPNO:
         if (objbyte(rec) >= group_list_count(segs->groups))

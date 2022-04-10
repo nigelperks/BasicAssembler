@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Intermediate file.
 
 #include <stdlib.h>
@@ -202,6 +202,21 @@ void set_segment_public(IFILE* ifile, unsigned seg) {
   assert(ifile != NULL);
   assert(seg < ifile->nseg);
   ifile->segments[seg].public = TRUE;
+}
+
+BOOL relocatable_relative(const IFILE* ifile, SYMBOL_ID id) {
+  assert(ifile != NULL);
+  assert(ifile->st != NULL);
+  assert(id >= 0 && (unsigned)id < ifile->st->used);
+  if (sym_type(ifile->st, id) == SYM_RELATIVE) {
+    SEGNO segno = sym_seg(ifile->st, id);
+    if (segno >= 0 && segno < (SEGNO)ifile->nseg) {
+      const ASM_SEGMENT* seg = &ifile->segments[segno];
+      if (seg->public || seg->group != NO_GROUP)
+        return TRUE;
+    }
+  }
+  return FALSE;
 }
 
 BOOL segment_stack(const IFILE* ifile, unsigned seg) {

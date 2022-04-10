@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Build program image.
 
 #include <stdlib.h>
@@ -81,26 +81,49 @@ static void pad_image_to_paragraph(IMAGE* image) {
   }
 }
 
+#define ADDRESS_SPACE (16ul * (WORD)(-1))
+
+// set_start:
+// called when adding to the image the program segment containing the start address:
+// initial IP = offset of start address in that program segment
+//            = prog_start->offset
+// initial CS = physical segment address (paragraph) of that program segment in the image
+//            = paragraph number of top of image before adding the segment
+//            = image->hi / 16
+// So this function does not use prog_start->segno.
+// That is a program segment number, not a physical segment for the image initial CS.
+// That segment number is used when deciding to call this function, not for writing the image.
 static void set_start(IMAGE* image, const START* prog_start, const SEGMENT* start_seg) {
   assert(prog_start->offset < seg_hi(start_seg));
-  if (image->hi >= 16 * (WORD)(-1))
+  if (image->hi >= ADDRESS_SPACE)
     fatal("image start address is out of range\n");
-  if (16 * (WORD)(-1) - image->hi < seg_hi(start_seg))
+  if (ADDRESS_SPACE - image->hi < seg_hi(start_seg))
     fatal("image becomes too big for start\n");
   image->start.seg = (WORD) (image->hi / 16);
   image->start.offset = (WORD) prog_start->offset;
   image->start.set = TRUE;
 }
 
+// set_stack:
+// called when adding to the image the program segment containing the stack:
+// initial SP = stack size
+//            = prog_stack->size
+// initial SS = physical segment address (paragraph) of base of stack
+//            = paragraph number of top of image before adding the segment
+//                  plus offset of stack within the segment
+//            = (image->hi + prog_stack->offset) / 16
+// So this function does not use prog_stack->segno.
+// That is a program segment number, not a physical segment for the image initial CS.
+// That segment number is used when deciding to call this function, not for writing the image.
 static void set_stack(IMAGE* image, const STACK* prog_stack, const SEGMENT* seg) {
   assert(prog_stack->offset < seg_hi(seg));
   assert(seg_hi(seg) - prog_stack->offset <= prog_stack->size);
   assert(image->hi % 16 == 0);
   assert(prog_stack->offset % 16 == 0);
 
-  if (image->hi >= 16 * (WORD)(-1))
-    fatal("image start address is out of range\n");
-  if (16 * (WORD)(-1) - image->hi < seg_hi(seg))
+  if (image->hi >= ADDRESS_SPACE)
+    fatal("image stack address is out of range\n");
+  if (ADDRESS_SPACE - image->hi < seg_hi(seg))
     fatal("image becomes too big for stack\n");
   image->stack.seg = (WORD) ((image->hi + prog_stack->offset) / 16);
   image->stack.size = prog_stack->size;
@@ -149,9 +172,8 @@ static void resolve_segment_fixup(IMAGE* image, FIXUP* p, unsigned i, VECTOR* ba
     printf("FIXUP %u: addressed seg addr 0x%04x\n", i, (unsigned)addressed_seg_addr);
   if (addressed_seg_addr > (WORD)(-1))
     fatal("addressed segment is out of 16-bit range\n");
-  assert(p->holding_len == 2);
   DWORD image_addr = holding_base + p->holding_offset;
-  assert(image->hi > image_addr && image->hi - image_addr >= p->holding_len);
+  assert(image->hi > image_addr && image->hi - image_addr >= 2);
   write_word_le(image->data + image_addr, (WORD)addressed_seg_addr);
 }
 
@@ -180,9 +202,8 @@ static void resolve_group_fixup(IMAGE* image, FIXUP* p, unsigned i, VECTOR* base
     printf("FIXUP %u: addressed seg addr 0x%04x\n", i, (unsigned)addressed_seg_addr);
   if (addressed_seg_addr > (WORD)(-1))
     fatal("addressed segment is out of 16-bit range\n");
-  assert(p->holding_len == 2);
   DWORD image_addr = holding_base + p->holding_offset;
-  assert(image->hi > image_addr && image->hi - image_addr >= p->holding_len);
+  assert(image->hi > image_addr && image->hi - image_addr >= 2);
   write_word_le(image->data + image_addr, (WORD)addressed_seg_addr);
 }
 

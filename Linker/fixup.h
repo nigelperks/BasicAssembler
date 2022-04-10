@@ -1,12 +1,18 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
-// Offset information for fixing up inter-segment access.
+// Copyright (c) 2021-2 Nigel Perks
+// Information for fixing up inter-segment access.
 
-#ifndef OFFSET_INFO_H
-#define OFFSET_INFO_H
+#ifndef FIXUP_H
+#define FIXUP_H
 
 #include "utils.h"
 #include "symbol.h"
+
+// A fixup is information about a segment address or offset address.
+// The fixup allows the segment address or offset address to be adjusted during linking.
+// For example if program segment A is combined with program segment B,
+// by appending A to B, to be addressed by the same segment register,
+// then offsets into A must be increased by the size of B.
 
 enum fixup_type {
   FT_OFFSET,  // location holds offset in segment, to be adjusted as segment gets combined
@@ -18,15 +24,10 @@ enum fixup_type {
 
 const char* fixup_type_name(int);
 
-// Information about an offset that occurs somewhere among a program's segments.
-// The other piece of data pertaining to an offset occurrence is the offset
-// addressed by the occurrence: that is the value at the specified location,
-// not a field of this metadata.
-struct fixup {
+typedef struct fixup {
   short type;
   SEGNO holding_seg;   // segment where the offset value is being held
   WORD holding_offset; // offset at which the offset value is being held
-  unsigned short holding_len; // length of offset value (1 or 2 bytes)
   union {
     // FT_OFFSET
     SEGNO addressed_segno; // segment addressed by the offset
@@ -49,9 +50,7 @@ struct fixup {
       WORD holding_seg_addr;
     } group;
   } u;
-};
-
-typedef struct fixup FIXUP;
+} FIXUP;
 
 typedef struct {
   FIXUP* offsets;
@@ -69,19 +68,14 @@ size_t segment_and_group_fixups(const FIXUPS*);
 
 void append_fixups(FIXUPS* dest, FIXUPS* source);
 
-FIXUP* add_offset_fixup(FIXUPS*, SEGNO holding_seg, WORD holding_offset,
-    short holding_len, SEGNO addressed_seg);
+FIXUP* add_offset_fixup(FIXUPS*, SEGNO holding_seg, WORD holding_offset, SEGNO addressed_seg);
 
-int add_external_fixup(FIXUPS*, SEGNO holding_seg, WORD holding_offset,
-    short holding_len, SYMBOL_ID, BOOL jump);
+int add_external_fixup(FIXUPS*, SEGNO holding_seg, WORD holding_offset, SYMBOL_ID, BOOL jump);
 
-void add_group_absolute_jump_fixup(FIXUPS*, SEGNO holding_seg, WORD holding_offset,
-    short holding_len, GROUPNO);
+void add_group_absolute_jump_fixup(FIXUPS*, SEGNO holding_seg, WORD holding_offset, GROUPNO);
 
-int add_segment_fixup(FIXUPS*, SEGNO holding_seg, WORD holding_offset,
-    short holding_len, SEGNO addressed_seg);
+int add_segment_fixup(FIXUPS*, SEGNO holding_seg, WORD holding_offset, SEGNO addressed_seg);
 
-int add_group_fixup(FIXUPS* p, SEGNO holding_seg, WORD holding_offset,
-    short holding_len, GROUPNO addressed_groupno);
+int add_group_fixup(FIXUPS* p, SEGNO holding_seg, WORD holding_offset, GROUPNO addressed_groupno);
 
-#endif // OFFSET_INFO_H
+#endif // FIXUP_H

@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Consolidate segmented program into groups.
 
 #include <stdlib.h>
@@ -143,7 +143,6 @@ static void update_fixups(SEGMENTED* prog, SEGNO source_segno, SEGNO dest_segno,
 
   for (unsigned j = 0; j < fixups_count(prog->fixups); j++) {
     FIXUP* i = fixup(prog->fixups, j);
-    assert(i->holding_len == 2);
 
     if (verbose >= 3) {
       printf("FIXUP %u: %s: in seg %d at 0x%04x",
@@ -274,13 +273,13 @@ static void test_update_offsets(CuTest* tc) {
   seg1->pc = LO1;
   emit_segment_data(seg1, DATA1, sizeof DATA1);
 
-  // add_global_offset_info(info, holding_seg, holding_offset, holding_len, addressed_seg)
+  // add_offset_fixup(info, holding_seg, holding_offset, addressed_seg)
 
-  FIXUP* offset0 = add_offset_fixup(prog->fixups, 0, LO0 + 2, 2, 0); // 0x6453 in 0 addressing 0
-  FIXUP* offset1 = add_offset_fixup(prog->fixups, 0, LO0 + 7, 2, 1); // 0xb9a8 in 0 addressing 1
+  FIXUP* offset0 = add_offset_fixup(prog->fixups, 0, LO0 + 2, 0); // 0x6453 in 0 addressing 0
+  FIXUP* offset1 = add_offset_fixup(prog->fixups, 0, LO0 + 7, 1); // 0xb9a8 in 0 addressing 1
 
-  FIXUP* offset2 = add_offset_fixup(prog->fixups, 1, LO1 + 0, 2, 1); // 0x8E8F in 1 addressing 1
-  FIXUP* offset3 = add_offset_fixup(prog->fixups, 1, LO1 + 8, 2, 0); // 0x8687 in 1 addressing 0
+  FIXUP* offset2 = add_offset_fixup(prog->fixups, 1, LO1 + 0, 1); // 0x8E8F in 1 addressing 1
+  FIXUP* offset3 = add_offset_fixup(prog->fixups, 1, LO1 + 8, 0); // 0x8687 in 1 addressing 0
 
   static WORD BASE = 0x100;
 
@@ -337,11 +336,11 @@ static void test_update_externals(CuTest* tc) {
 
   // add_external_fixup(fixups, segno, offset_pos, offset_len, id, jump)
 
-  int e0 = add_external_fixup(prog->fixups, 0, LO0 + 3, 2, 11, FALSE);
-  int e1 = add_external_fixup(prog->fixups, 0, LO0 + 8, 2, 12, TRUE);
+  int e0 = add_external_fixup(prog->fixups, 0, LO0 + 3, 11, FALSE);
+  int e1 = add_external_fixup(prog->fixups, 0, LO0 + 8, 12, TRUE);
 
-  int e2 = add_external_fixup(prog->fixups, 1, LO1 + 4, 2, 13, FALSE);
-  int e3 = add_external_fixup(prog->fixups, 1, LO1 + 6, 2, 14, TRUE);
+  int e2 = add_external_fixup(prog->fixups, 1, LO1 + 4, 13, FALSE);
+  int e3 = add_external_fixup(prog->fixups, 1, LO1 + 6, 14, TRUE);
 
   const WORD BASE = 0x100;
 

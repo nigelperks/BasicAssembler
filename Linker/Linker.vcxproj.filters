@@ -42,9 +42,6 @@
     <ClCompile Include="consolidate.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="offset_info.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="symbol.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -58,6 +55,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="combine.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="fixup.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -80,9 +80,6 @@
     <ClInclude Include="grouplist.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="offset_info.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="combine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -102,6 +99,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="output.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="fixup.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

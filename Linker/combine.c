@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Incorporate module into program and combine public segments.
 
 #include <stdlib.h>
@@ -268,16 +268,12 @@ static void retarget_module_fixups_to_program(FIXUPS* module_fixups,
   for (unsigned j = 0; j < fixups_count(module_fixups); j++) {
     FIXUP* i = fixup(module_fixups, j);
 
-    if (i->holding_len != 2)
-      fatal("fixup length != 2\n"); // TODO: decent message
-
     assert(i->holding_seg >= 0 && i->holding_seg < (int) module_to_program_seg_map->size);
-    assert(i->holding_len == 2);
 
     if (verbose >= 3) {
-      printf("FIXUP %u: %s: in module seg %d at 0x%04x (%d bytes)",
+      printf("FIXUP %u: %s: in module seg %d at 0x%04x",
           j, fixup_type_name(i->type),
-          (int) i->holding_seg, (unsigned) i->holding_offset, (int) i->holding_len);
+          (int) i->holding_seg, (unsigned) i->holding_offset);
       switch (i->type) {
         case FT_OFFSET:
           printf(" addressing module seg %d", (int) i->u.addressed_segno);
@@ -769,9 +765,9 @@ static void test_update_offsets(CuTest* tc) {
   static const BYTE DATA0[] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77 };
   emit_segment_data(seg0, DATA0, sizeof DATA0);
 
-// add_global_offset_info(info, holding_seg, holding_offset, holding_len, addressed_seg)
-  FIXUP* offset0 = add_offset_fixup(module_offsets, 0, 0x104, 2, 1);
-  FIXUP* offset1 = add_offset_fixup(module_offsets, 0, 0x106, 2, 0);
+// add_offset_fixup(info, holding_seg, holding_offset, addressed_seg)
+  FIXUP* offset0 = add_offset_fixup(module_offsets, 0, 0x104, 1);
+  FIXUP* offset1 = add_offset_fixup(module_offsets, 0, 0x106, 0);
 
   SEGNO segno1 = add_segment(module_segs, "SEG1", FALSE, FALSE, NO_GROUP);
   SEGMENT* seg1 = get_segment(module_segs, segno1);
@@ -779,7 +775,7 @@ static void test_update_offsets(CuTest* tc) {
   static const BYTE DATA1[] = { 0xDE, 0xAD, 0xFA, 0xCE };
   emit_segment_data(seg1, DATA1, sizeof DATA1);
 
-  FIXUP* offset2 = add_offset_fixup(module_offsets, 1, 0, 2, 0);
+  FIXUP* offset2 = add_offset_fixup(module_offsets, 1, 0, 0);
 
   SEGMENT_MAP* module_to_program = new_segment_map(2);
   module_to_program->map[0].segno = 0;
@@ -831,8 +827,8 @@ static void test_update_externals(CuTest* tc) {
 
 // int ext_insert(ext, segno, offset_pos, offset_len, sym_id, jump)
 
-  int ext0 = add_external_fixup(ext, 0, 0x102, 2, 1, FALSE);
-  int ext1 = add_external_fixup(ext, 0, 0x106, 2, 3, TRUE);
+  int ext0 = add_external_fixup(ext, 0, 0x102, 1, FALSE);
+  int ext1 = add_external_fixup(ext, 0, 0x106, 3, TRUE);
 
   SEGNO segno1 = add_segment(module_segs, "SEG1", FALSE, FALSE, NO_GROUP);
   SEGMENT* seg1 = get_segment(module_segs, segno1);
@@ -840,8 +836,8 @@ static void test_update_externals(CuTest* tc) {
   static const BYTE DATA1[] = { 0x00, 0x00, 0xFA, 0xCE, 0x00, 0x00 };
   emit_segment_data(seg1, DATA1, sizeof DATA1);
 
-  int ext2 = add_external_fixup(ext, 1, 0, 2, 5, FALSE);
-  int ext3 = add_external_fixup(ext, 1, 4, 2, 7, TRUE);
+  int ext2 = add_external_fixup(ext, 1, 0, 5, FALSE);
+  int ext3 = add_external_fixup(ext, 1, 4, 7, TRUE);
 
   SEGMENT_MAP* module_to_program = new_segment_map(2);
   module_to_program->map[0].segno = 0;
@@ -883,10 +879,10 @@ static void test_update_externals(CuTest* tc) {
 static void test_update_externals_id(CuTest* tc) {
   FIXUPS* ext = new_fixups();
 
-  int ext0 = add_external_fixup(ext, 0, 0x102, 2, 1, FALSE); // 0x3322 uses symbol 1
-  int ext1 = add_external_fixup(ext, 0, 0x106, 2, 0, TRUE);  // 0x7766 uses symbol 3
-  int ext2 = add_external_fixup(ext, 1, 0, 2, 2, FALSE); // 0xADDE uses symbol 5
-  int ext3 = add_external_fixup(ext, 1, 4, 2, 1, TRUE);  // 0xEFBE uses symbol 7
+  int ext0 = add_external_fixup(ext, 0, 0x102, 1, FALSE); // 0x3322 uses symbol 1
+  int ext1 = add_external_fixup(ext, 0, 0x106, 0, TRUE);  // 0x7766 uses symbol 3
+  int ext2 = add_external_fixup(ext, 1, 0, 2, FALSE); // 0xADDE uses symbol 5
+  int ext3 = add_external_fixup(ext, 1, 4, 1, TRUE);  // 0xEFBE uses symbol 7
 
   VECTOR* symbol_map = new_vector(3);
   symbol_map->val[0] = 3;

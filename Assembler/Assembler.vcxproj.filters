@@ -83,9 +83,6 @@
     <ClInclude Include="common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="reloc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="symbol.h">
       <Filter>Source Files</Filter>
     </ClInclude>
