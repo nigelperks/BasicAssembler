@@ -18,8 +18,10 @@ enum error_bit {
   DECODE_ERR_NO_MODRM = 0x0020,
   DECODE_ERR_NO_DISP = 0x0040,
   DECODE_ERR_SURPLUS = 0x0080,
+  DECODE_ERR_NO_INSTRUCTION = 0x0100,
 };
 
+bool instruction_prefix(int byte);
 bool repeat_prefix(int byte);
 bool sreg_prefix(int byte);
 
@@ -33,7 +35,11 @@ typedef struct {
 
 void decode_modrm(BYTE, MODRM*);
 
-void disassemble_instruction(const DECODER* dec, const DWORD addr, const BYTE buf[], unsigned size, unsigned *errors);
+// Return number of bytes decoded for the complete instruction
+// or 0 if no complete instruction was decoded.
+unsigned disassemble_instruction(const DECODER* dec, const DWORD addr, const BYTE buf[], unsigned size, bool print_hex, unsigned *errors);
+
+void tab_to_assembly(bool printing_hex, unsigned bytes);
 
 void print_decoding_errors(unsigned error_flags, FILE* output_stream);
 

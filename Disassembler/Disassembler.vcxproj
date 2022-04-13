@@ -143,11 +143,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="dis.c" />
+    <ClCompile Include="fetch.c" />
+    <ClCompile Include="interact.c" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Update="C:\GitHub\BasicAssembler\Shared\disassemble.c">
       <FileType>CppCode</FileType>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="fetch.h" />
+    <ClInclude Include="interact.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

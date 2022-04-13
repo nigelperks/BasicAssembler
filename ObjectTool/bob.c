@@ -28,6 +28,7 @@ static void dump_file(const char* filename) {
   OFILE* ofile = load_object_file(filename);
   const OREC* orec = ofile->recs;
   unsigned errors = 0;
+  unsigned decoded = 0;
   unsigned segno = -1;
   DWORD pc[MAX_SEGMENTS];
 
@@ -40,7 +41,7 @@ static void dump_file(const char* filename) {
       case OBJ_CODE:
         if (segno >= 0 && segno < MAX_SEGMENTS) {
           fputs(": ", stdout);
-          disassemble_instruction(dec, pc[segno], orec->u.data.buf, orec->u.data.size, &errors);
+          disassemble_instruction(dec, pc[segno], orec->u.data.buf, orec->u.data.size, false, &errors);
           pc[segno] += orec->u.data.size;
         }
         break;

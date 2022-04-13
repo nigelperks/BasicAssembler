@@ -32,7 +32,8 @@ void print_decoding_errors(unsigned err, FILE* fp) {
     { DECODE_ERR_NO_OPCODE2, "second opcode byte missing" },
     { DECODE_ERR_NO_MODRM, "ModR/M byte missing" },
     { DECODE_ERR_NO_DISP, "displacement missing or incomplete" },
-    { DECODE_ERR_SURPLUS, "some fetched bytes were not decoded" }
+    { DECODE_ERR_SURPLUS, "some fetched bytes were not decoded" },
+    { DECODE_ERR_NO_INSTRUCTION, "no instruction matches the encoding" }
   };
 
   if (err) {
@@ -58,7 +59,8 @@ typedef struct {
   } val;
 } RM_OPERAND;
 
-static const INSDEF* decode_instruction(const DECODER*, const BYTE* buf, const unsigned count,
+static const INSDEF* decode_instruction(const DECODER*,
+                                        const BYTE* buf, const unsigned max, unsigned *decoded,
                                         int *rep, int *seg, RM_OPERAND* oper1, RM_OPERAND* oper2,
                                         unsigned *imm_bytes, DWORD *imm_value,
                                         unsigned *err);
@@ -68,15 +70,38 @@ static void print_assembly(const DWORD addr, unsigned count, int rep, int sreg_o
                            const RM_OPERAND* oper1, const RM_OPERAND* oper2,
                            unsigned imm_bytes, DWORD imm_value);
 
-void disassemble_instruction(const DECODER* dec, const DWORD addr, const BYTE buf[], unsigned size, unsigned *errors) {
+// Return number of bytes decoded for the complete instruction
+// or 0 if no complete instruction was decoded.
+unsigned disassemble_instruction(const DECODER* dec, const DWORD addr,
+                                 const BYTE buf[], unsigned size,
+                                 bool print_hex, unsigned *errors) {
   int rep = 0;
   int sreg_override = 0;
   RM_OPERAND oper1, oper2;
   unsigned imm_bytes;
   DWORD imm_value;
-  const INSDEF* def = decode_instruction(dec, buf, size, &rep, &sreg_override, &oper1, &oper2, &imm_bytes, &imm_value, errors);
-  if (def)
+  unsigned decoded;
+  const INSDEF* def = decode_instruction(dec, buf, size, &decoded, &rep, &sreg_override, &oper1, &oper2, &imm_bytes, &imm_value, errors);
+  if (def) {
+    if (print_hex) {
+      for (unsigned j = 0; j < decoded; j++)
+        printf("%02x ", buf[j]);
+      tab_to_assembly(true, decoded);
+    }
     print_assembly(addr, size, rep, sreg_override, def, &oper1, &oper2, imm_bytes, imm_value);
+    return decoded;
+  }
+  return 0;
+}
+
+void tab_to_assembly(bool printing_hex, unsigned bytes) {
+  if (printing_hex) {
+    static const unsigned INSTRUCTION_BYTES = 8;
+    while (bytes++ < INSTRUCTION_BYTES)
+      fputs("   ", stdout);
+  }
+  else
+    putchar('\t');
 }
 
 static unsigned decode_prefixes(const BYTE*, unsigned count, int *rep, int *sreg_override, unsigned *err);
@@ -84,13 +109,17 @@ static void decode_reg(const MODRM*, RM_OPERAND*);
 static void decode_rm(const MODRM*, RM_OPERAND*);
 static void set_indirect(RM_OPERAND*, WORD disp);
 
-static const INSDEF* decode_instruction(const DECODER* dec, const BYTE* buf, const unsigned count,
+// Return: instruction matching the encoding in the buffer, NULL if none found.
+// On exit: *decoded undefined if NULL returned, else number of bytes decoded
+static const INSDEF* decode_instruction(const DECODER* dec,
+                                        const BYTE* buf, const unsigned count, unsigned *decoded,
                                         int *rep, int *sreg_override, RM_OPERAND* oper1, RM_OPERAND* oper2,
                                         unsigned *imm_bytes, DWORD *imm_value,
                                         unsigned *err) {
   const INSDEF* def = NULL;
   unsigned i = 0;
 
+  *decoded = 0;
   *err = 0;
 
   if (count == 0)
@@ -107,8 +136,10 @@ static const INSDEF* decode_instruction(const DECODER* dec, const BYTE* buf, con
   const OPCODE_INFO* info = NULL;
 
   if (buf[0] == WAIT_OPCODE) {
-    if (count == 1)
+    if (count == 1) {
+      *decoded = 1;
       return find_opcode(dec, NOPR, WAIT_OPCODE);
+    }
 
     i++;
 
@@ -293,7 +324,7 @@ static const INSDEF* decode_instruction(const DECODER* dec, const BYTE* buf, con
 end:
   if (i != count)
     *err |= DECODE_ERR_SURPLUS;
-
+  *decoded = i;
   return def;
 }
 
@@ -303,6 +334,10 @@ bool repeat_prefix(int c) {
 
 bool sreg_prefix(int c) {
   return c == 0x26 || c == 0x2e || c == 0x36 || c == 0x3e;
+}
+
+bool instruction_prefix(int c) {
+  return repeat_prefix(c) || sreg_prefix(c);
 }
 
 static unsigned decode_prefixes(const BYTE* buf, unsigned count, int *rep, int *sreg_override, unsigned *err) {

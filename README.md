@@ -74,7 +74,12 @@ Executables in x64\Debug.
 
     bdis test.com   -- disassemble COM file
 
+      -i            -- interactive mode
       -s            -- show assembly source only, not offsets or machine code
+
+Interactive disassembly allows user-controlled interleaving
+of disassembly and hex dump, to view code and data in a COM file.
+Enter '?' in interactive mode for help; d = dump, s = disassemble.
 
 ### EXE tool
 
