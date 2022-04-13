@@ -282,7 +282,6 @@ def clean(names):
         clean_dir(name)
       else:
         fatal("Nothing to clean: " + name)
-  sys.exit(0)
 
 def help():
   print("Usage: test.py --clean [sources]")
@@ -293,6 +292,7 @@ def main(argv):
   executables = None
   sources = []
   cleaning = False
+  clean_on_success = True
 
   for arg in argv[1:]:
     if arg[0] == '-':
@@ -311,6 +311,7 @@ def main(argv):
 
   if cleaning:
     clean(sources)
+    sys.exit(0)
 
   if executables is None:
     fatal("Usage: test.py executables-directory [sources]")
@@ -326,6 +327,9 @@ def main(argv):
   else:
     for source in sources:
       test_source(tools, config, source)
+
+  if clean_on_success:
+    clean(sources)
 
   print()
   print("        *********************")
