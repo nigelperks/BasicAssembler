@@ -17,8 +17,9 @@ Please see LICENSE.
 I am using **autocrlf=true** (CRLF on disk, LF committed).
 Developed on Windows with Microsoft Visual Studio Community Edition.
 Visual Studio solution file is included.
-Debug builds are configured for both Win 32 (x86) and x64
-but x64 produces several compile-time warnings about sizes of types.
+The recommend build is Debug for Win32 (x86),
+to avoid compile-warnings about type sizes, for debugging,
+and for unit-testing.
 
 
 ## 2. How to test
