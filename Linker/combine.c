@@ -26,7 +26,7 @@ static SEGMENT_MAP* new_segment_map(unsigned size) {
 }
 
 static void delete_segment_map(SEGMENT_MAP* map) {
-  free(map);
+  efree(map);
 }
 
 static VECTOR* add_module_groups_to_program(GROUP_LIST* program_groups, GROUP_LIST* module_groups, int verbose);
@@ -961,6 +961,7 @@ static void test_move_data(CuTest* tc) {
   CuAssertPtrEquals(tc, NULL, get_segment(src, 0));
   CuAssertPtrEquals(tc, NULL, get_segment(src, 1));
 
+  delete_segment_map(seg_map);
   delete_segment_list(src);
   delete_segment_list(dest);
 }

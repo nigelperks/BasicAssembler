@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Utility types and functions.
 
 #include <stdio.h>
@@ -23,17 +23,36 @@ void fatal(const char* fmt, ...) {
   exit(EXIT_FAILURE);
 }
 
+static unsigned long malloc_count;
+static unsigned long free_count;
+
+void get_memory_counts(unsigned long *mcount, unsigned long *fcount) {
+  *mcount = malloc_count;
+  *fcount = free_count;
+}
+
 void* emalloc(size_t sz) {
   void* p = malloc(sz);
   if (p == NULL)
     fatal("out of memory (emalloc)\n");
+  malloc_count++;
   return p;
 }
 
+void efree(void* p) {
+  if (p) {
+    free(p);
+    free_count++;
+  }
+}
+
 void* erealloc(void* p, size_t sz) {
+  if (p)
+    free_count++;
   p = realloc(p, sz);
   if (p == NULL)
     fatal("out of memory (erealloc)\n");
+  malloc_count++;
   return p;
 }
 
@@ -41,6 +60,7 @@ void* ecalloc(size_t count, size_t size) {
   void* p = calloc(count, size);
   if (p == NULL)
     fatal("out of memory (ecalloc)\n");
+  malloc_count++;
   return p;
 }
 
@@ -48,9 +68,7 @@ char* estrdup(const char* s) {
   char* t = NULL;
   if (s) {
     if (s[0]) {
-      t = malloc(strlen(s) + 1);
-      if (t == NULL)
-        fatal("out of memory (estrdup)\n");
+      t = emalloc(strlen(s) + 1);
       strcpy(t, s);
     }
     else {
@@ -136,7 +154,7 @@ VECTOR* new_vector(unsigned size) {
 }
 
 void delete_vector(VECTOR* vec) {
-  free(vec);
+  efree(vec);
 }
 
 
@@ -159,10 +177,12 @@ static void test_estrdup(CuTest* tc) {
   t = estrdup("");
   CuAssertPtrNotNull(tc, t);
   CuAssertIntEquals(tc, '\0', t[0]);
+  efree(t);
 
   t = estrdup("giblets");
   CuAssertPtrNotNull(tc, t);
   CuAssertStrEquals(tc, "giblets", t);
+  efree(t);
 }
 
 static void test_endian(CuTest* tc) {

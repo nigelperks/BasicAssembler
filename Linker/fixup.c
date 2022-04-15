@@ -31,8 +31,8 @@ FIXUPS* new_fixups(void) {
 
 void delete_fixups(FIXUPS* p) {
   if (p) {
-    free(p->offsets);
-    free(p);
+    efree(p->offsets);
+    efree(p);
   }
 }
 
@@ -298,7 +298,7 @@ static void test_append_externals(CuTest* tc) {
   delete_fixups(main);
 }
 
-CuSuite* offset_info_test_suite(void) {
+CuSuite* fixup_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_new_fixups);
   SUITE_ADD_TEST(suite, test_add_offset_info);

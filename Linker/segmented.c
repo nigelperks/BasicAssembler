@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Segmented program: segments, groups, symbols.
 
 #include <stdlib.h>
@@ -21,11 +21,12 @@ SEGMENTED* new_segmented(const char* name, int case_sensitivity) {
 
 void delete_segmented(SEGMENTED* segs) {
   if (segs) {
+    efree(segs->name);
     delete_segment_list(segs->segs);
     delete_group_list(segs->groups);
     delete_symbol_table(segs->st);
     delete_fixups(segs->fixups);
-    free(segs);
+    efree(segs);
   }
 }
 

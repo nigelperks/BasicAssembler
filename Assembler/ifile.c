@@ -32,13 +32,13 @@ IFILE* new_ifile(SOURCE* src) {
 
 void delete_ifile(IFILE* ifile) {
   if (ifile) {
-    free(ifile->recs);
+    efree(ifile->recs);
     delete_symbol_table(ifile->st);
     for (unsigned i = 0; i < ifile->nseg; i++)
-      free(ifile->segments[i].name);
+      efree(ifile->segments[i].name);
     for (GROUPNO i = 0; i < ifile->ngroup; i++)
-      free(ifile->groups[i]);
-    free(ifile);
+      efree(ifile->groups[i]);
+    efree(ifile);
   }
 }
 
@@ -46,9 +46,7 @@ IREC* new_irec(IFILE* ifile) {
   assert(ifile->used <= ifile->allocated);
   if (ifile->used == ifile->allocated) {
     ifile->allocated = ifile->allocated ? 2 * ifile->allocated : 128;
-    ifile->recs = realloc(ifile->recs, (sizeof ifile->recs[0]) * ifile->allocated);
-    if (ifile->recs == NULL)
-      fatal("out of memory for intermediate records\n");
+    ifile->recs = erealloc(ifile->recs, (sizeof ifile->recs[0]) * ifile->allocated);
   }
 
   assert(ifile->used < ifile->allocated);

@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // bas options.
 
 #ifndef OPTIONS_H
@@ -11,12 +11,14 @@ typedef struct {
 #ifdef UNIT_TEST
   BOOL unit_test;
 #endif
-  const char* source;
+  char* source_name;
   BOOL print_source;
   BOOL print_intermediate;
-  const char* output;
+  char* output_name;
   BOOL quiet;
   unsigned max_errors;
+  BOOL report_memory;
+  BOOL help;
 } Options;
 
 Options* new_options(void);

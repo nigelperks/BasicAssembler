@@ -18,8 +18,10 @@ SEGMENT_LIST* new_segment_list(int case_sensitivity) {
 
 void delete_segment_list(SEGMENT_LIST* list) {
   if (list) {
-    free(list->seg);
-    free(list);
+    for (int i = 0; i < list->used; i++)
+      delete_segment(list->seg[i]);
+    efree(list->seg);
+    efree(list);
   }
 }
 
@@ -37,6 +39,7 @@ SEGMENT* get_segment(SEGMENT_LIST* list, SEGNO index) {
 void set_segment(SEGMENT_LIST* list, SEGNO index, SEGMENT* seg) {
   assert(list != NULL);
   assert(index < list->used);
+  delete_segment(list->seg[index]);
   list->seg[index] = seg;
 }
 
@@ -194,6 +197,7 @@ static void test_segment_list(CuTest* tc) {
   CuAssertIntEquals(tc, FALSE, segment_defined(list, "norg"));
 
   unsigned i = add_segment(list, "norg", FALSE, FALSE, 3);
+
   SEGMENT* seg = get_segment(list, i);
   CuAssertPtrNotNull(tc, seg);
   CuAssertPtrNotNull(tc, list->seg);

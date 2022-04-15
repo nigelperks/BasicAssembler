@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // MS-DOS EXE file format.
 
 #include <stdlib.h>
@@ -8,8 +8,8 @@
 
 void delete_buildexe(BUILDEXE* exe) {
   if (exe) {
-    free(exe->reloc_table);
-    free(exe);
+    efree(exe->reloc_table);
+    efree(exe);
   }
 }
 

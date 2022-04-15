@@ -26,9 +26,9 @@ SEGMENT* new_segment(const char* name, BOOL public, BOOL stack, GROUPNO group) {
 
 void delete_segment(SEGMENT* seg) {
   if (seg) {
-    free(seg->name);
-    free(seg->data);
-    free(seg);
+    efree(seg->name);
+    efree(seg->data);
+    efree(seg);
   }
 }
 
@@ -107,6 +107,7 @@ static void write_segment(SEGMENT* seg, DWORD offset, const BYTE* buf, unsigned 
     BYTE* data = ecalloc(allocate, 1);
     if (seg->data != NULL && seg->allocated > 0)
       memcpy(data, seg->data, seg->allocated);
+    efree(seg->data);
     seg->data = data;
     seg->allocated = allocate;
   }
@@ -277,7 +278,7 @@ static void test_write_segment(CuTest* tc) {
   CuAssertIntEquals(tc, 0, seg->pc);
 
   delete_segment(seg);
-  free(buf);
+  efree(buf);
 }
 
 static BOOL zero(const BYTE* p, size_t len) {
@@ -355,8 +356,8 @@ static void test_append_segment(CuTest* tc) {
   
   delete_segment(src);
   delete_segment(dest);
-  free(buf1);
-  free(buf2);
+  efree(buf1);
+  efree(buf2);
 }
 
 CuSuite* segment_test_suite(void) {

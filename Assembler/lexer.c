@@ -32,7 +32,7 @@ LEX* new_lex(SOURCE* src) {
 }
 
 void delete_lex(LEX* lex) {
-  free(lex);
+  efree(lex);
 }
 
 unsigned lex_lineno(LEX* lex) {
@@ -408,7 +408,7 @@ static void test_string(CuTest* tc) {
   CuAssertPtrNotNull(tc, buf);
   CuAssertStrEquals(tc, STRING, buf);
   CuAssertIntEquals(tc, LEN, len);
-  free(buf);
+  efree(buf);
 }
 
 CuSuite* lexer_test_suite(void) {

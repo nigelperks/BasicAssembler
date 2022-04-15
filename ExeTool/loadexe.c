@@ -60,8 +60,8 @@ static unsigned long calculated_size(const EXEHEADER* h) {
 
 void delete_loadexe(LOADEXE* exe) {
   if (exe) {
-    free(exe->image);
-    free(exe);
+    efree(exe->image);
+    efree(exe);
   }
 }
 

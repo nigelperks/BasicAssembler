@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Source file loading.
 
 #include <stdio.h>
@@ -68,7 +68,13 @@ SOURCE* load_source_mem(const char* mem) {
 }
 
 void delete_source(SOURCE* src) {
-  free(src);
+  if (src) {
+    efree(src->name);
+    for (size_t i = 0; i < src->used; i++)
+      efree(src->lines[i].text);
+    efree(src->lines);
+    efree(src);
+  }
 }
 
 const char* source_name(SOURCE* src) {
@@ -101,9 +107,7 @@ static void append(SOURCE* src, unsigned lineno, const char* line, size_t len) {
   assert(src->used <= src->allocated);
   if (src->used == src->allocated) {
     src->allocated = src->allocated ? src->allocated * 2 : 128;
-    src->lines = realloc(src->lines, (sizeof src->lines[0]) * src->allocated);
-    if (src->lines == NULL)
-      fatal("out of memory for source lines\n");
+    src->lines = erealloc(src->lines, (sizeof src->lines[0]) * src->allocated);
   }    
   assert(src->used < src->allocated);
   src->lines[src->used].lineno = lineno;
@@ -159,22 +163,27 @@ static void test_copy(CuTest* tc) {
   t = copy(NULL, 0);
   CuAssertPtrNotNull(tc, t);
   CuAssertIntEquals(tc, '\0', t[0]);
+  efree(t);
 
   t = copy("", 0);
   CuAssertPtrNotNull(tc, t);
   CuAssertIntEquals(tc, '\0', t[0]);
+  efree(t);
 
   t = copy("hello", 3);
   CuAssertPtrNotNull(tc, t);
   CuAssertStrEquals(tc, "hel", t);
+  efree(t);
 
   t = copy("hello", 5);
   CuAssertPtrNotNull(tc, t);
   CuAssertStrEquals(tc, "hello", t);
+  efree(t);
 
   t = copy("hello", 6);
   CuAssertPtrNotNull(tc, t);
   CuAssertStrEquals(tc, "hello", t);
+  efree(t);
 }
 
 static void test_new_source(CuTest* tc) {

@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // bas options.
 
 #include <stdlib.h>
@@ -13,18 +13,24 @@ Options* new_options(void) {
 #ifdef UNIT_TEST
   p->unit_test = FALSE;
 #endif
-  p->source = NULL;
+  p->source_name = NULL;
   p->print_source = FALSE;
   p->print_intermediate = FALSE;
-  p->output = NULL;
+  p->output_name = NULL;
   p->quiet = FALSE;
   p->max_errors = -1;
+  p->report_memory = FALSE;
+  p->help = FALSE;
 
   return p;
 }
 
 void delete_options(Options* p) {
-  free(p);
+  if (p) {
+    efree(p->source_name);
+    efree(p->output_name);
+    efree(p);
+  }
 }
 
 void process_argv(int argc, char* argv[], Options* opts) {
@@ -42,21 +48,27 @@ void process_argv(int argc, char* argv[], Options* opts) {
         opts->print_intermediate = TRUE;
       else if (strcmp(arg, "-S") == 0)
         opts->print_source = TRUE;
+      else if (strcmp(arg, "-h") == 0 || strcmp(arg, "-?") == 0 || strcmp(arg, "--help") == 0)
+        opts->help = TRUE;
+      else if (strcmp(arg, "-m") == 0)
+        opts->report_memory = TRUE;
       else if (strncmp(arg, "-me=", 4) == 0)
         opts->max_errors = atoi(arg + 4);
       else if (strcmp(arg, "-o") == 0 && i + 1 < argc)
-        opts->output = argv[++i];
+        opts->output_name = estrdup(argv[++i]);
       else if (strcmp(arg, "-q") == 0)
         opts->quiet = TRUE;
       else
         fatal("invalid option: %s\n", arg);
     }
-    else if (opts->source == NULL)
-      opts->source = arg;
+    else if (strcmp(arg, "/?") == 0)
+      opts->help = TRUE;
+    else if (opts->source_name == NULL)
+      opts->source_name = estrdup(arg);
     else
       fatal("unexpected argument: %s\n", arg);
   }
-  if (opts->source == NULL)
+  if (opts->source_name == NULL && !opts->help)
     fatal("source file name expected\n");
 }
 
@@ -71,10 +83,10 @@ static void test_new_options(CuTest* tc) {
   opt = new_options();
   CuAssertPtrNotNull(tc, opt);
   CuAssertIntEquals(tc, FALSE, opt->unit_test);
-  CuAssertTrue(tc, opt->source == NULL);
+  CuAssertTrue(tc, opt->source_name == NULL);
   CuAssertIntEquals(tc, FALSE, opt->print_source);
   CuAssertIntEquals(tc, FALSE, opt->print_intermediate);
-  CuAssertTrue(tc, opt->output == NULL);
+  CuAssertTrue(tc, opt->output_name == NULL);
   CuAssertIntEquals(tc, FALSE, opt->quiet);
 
   delete_options(opt);
@@ -90,7 +102,7 @@ static void test_process_argv(CuTest* tc) {
   opt = new_options();
   process_argv(4, argv_unittest, opt);
   CuAssertIntEquals(tc, TRUE, opt->unit_test);
-  CuAssertTrue(tc, opt->source == NULL);
+  CuAssertTrue(tc, opt->source_name == NULL);
   CuAssertIntEquals(tc, TRUE, opt->print_source);
   CuAssertIntEquals(tc, FALSE, opt->print_intermediate);
   delete_options(opt);
@@ -98,8 +110,8 @@ static void test_process_argv(CuTest* tc) {
   opt = new_options();
   process_argv(3, argv_print, opt);
   CuAssertIntEquals(tc, FALSE, opt->unit_test);
-  CuAssertPtrNotNull(tc, opt->source);
-  CuAssertStrEquals(tc, "dangle.asm", opt->source);
+  CuAssertPtrNotNull(tc, opt->source_name);
+  CuAssertStrEquals(tc, "dangle.asm", opt->source_name);
   CuAssertIntEquals(tc, FALSE, opt->print_source);
   CuAssertIntEquals(tc, TRUE, opt->print_intermediate);
   delete_options(opt);

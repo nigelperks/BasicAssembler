@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Operand-parsing common to passes
 
 #include <stdlib.h>
@@ -716,7 +716,7 @@ static int primitive_expr(STATE* state, IFILE* ifile, LEX* lex, union value * va
     }
     else
       strcpy(val->str, content);
-    free(content);
+    efree(content);
     lex_next(lex);
     return ET_STR;
   }
@@ -785,6 +785,7 @@ static void test_error(CuTest* tc) {
   error(&state, ifile, "something terrible: %lx", (unsigned long) 0xdeadface);
 
   delete_ifile(ifile);
+  delete_source(src);
 }
 
 static void test_size_override(CuTest* tc) {
@@ -900,6 +901,11 @@ static void test_parse_disp(CuTest* tc) {
   succ = parse_disp(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, FALSE, succ);
   CuAssertIntEquals(tc, 2, state.errors);
+
+  // Clean up
+  delete_lex(lex);
+  delete_ifile(ifile);
+  delete_source(src);
 }
 
 static void test_parse_mem(CuTest* tc) {
@@ -1059,6 +1065,11 @@ static void test_parse_mem(CuTest* tc) {
 
   // EOL
   CuAssertIntEquals(tc, TOK_EOL, lex_token(lex));
+
+  // Clean up
+  delete_lex(lex);
+  delete_ifile(ifile);
+  delete_source(src);
 }
 
 static void test_parse_operand_register(CuTest* tc) {

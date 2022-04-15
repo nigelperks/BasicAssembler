@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Hold source code for error messages.
 
 #ifndef SOURCE_H
@@ -9,7 +9,7 @@
 
 struct source_line {
   unsigned lineno;
-  const char* text;
+  char* text;
 };
 
 typedef struct {

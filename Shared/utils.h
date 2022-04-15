@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Utility types and functions.
 
 #ifndef UTILS_H
@@ -27,6 +27,9 @@ void* emalloc(size_t);
 void* erealloc(void*, size_t);
 void* ecalloc(size_t count, size_t size);
 char* estrdup(const char*);
+void efree(void*);
+
+void get_memory_counts(unsigned long *malloc_count, unsigned long *free_count);
 
 FILE* efopen(const char* filename, const char* mode, const char* descrip);
 

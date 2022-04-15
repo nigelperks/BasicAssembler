@@ -21,8 +21,8 @@ IMAGE* new_image(void) {
 
 void delete_image(IMAGE* image) {
   if (image) {
-    free(image->data);
-    free(image);
+    efree(image->data);
+    efree(image);
   }
 }
 
@@ -51,7 +51,7 @@ static void write_image(IMAGE* image, size_t pos, const BYTE* data, size_t size)
     BYTE* data = ecalloc(allocate, 1);
     if (image->data) {
       memcpy(data, image->data, image->hi);
-      free(image->data);
+      efree(image->data);
     }
     image->data = data;
     image->allocated = allocate;
@@ -300,8 +300,8 @@ static void test_write_image(CuTest* tc) {
   CuAssertTrue(tc, memcmp(image->data + 16, buf2, K) == 0);
   CuAssertTrue(tc, memcmp(image->data + 16 + K, buf1, 23) == 0);
 
-  free(buf1);
-  free(buf2);
+  efree(buf1);
+  efree(buf2);
   delete_image(image);
 }
 
@@ -338,6 +338,7 @@ static void test_append_segment(CuTest* tc) {
   CuAssertIntEquals(tc, 0x80, image->lo);
   CuAssertIntEquals(tc, 0x80 + sizeof buf, image->hi);
 
+  delete_segment(seg);
   delete_image(image);
 }
 

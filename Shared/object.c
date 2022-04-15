@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Object file handling (custom format).
 
 #include <stdlib.h>
@@ -74,7 +74,7 @@ void clear_orec(OREC* rec) {
 
   if (rec->type >= 0 && rec->type < sizeof types / sizeof types[0]) {
     if (types[rec->type].kind == OK_DATA) {
-      free(rec->u.data.buf);
+      efree(rec->u.data.buf);
       rec->u.data.buf = NULL;
       rec->u.data.size = 0;
     }
@@ -154,7 +154,8 @@ void delete_ofile(OFILE* ofile) {
   if (ofile) {
     for (unsigned i = 0; i < ofile->used; i++)
       clear_orec(ofile->recs + i);
-    free(ofile);
+    efree(ofile->recs);
+    efree(ofile);
   }
 }
 

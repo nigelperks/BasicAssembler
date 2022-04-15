@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Linker symbol table.
 
 #include <stdlib.h>
@@ -19,8 +19,9 @@ SYMTAB* new_symbol_table(int case_sensitivity) {
 void delete_symbol_table(SYMTAB* st) {
   if (st) {
     for (SYMBOL_ID i = 0; i < st->nsym; i++)
-      free(st->symbols[i].name);
-    free(st);
+      efree(st->symbols[i].name);
+    efree(st->symbols);
+    efree(st);
   }
 }
 

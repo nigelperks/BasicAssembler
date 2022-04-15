@@ -18,7 +18,7 @@ static void init_options(OPTIONS* opt) {
 }
 
 void delete_options(OPTIONS* opt) {
-  free(opt);
+  efree(opt);
 }
 
 OPTIONS* parse_options(int argc, char* argv[]) {

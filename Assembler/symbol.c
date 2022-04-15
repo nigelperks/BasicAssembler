@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Assembler symbol table.
 
 #include <stdlib.h>
@@ -8,6 +8,11 @@
 #include "symbol.h"
 
 #define NO_SEG (-1)
+
+static void deinit_symbol(SYMBOL* sym) {
+  if (sym)
+    efree(sym->name);
+}
 
 SYMTAB* new_symbol_table(void) {
   SYMTAB* st = emalloc(sizeof *st);
@@ -20,8 +25,10 @@ SYMTAB* new_symbol_table(void) {
 
 void delete_symbol_table(SYMTAB* st) {
   if (st) {
-    free(st->sym);
-    free(st);
+    for (unsigned i = 0; i < st->used; i++)
+      deinit_symbol(st->sym + i);
+    efree(st->sym);
+    efree(st);
   }
 }
 
@@ -54,9 +61,7 @@ static int insert(SYMTAB* st, const char* name, int type) {
   assert(st->used <= st->allocated);
   if (st->used == st->allocated) {
     st->allocated = st->allocated ? 2 * st->allocated : 64;
-    st->sym = realloc(st->sym, st->allocated * sizeof st->sym[0]);
-    if (st->sym == NULL)
-      fatal("out of memory for symbol table\n");
+    st->sym = erealloc(st->sym, st->allocated * sizeof st->sym[0]);
   }
 
   assert(st->used < st->allocated);

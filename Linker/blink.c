@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <assert.h>
 #include "utils.h"
 #include "object.h"
@@ -22,13 +23,15 @@ void RunAllTests(void);
 #endif
 
 static void help(void);
+static void report_memory(void);
 
 int main(int argc, char* argv[]) {
-  STRINGLIST* files = new_stringlist();
+  STRINGLIST* files = NULL;
   const char* output_name = NULL;
   int case_sensitivity = CASE_INSENSITIVE;
   int verbose = 0;
   int format = COM_FORMAT;
+  bool report_mem = false;
 
   progname = "blink";
 
@@ -45,6 +48,7 @@ int main(int argc, char* argv[]) {
 #ifdef UNIT_TEST
       if (strcmp(arg, "-unittest") == 0) {
         RunAllTests();
+        report_memory();
         exit(EXIT_SUCCESS); // TODO: return count of failures
       }
 #endif
@@ -53,6 +57,8 @@ int main(int argc, char* argv[]) {
           fatal("-f: output format missing\n");
         format = format_by_name(arg + 2);
       }
+      else if (strcmp(arg, "-m") == 0)
+        report_mem = true;
       else if (strcmp(arg, "-o") == 0) {
         if (++i < argc)
           output_name = argv[i];
@@ -69,8 +75,11 @@ int main(int argc, char* argv[]) {
         }
       }
     }
-    else
+    else {
+      if (files == NULL)
+        files = new_stringlist();
       append_string(files, arg);
+    }
   }
 
   const unsigned modules = stringlist_count(files);
@@ -120,7 +129,11 @@ int main(int argc, char* argv[]) {
     fatal("unsupported output format: %s\n", format_name(format));
 
   delete_image(image);
+  delete_segmented(segmented_program);
   delete_stringlist(files);
+
+  if (report_mem)
+    report_memory();
 
   return 0;
 }
@@ -130,6 +143,7 @@ static void help(void) {
   puts("  -?          help");
   puts("  -fFMT       output format: com, exe");
   puts("  -h          help");
+  puts("  -m          report memory usage");
   puts("  -o FILE     output file");
 #ifdef UNIT_TEST
   puts("  -unittest   run unit tests");
@@ -138,12 +152,19 @@ static void help(void) {
   exit(EXIT_FAILURE);
 }
 
+static void report_memory(void) {
+  unsigned long malloc_count, free_count;
+  get_memory_counts(&malloc_count, &free_count);
+  printf("malloc: %10lu\n", malloc_count);
+  printf("free:   %10lu\n", free_count);
+}
+
 #ifdef UNIT_TEST
 
 #include "CuTest.h"
 
 extern CuSuite* symbol_test_suite(void);
-extern CuSuite* offset_info_test_suite(void);
+extern CuSuite* fixup_test_suite(void);
 extern CuSuite* segment_test_suite(void);
 extern CuSuite* segment_list_test_suite(void);
 extern CuSuite* group_list_test_suite(void);
@@ -158,7 +179,7 @@ void RunAllTests(void) {
   CuSuite* suite = CuSuiteNew();
 
   CuSuiteAddSuite(suite, symbol_test_suite());
-  CuSuiteAddSuite(suite, offset_info_test_suite());
+  CuSuiteAddSuite(suite, fixup_test_suite());
   CuSuiteAddSuite(suite, segment_test_suite());
   CuSuiteAddSuite(suite, segment_list_test_suite());
   CuSuiteAddSuite(suite, group_list_test_suite());

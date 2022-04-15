@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // List of groups.
 
 #include <stdlib.h>
@@ -20,9 +20,9 @@ GROUP_LIST* new_group_list(int case_sensitivity) {
 void delete_group_list(GROUP_LIST* list) {
   if (list) {
     for (unsigned i = 0; i < list->used; i++)
-      free(list->groups[i].name);
-    free(list->groups);
-    free(list);
+      efree(list->groups[i].name);
+    efree(list->groups);
+    efree(list);
   }
 }
 

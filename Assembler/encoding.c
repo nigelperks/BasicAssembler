@@ -29,24 +29,21 @@ static void process_irec(STATE*, IFILE*, LEX*, OFILE*);
 static void emit_start(IFILE*, OFILE*);
 
 OFILE* encoding_pass(IFILE* ifile, const Options* options) {
-  STATE state;
-  LEX* lex = NULL;
-  OFILE* ofile = NULL;
-
   if (options->quiet == FALSE)
     puts("Encoding pass");
 
+  STATE state;
   init_state(&state, options->max_errors);
-  lex = new_lex(ifile->source);
-  ofile = new_ofile();
 
   reset_pc(ifile);
 
+  OFILE* ofile = new_ofile();
   emit_groups(ifile, ofile);
   emit_segments(ifile, ofile);
   emit_externals(ifile->st, ofile);
   emit_publics(ifile->st, ofile);
 
+  LEX* lex = new_lex(ifile->source);
   for (ifile->pos = 0; ifile->pos < irec_count(ifile); ifile->pos++)
     process_irec(&state, ifile, lex, ofile);
 
@@ -444,14 +441,14 @@ static void free_db_node(struct db_node * node) {
 
     switch (node->type) {
       case DB_STR:
-        free(node->u.str);
+        efree(node->u.str);
         break;
       case DB_DUP:
         free_db_node(node->u.dup.data);
         break;
     }
 
-    free(node);
+    efree(node);
     node = next;
   }
 }

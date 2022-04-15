@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // bas main.
 
 #include <stdio.h>
@@ -21,34 +21,38 @@ void RunAllTests(void);
 #endif
 
 static char* default_object_name(const char* source);
+static void report_memory(Options*);
+static void help(void);
 
 int main(int argc, char* argv[]) {
-  Options* opts = NULL;
-  SOURCE* src = NULL;
-  IFILE* ifile = NULL;
-  OFILE* ofile = NULL;
-
-  opts = new_options();
+  Options* opts = new_options();
 
   process_argv(argc, argv, opts);
 
 #ifdef UNIT_TEST
   if (opts->unit_test) {
+    opts->report_memory = TRUE;
     RunAllTests();
+    report_memory(opts);
     exit(EXIT_SUCCESS); // TODO: return count of failures
   }
 #endif
 
-  assert(opts->source != NULL);
-  src = load_source_file(opts->source);
+  if (opts->help)
+    help();
+
+  assert(opts->source_name != NULL);
+  SOURCE* src = load_source_file(opts->source_name);
   assert(src != NULL);
 
   if (opts->print_source) {
     print_source(src);
+    delete_source(src);
+    report_memory(opts);
     exit(EXIT_SUCCESS);
   }
 
-  ifile = new_ifile(src);
+  IFILE* ifile = new_ifile(src);
 
   source_pass(ifile, opts);
   if (opts->print_intermediate)
@@ -67,16 +71,19 @@ int main(int argc, char* argv[]) {
     } while (resized);
   }
 
-  ofile = encoding_pass(ifile, opts);
+  OFILE* ofile = encoding_pass(ifile, opts);
   if (opts->print_intermediate)
     print_intermediate(ifile, "AFTER ENCODING PASS", PRINT_SIZE);
 
-  if (opts->output == NULL)
-    opts->output = default_object_name(opts->source);
-  save_object_file(ofile, opts->output);
+  if (opts->output_name == NULL)
+    opts->output_name = default_object_name(opts->source_name);
+  save_object_file(ofile, opts->output_name);
 
   delete_ofile(ofile);
+  delete_ifile(ifile);
   delete_source(src);
+
+  report_memory(opts);
 
   return 0;
 }
@@ -95,6 +102,32 @@ static char* default_object_name(const char* source) {
     return t;
   }
   return estrdup("a.obj");
+}
+
+static void report_memory(Options* opts) {
+  BOOL report = opts->report_memory;
+  delete_options(opts);
+  if (report) {
+    unsigned long malloc_count, free_count;
+    get_memory_counts(&malloc_count, &free_count);
+    printf("malloc: %10lu\n", malloc_count);
+    printf("free:   %10lu\n", free_count);
+  }
+}
+
+static void help(void) {
+  puts("Basic Assembler\n");
+  puts("Usage: bas [options] file.asm\n");
+#ifdef UNIT_TEST
+  puts("  -unittest  run unit tests and quit");
+#endif
+  puts("  -I         print intermediate file");
+  puts("  -S         print source");
+  puts("  -m         print memory usage");
+  puts("  -me=N      max errors");
+  puts("  -o name    output to file name");
+  puts("  -q         quiet");
+  exit(EXIT_SUCCESS);
 }
 
 #ifdef UNIT_TEST
@@ -137,4 +170,3 @@ void RunAllTests(void) {
 }
 
 #endif /* UNIT_TEST */
-

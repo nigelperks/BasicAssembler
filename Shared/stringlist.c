@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // String list.
 
 #include <stdlib.h>
@@ -18,9 +18,9 @@ STRINGLIST* new_stringlist(void) {
 void delete_stringlist(STRINGLIST* p) {
   if (p) {
     for (unsigned i = 0; i < p->used; i++)
-      free(p->strings[i]);
-    free(p->strings);
-    free(p);
+      efree(p->strings[i]);
+    efree(p->strings);
+    efree(p);
   }
 }
 

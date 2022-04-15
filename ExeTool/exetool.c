@@ -100,7 +100,7 @@ static void dump_exe(const OPTIONS* opt)
             dump_mem(padding, header_padding_offset, padding_size);
             putchar('\n');
             putchar('\n');
-            free(padding);
+            efree(padding);
         }
 
         relocations_offset = total_read;
@@ -148,7 +148,7 @@ static void dump_exe(const OPTIONS* opt)
                 fwrite(buf + 0x100, 1, image_size - 0x100, img);
             fclose(img);
         }
-        free(buf);
+        efree(buf);
     }
     else
     {
@@ -167,9 +167,11 @@ static void dump_exe(const OPTIONS* opt)
             long sz = actual_size - total_read;
             BYTE* buf = read_file(fp, sz);
             dump_mem(buf, total_read, sz);
-            free(buf);
+            efree(buf);
         }
     }
+
+    fclose(fp);
 
     putchar('\n');
     printf("Actual file size:       %lxh = %lu\n", actual_size, actual_size);
@@ -235,22 +237,3 @@ static void compare_exe(const OPTIONS* opt)
     delete_loadexe(file1);
     delete_loadexe(file2);
 }
-
-#if 0
-static WORD file_checksum(const char* file_name)
-{
-    FILE* fp = fopen(file_name, "rb");
-    WORD checksum = 0;
-    int c;
-
-    while ((c = getc(fp)) != EOF)
-    {
-        unsigned int lo = c;
-        unsigned int hi = ((c = getc(fp)) == EOF) ? 0 : c;
-        WORD w = (hi << 8) | lo;
-        checksum += w;
-    }
-
-    return checksum;
-}
-#endif

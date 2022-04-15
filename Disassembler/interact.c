@@ -18,8 +18,8 @@ typedef struct {
 
 void delete_memory(MEMORY* mem) {
   if (mem) {
-    free(mem->data);
-    free(mem);
+    efree(mem->data);
+    efree(mem);
   }
 }
 

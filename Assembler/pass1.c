@@ -109,7 +109,7 @@ static BOOL define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
         sym_define_relative(ifile->st, irec->label, state->curseg, data_size, val);
       }
     }
-    free(name);
+    efree(name);
     return colon;
   }
 
