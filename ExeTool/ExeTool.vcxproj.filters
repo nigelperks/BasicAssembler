@@ -30,6 +30,9 @@
     <ClCompile Include="options.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="interact.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="options.h">
@@ -42,6 +45,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="loadexe.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="interact.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

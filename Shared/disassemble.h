@@ -9,17 +9,19 @@
 #include "instable.h"
 #include "utils.h"
 
-enum error_bit {
-  DECODE_ERR_MULTIPLE_REPEAT_PREFIX = 0x0001,
-  DECODE_ERR_MULTIPLE_SREG_PREFIX = 0x0002,
-  DECODE_ERR_NO_OPCODE = 0x0004,
-  DECODE_ERR_NO_IMMEDIATE = 0x0008,
-  DECODE_ERR_NO_OPCODE2 = 0x0010,
-  DECODE_ERR_NO_MODRM = 0x0020,
-  DECODE_ERR_NO_DISP = 0x0040,
-  DECODE_ERR_SURPLUS = 0x0080,
-  DECODE_ERR_NO_INSTRUCTION = 0x0100,
+enum {
+  DECODE_ERR_NONE,
+  DECODE_ERR_MULTIPLE_REPEAT_PREFIX,
+  DECODE_ERR_MULTIPLE_SREG_PREFIX,
+  DECODE_ERR_NO_OPCODE,
+  DECODE_ERR_NO_OPCODE2,
+  DECODE_ERR_NO_MODRM,
+  DECODE_ERR_NO_DISP,
+  DECODE_ERR_NO_IMMEDIATE,
+  DECODE_ERR_NO_MATCHING_INSTRUCTION,
 };
+
+const char* decoding_error(int);
 
 bool instruction_prefix(int byte);
 bool repeat_prefix(int byte);
@@ -35,12 +37,34 @@ typedef struct {
 
 void decode_modrm(BYTE, MODRM*);
 
-// Return number of bytes decoded for the complete instruction
-// or 0 if no complete instruction was decoded.
-unsigned disassemble_instruction(const DECODER* dec, const DWORD addr, const BYTE buf[], unsigned size, bool print_hex, unsigned *errors);
+typedef struct {
+  int type;
+  union {
+    // OT_REG
+    int reg;
+    // OT_MEM
+    struct dis_mem {
+      short base_reg;
+      short index_reg;
+      short disp_size;
+      WORD disp;
+    } mem;
+  } val;
+} RM_OPERAND;
 
-void tab_to_assembly(bool printing_hex, unsigned bytes);
+typedef struct {
+  const INSDEF* def;
+  BYTE rep;
+  BYTE sreg_override;
+  RM_OPERAND oper1;
+  RM_OPERAND oper2;
+  unsigned imm_bytes;
+  DWORD imm_value;
+  unsigned len;
+} DECODED;
 
-void print_decoding_errors(unsigned error_flags, FILE* output_stream);
+int decode_instruction(const DECODER*, const BYTE* buf, const unsigned len, DECODED*);
+
+void print_assembly(const DWORD addr, const DECODED* dec);
 
 #endif // DISASSEMBLE_H

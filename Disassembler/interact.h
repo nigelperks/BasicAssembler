@@ -10,6 +10,4 @@
 
 void interact(const DECODER*, const char* fileName);
 
-void tab_to_assembly(bool printing_hex, unsigned bytes);
-
 #endif // INTERACT_H

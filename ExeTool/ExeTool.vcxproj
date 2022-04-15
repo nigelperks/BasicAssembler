@@ -145,12 +145,14 @@
     <ClCompile Include="dump.c" />
     <ClCompile Include="exetool.c" />
     <ClCompile Include="fileutil.c" />
+    <ClCompile Include="interact.c" />
     <ClCompile Include="loadexe.c" />
     <ClCompile Include="options.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="dump.h" />
     <ClInclude Include="fileutil.h" />
+    <ClInclude Include="interact.h" />
     <ClInclude Include="loadexe.h" />
     <ClInclude Include="options.h" />
   </ItemGroup>

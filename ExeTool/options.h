@@ -17,6 +17,7 @@ typedef struct {
   BOOL image;
   BOOL after_image;
   BOOL extract_image;
+  BOOL interactive;
 } OPTIONS;
 
 OPTIONS* parse_options(int argc, char* argv[]);

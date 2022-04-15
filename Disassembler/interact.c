@@ -145,19 +145,23 @@ static void disassemble_page(STATE* state) {
 
 static bool disassemble_one_instruction(STATE* state) {
   printf("%05x: ", state->ip);
-  unsigned errors = 0;
-  unsigned decoded = disassemble_instruction(state->dec, state->ip, state->mem->data + state->ip, state->mem->size - state->ip, true, &errors);
+
+  DECODED dec;
+  int err = decode_instruction(state->dec, state->mem->data + state->ip, state->mem->size - state->ip, &dec);
+  if (err) {
+    puts(decoding_error(err));
+    return false;
+  }
+
+  unsigned j;
+  for (j = 0; j < dec.len; j++)
+    printf("%02x ", state->mem->data[state->ip + j]);
+  while (j++ < 8)
+    fputs("   ", stdout);
+
+  print_assembly(state->ip, &dec);
   putchar('\n');
-  errors &= ~DECODE_ERR_SURPLUS;
-  if (errors) {
-    print_decoding_errors(errors, stdout);
-    return false;
-  }
-  if (decoded == 0) {
-    puts("no instruction was decoded");
-    return false;
-  }
-  state->ip += decoded;
+  state->ip += dec.len;
   return true;
 }
 

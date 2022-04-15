@@ -1,9 +1,11 @@
 // EXE analysis tool
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Load EXE file.
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <assert.h>
 #include "loadexe.h"
 #include "fileutil.h"
@@ -111,3 +113,48 @@ static int compare_reloc(const void* p, const void* q) {
   return 0;
 }
 
+DWORD* sorted_reloc_list(const RELOC_ITEM* rt, unsigned elements) {
+  DWORD* list = emalloc(elements * sizeof list[0]);
+  for (unsigned i = 0; i < elements; i++)
+    list[i] = (rt[i].segment << 4) + rt[i].offset;
+  qsort(list, elements, sizeof list[0], &compare_dword);
+  return list;
+}
+
+int compare_dword(const void* p, const void* q) {
+  const DWORD* r = p;
+  const DWORD* s = q;
+
+  if (*r < *s) return -1;
+  if (*r > *s) return 1;
+  return 0;
+}
+
+static int sig_char(int c)
+{
+    return isprint(c) ? c : '?';
+}
+
+void print_exe_header(const struct EXEHEADER * h)
+{
+    printf("EXEHEADER:\n");
+
+    printf("exSignature:  %04x: ", h->exSignature);
+    putchar(sig_char(h->exSignature & 0xff));
+    putchar(sig_char((h->exSignature >> 8) & 0xff));
+    putchar('\n');
+
+    printf("exExtraBytes: %04x = %u\n", h->exExtraBytes, h->exExtraBytes);
+    printf("exPages:      %04x = %u\n", h->exPages, h->exPages);
+    printf("exRelocItems: %04x = %u\n", h->exRelocItems, h->exRelocItems);
+    printf("exHeaderSize: %04x = %u\n", h->exHeaderSize, h->exHeaderSize);
+    printf("exMinAlloc:   %04x = %u\n", h->exMinAlloc, h->exMinAlloc);
+    printf("exMaxAlloc:   %04x = %u\n", h->exMaxAlloc, h->exMaxAlloc);
+    printf("exInitSS:     %04x\n", h->exInitSS);
+    printf("exInitSP:     %04x\n", h->exInitSP);
+    printf("exCheckSum:   %04x\n", h->exCheckSum);
+    printf("exInitIP:     %04x\n", h->exInitIP);
+    printf("exInitCS:     %04x\n", h->exInitCS);
+    printf("exRelocTable: %04x = %u\n", h->exRelocTable, h->exRelocTable);
+    printf("exOverlay:    %04x = %u\n", h->exOverlay, h->exOverlay);
+}

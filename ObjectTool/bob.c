@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
 #define MAX_SEGMENTS (16)  // quick & dirty
 
 static void dump_file(const char* filename) {
-  const DECODER* dec = build_decoder();
+  const DECODER* decoder = build_decoder();
   OFILE* ofile = load_object_file(filename);
   const OREC* orec = ofile->recs;
   unsigned errors = 0;
@@ -40,8 +40,11 @@ static void dump_file(const char* filename) {
     switch (orec->type) {
       case OBJ_CODE:
         if (segno >= 0 && segno < MAX_SEGMENTS) {
-          fputs(": ", stdout);
-          disassemble_instruction(dec, pc[segno], orec->u.data.buf, orec->u.data.size, false, &errors);
+          DECODED dec;
+          if (decode_instruction(decoder, orec->u.data.buf, orec->u.data.size, &dec) == DECODE_ERR_NONE) {
+            fputs(": ", stdout);
+            print_assembly(pc[segno], &dec);
+          }
           pc[segno] += orec->u.data.size;
         }
         break;

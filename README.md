@@ -87,12 +87,14 @@ Enter '?' in interactive mode for help; d = dump, s = disassemble.
 
       -A              -- print data after program image (default)
       -a              -- do not print data after program image
-      -I              -- dump program image as well as EXE header (default)
-      -i              -- do not dump program image
+      -M              -- dump program image as well as EXE header (default)
+      -m              -- do not dump program image
       -X              -- extract program image to raw binary (BIN) and COM files
       -x              -- do not extract program image to files (default)
 
     exetool -c a.exe b.exe    -- compare two EXE files
+
+    exetool -i a.exe  -- interactive dump and disassembly (? for help)
 
 
 ## 4. Language supported

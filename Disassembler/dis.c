@@ -85,26 +85,30 @@ static void disassemble(const DECODER* dec, const char* filename, bool print_hex
   fclose(fp);
 }
 
-static unsigned instruction(const DECODER* dec, FILE* fp, const DWORD addr, bool print_hex) {
+static unsigned instruction(const DECODER* decoder, FILE* fp, const DWORD addr, bool print_hex) {
   BYTE buf[16];
 
   if (print_hex)
     printf("%04x: ", addr);
 
   unsigned len = 0;
-  int err = fetch_instruction(dec, fp, print_hex, buf, sizeof buf, &len);
+  int err = fetch_instruction(decoder, fp, print_hex, buf, sizeof buf, &len);
   if (err) {
     putchar('\n');
     fatal("error fetching instruction: %s\n", fetch_error_string(err));
   }
 
   assert(len > 0);
-  tab_to_assembly(print_hex, len);
-  unsigned errors = 0;
-  disassemble_instruction(dec, addr, buf, len, false, &errors);
-  putchar('\n');
-  if (errors)
-    print_decoding_errors(errors, stdout);
+  for (unsigned j = len; j < 8; j++)
+    fputs("   ", stdout);
 
-  return len;
+  DECODED dec;
+  err = decode_instruction(decoder, buf, len, &dec);
+  if (err) {
+    putchar('\n');
+    fatal("error decoding instruction: %s\n", decoding_error(err));
+  }
+  print_assembly(addr, &dec);
+  putchar('\n');
+  return dec.len;
 }

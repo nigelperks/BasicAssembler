@@ -20,191 +20,125 @@ static const INSDEF near_jmp = {
     TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xE9, 0x00, 0, RMN, 0,  0, 2, P86
 };
 
-void print_decoding_errors(unsigned err, FILE* fp) {
-  static const struct {
-    unsigned flag;
-    char* msg;
-  } errors[] = {
-    { DECODE_ERR_MULTIPLE_REPEAT_PREFIX, "multiple repeat prefixes" },
-    { DECODE_ERR_MULTIPLE_SREG_PREFIX, "multiple segment overrides" },
-    { DECODE_ERR_NO_OPCODE, "opcode missing" },
-    { DECODE_ERR_NO_IMMEDIATE, "immediate value missing or incomplete" },
-    { DECODE_ERR_NO_OPCODE2, "second opcode byte missing" },
-    { DECODE_ERR_NO_MODRM, "ModR/M byte missing" },
-    { DECODE_ERR_NO_DISP, "displacement missing or incomplete" },
-    { DECODE_ERR_SURPLUS, "some fetched bytes were not decoded" },
-    { DECODE_ERR_NO_INSTRUCTION, "no instruction matches the encoding" }
+//"some fetched bytes were not decoded"
+const char* decoding_error(int err) {
+  switch (err) {
+    case DECODE_ERR_NONE: return "no error";
+    case DECODE_ERR_MULTIPLE_REPEAT_PREFIX: return "multiple repeat prefixes";
+    case DECODE_ERR_MULTIPLE_SREG_PREFIX: return "multiple segment overrides";
+    case DECODE_ERR_NO_OPCODE: return "opcode missing";
+    case DECODE_ERR_NO_OPCODE2: return "second opcode byte missing";
+    case DECODE_ERR_NO_MODRM: return "ModR/M byte missing";
+    case DECODE_ERR_NO_DISP: return "displacement missing or incomplete";
+    case DECODE_ERR_NO_IMMEDIATE: return "immediate value missing or incomplete";
+    case DECODE_ERR_NO_MATCHING_INSTRUCTION: return "no instruction matches the encoding";
   };
 
-  if (err) {
-    for (unsigned i = 0; i < sizeof errors / sizeof errors[0]; i++) {
-      if (errors[i].flag & err)
-        fprintf(fp, "Decoding error: %s\n", errors[i].msg);
-    }
-  }
+  return "unknown error";
 }
 
-typedef struct {
-  int type;
-  union {
-    // OT_REG
-    int reg;
-    // OT_MEM
-    struct dis_mem {
-      short base_reg;
-      short index_reg;
-      short disp_size;
-      WORD disp;
-    } mem;
-  } val;
-} RM_OPERAND;
-
-static const INSDEF* decode_instruction(const DECODER*,
-                                        const BYTE* buf, const unsigned max, unsigned *decoded,
-                                        int *rep, int *seg, RM_OPERAND* oper1, RM_OPERAND* oper2,
-                                        unsigned *imm_bytes, DWORD *imm_value,
-                                        unsigned *err);
-
-static void print_assembly(const DWORD addr, unsigned count, int rep, int sreg_override,
-                           const INSDEF* def,
-                           const RM_OPERAND* oper1, const RM_OPERAND* oper2,
-                           unsigned imm_bytes, DWORD imm_value);
-
-// Return number of bytes decoded for the complete instruction
-// or 0 if no complete instruction was decoded.
-unsigned disassemble_instruction(const DECODER* dec, const DWORD addr,
-                                 const BYTE buf[], unsigned size,
-                                 bool print_hex, unsigned *errors) {
-  int rep = 0;
-  int sreg_override = 0;
-  RM_OPERAND oper1, oper2;
-  unsigned imm_bytes;
-  DWORD imm_value;
-  unsigned decoded;
-  const INSDEF* def = decode_instruction(dec, buf, size, &decoded, &rep, &sreg_override, &oper1, &oper2, &imm_bytes, &imm_value, errors);
-  if (def) {
-    if (print_hex) {
-      for (unsigned j = 0; j < decoded; j++)
-        printf("%02x ", buf[j]);
-      tab_to_assembly(true, decoded);
-    }
-    print_assembly(addr, size, rep, sreg_override, def, &oper1, &oper2, imm_bytes, imm_value);
-    return decoded;
-  }
-  return 0;
-}
-
-void tab_to_assembly(bool printing_hex, unsigned bytes) {
-  if (printing_hex) {
-    static const unsigned INSTRUCTION_BYTES = 8;
-    while (bytes++ < INSTRUCTION_BYTES)
-      fputs("   ", stdout);
-  }
-  else
-    putchar('\t');
-}
-
-static unsigned decode_prefixes(const BYTE*, unsigned count, int *rep, int *sreg_override, unsigned *err);
+static int decode_prefixes(const BYTE*, unsigned count, BYTE *rep, BYTE *sreg_override, unsigned *decoded);
 static void decode_reg(const MODRM*, RM_OPERAND*);
 static void decode_rm(const MODRM*, RM_OPERAND*);
 static void set_indirect(RM_OPERAND*, WORD disp);
 
-// Return: instruction matching the encoding in the buffer, NULL if none found.
-// On exit: *decoded undefined if NULL returned, else number of bytes decoded
-static const INSDEF* decode_instruction(const DECODER* dec,
-                                        const BYTE* buf, const unsigned count, unsigned *decoded,
-                                        int *rep, int *sreg_override, RM_OPERAND* oper1, RM_OPERAND* oper2,
-                                        unsigned *imm_bytes, DWORD *imm_value,
-                                        unsigned *err) {
-  const INSDEF* def = NULL;
-  unsigned i = 0;
+static void init_decoded(DECODED* dec) {
+  dec->def = NULL;
+  dec->rep = 0;
+  dec->sreg_override = 0;
+  dec->oper1.type = OT_NONE;
+  dec->oper2.type = OT_NONE;
+  dec->imm_bytes = 0;
+  dec->len = 0;
+}
 
-  *decoded = 0;
-  *err = 0;
+// Return error code, 0 on success.
+int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned count, DECODED* dec) {
+  init_decoded(dec);
 
   if (count == 0)
-    return NULL;
-
-  oper1->type = OT_NONE;
-  oper2->type = OT_NONE;
-  *imm_bytes = 0;
+    return DECODE_ERR_NO_OPCODE;
 
   static const BYTE WAIT_OPCODE = 0x9B;
 
   int opcode1;
-
   const OPCODE_INFO* info = NULL;
+  unsigned i = 0;
 
   if (buf[0] == WAIT_OPCODE) {
     if (count == 1) {
-      *decoded = 1;
-      return find_opcode(dec, NOPR, WAIT_OPCODE);
+      dec->def = find_opcode(decoder, NOPR, WAIT_OPCODE);
+      dec->len = 1;
+      return DECODE_ERR_NONE;
     }
 
     i++;
 
-    i += decode_prefixes(buf + i, count - i, rep, sreg_override, err);
+    unsigned prefixes = 0;
+    int err = decode_prefixes(buf + i, count - i, &dec->rep, &dec->sreg_override, &prefixes);
+    if (err)
+      return err;
+    i += prefixes;
 
-    if (i >= count) {
-      *err |= DECODE_ERR_NO_OPCODE;
-      goto end;
-    }
+    if (i >= count)
+      return DECODE_ERR_NO_OPCODE;
+
     opcode1 = buf[i++];
 
-    info = opcode_info(dec, WAIT, opcode1);
+    info = opcode_info(decoder, WAIT, opcode1);
     if (info == NULL) {
-      i = 1;
-      def = find_opcode(dec, NOPR, WAIT_OPCODE);
-      goto end;
+      dec->def = find_opcode(decoder, NOPR, WAIT_OPCODE);
+      dec->len = 1;
+      return DECODE_ERR_NONE;
     }
   }
   else {
-    i = decode_prefixes(buf, count, rep, sreg_override, err);
+    unsigned prefixes = 0;
+    int err = decode_prefixes(buf, count, &dec->rep, &dec->sreg_override, &prefixes);
+    if (err)
+      return err;
+    i += prefixes;
 
-    if (i >= count) {
-      *err |= DECODE_ERR_NO_OPCODE;
-      return NULL;
-    }
+    if (i >= count)
+      return DECODE_ERR_NO_OPCODE;
+
     opcode1 = buf[i++];
 
     if (opcode1 == SHORT_JMP) {
-      if (i + 1 > count) {
-        *err |= DECODE_ERR_NO_IMMEDIATE;
-        return NULL;
-      }
-      *imm_bytes = 1;
-      *imm_value = buf[i++];
-      def = &short_jmp;
-      goto end;
+      if (i + 1 > count)
+        return DECODE_ERR_NO_IMMEDIATE;
+      dec->imm_bytes = 1;
+      dec->imm_value = buf[i++];
+      dec->def = &short_jmp;
+      dec->len = i;
+      return DECODE_ERR_NONE;
     }
 
     if (opcode1 == NEAR_JMP) {
-      if (i + 2 > count) {
-        *err |= DECODE_ERR_NO_IMMEDIATE;
-        return NULL;
-      }
-      *imm_bytes = 2;
-      *imm_value = buf[i] | (buf[i+1] << 8);
-      i += 2;
-      def = &near_jmp;
-      goto end;
+      if (i + 2 > count)
+        return DECODE_ERR_NO_IMMEDIATE;
+      dec->imm_bytes = 2;
+      dec->imm_value = buf[i] | (buf[i+1] << 8);
+      dec->def = &near_jmp;
+      dec->len = i+2;
+      return DECODE_ERR_NONE;
     }
 
-    info = opcode_info(dec, NOPR, opcode1);
+    info = opcode_info(decoder, NOPR, opcode1);
     if (info == NULL)
-      return NULL;
+      return DECODE_ERR_NO_MATCHING_INSTRUCTION;
   }
 
   switch (info->opcode_inc) {
     case 0:
       break;
     case 1:
-      oper1->type = OT_REG;
-      oper1->val.reg = opcode1 - info->opcode_base;
+      dec->oper1.type = OT_REG;
+      dec->oper1.val.reg = opcode1 - info->opcode_base;
       break;
     case 2:
-      oper2->type = OT_REG;
-      oper2->val.reg = opcode1 - info->opcode_base;
+      dec->oper2.type = OT_REG;
+      dec->oper2.val.reg = opcode1 - info->opcode_base;
       break;
     default:
       assert(0 && "invalid opcode_inc operand number");
@@ -217,70 +151,64 @@ static const INSDEF* decode_instruction(const DECODER* dec,
   switch (info->byte2) {
     case NO_BYTE2:
       assert(info->defs->next == NULL);
-      def = info->defs->def;
+      dec->def = info->defs->def;
       break;
     case OPCODE_BYTE2: {
-      if (i + 1 > count) {
-        *err |= DECODE_ERR_NO_OPCODE2;
-        return NULL;
-      }
+      if (i + 1 > count)
+        return DECODE_ERR_NO_OPCODE2;
       int opcode2 = buf[i++];
-      def = find_opcode2(info, opcode2);
-      if (def == NULL)
-        return NULL;
+      dec->def = find_opcode2(info, opcode2);
+      if (dec->def == NULL)
+        return DECODE_ERR_NO_MATCHING_INSTRUCTION;
       break;
     }
     case MODRM_BYTE2: {
-      if (i + 1 > count) {
-        *err |= DECODE_ERR_NO_MODRM;
-        return NULL;
-      }
+      if (i + 1 > count)
+        return DECODE_ERR_NO_MODRM;
       int c = buf[i++];
       MODRM modrm;
       decode_modrm(c, &modrm);
-      if (i + modrm.disp_size > count) {
-        *err |= DECODE_ERR_NO_DISP;
-        return NULL;
-      }
+      if (i + modrm.disp_size > count)
+        return DECODE_ERR_NO_DISP;
       for (int j = 0; j < modrm.disp_size; j++)
         modrm.disp = (buf[i++] << (j * 8)) | modrm.disp;
 
-      def = find_modrm(info, modrm.mod, modrm.reg, modrm.rm);
-      if (def == NULL)
-        return NULL;
+      dec->def = find_modrm(info, modrm.mod, modrm.reg, modrm.rm);
+      if (dec->def == NULL)
+        return DECODE_ERR_NO_MATCHING_INSTRUCTION;
 
-      switch (def->modrm) {
+      switch (dec->def->modrm) {
       case RRM:
-        decode_reg(&modrm, oper1);
-        decode_rm(&modrm, oper2);
+        decode_reg(&modrm, &dec->oper1);
+        decode_rm(&modrm, &dec->oper2);
         break;
       case RMR:
-        decode_rm(&modrm, oper1);
-        decode_reg(&modrm, oper2);
+        decode_rm(&modrm, &dec->oper1);
+        decode_reg(&modrm, &dec->oper2);
         break;
       case RMC:
       case MMC:
-        decode_rm(&modrm, oper1);
+        decode_rm(&modrm, &dec->oper1);
         break;
       case SIS:
-        oper1->type = OT_ST;
-        oper1->val.reg = modrm.rm;
-        oper2->type = OT_ST;
-        oper2->val.reg = 0;
+        dec->oper1.type = OT_ST;
+        dec->oper1.val.reg = modrm.rm;
+        dec->oper2.type = OT_ST;
+        dec->oper2.val.reg = 0;
         break;
       case SSI:
-        oper1->type = OT_ST;
-        oper1->val.reg = 0;
-        oper2->type = OT_ST;
-        oper2->val.reg = modrm.rm;
+        dec->oper1.type = OT_ST;
+        dec->oper1.val.reg = 0;
+        dec->oper2.type = OT_ST;
+        dec->oper2.val.reg = modrm.rm;
         break;
       case SCC:
-        oper1->type = OT_ST;
-        oper1->val.reg = modrm.rm;
+        dec->oper1.type = OT_ST;
+        dec->oper1.val.reg = modrm.rm;
         break;
       case SIC:
-        oper1->type = OT_ST;
-        oper1->val.reg = modrm.rm;
+        dec->oper1.type = OT_ST;
+        dec->oper1.val.reg = modrm.rm;
         break;
       default:
         assert(0 && "unknown modrm type");
@@ -289,43 +217,36 @@ static const INSDEF* decode_instruction(const DECODER* dec,
     }
   }
 
-  *imm_value = 0;
-  *imm_bytes = 0;
+  dec->imm_value = 0;
+  dec->imm_bytes = 0;
 
-  assert(def != NULL);
+  assert(dec->def != NULL);
 
-  if (def->oper1 == OF_INDIR || def->oper2 == OF_INDIR) {
-    assert(def->modrm == RMN);
-    if (i + 2 > count) {
-      *err |= DECODE_ERR_NO_DISP;
-      return NULL;
-    }
+  if (dec->def->oper1 == OF_INDIR || dec->def->oper2 == OF_INDIR) {
+    assert(dec->def->modrm == RMN);
+    if (i + 2 > count)
+      return DECODE_ERR_NO_DISP;
     const WORD disp = buf[i] | (buf[i+1] << 8);
     i += 2;
-    if (def->oper1 == OF_INDIR)
-      set_indirect(oper1, disp);
+    if (dec->def->oper1 == OF_INDIR)
+      set_indirect(&dec->oper1, disp);
     else {
-      assert(def->oper2 == OF_INDIR);
-      set_indirect(oper2, disp);
+      assert(dec->def->oper2 == OF_INDIR);
+      set_indirect(&dec->oper2, disp);
     }
   }
 
-  *imm_bytes = def->imm;
-  if (def->imm) {
-    if (i + def->imm > count) {
-      *err |= DECODE_ERR_NO_IMMEDIATE;
-      return NULL;
-    }
-    *imm_value = 0;
-    for (int j = 0; j < def->imm; j++)
-      *imm_value |= (buf[i++] << j*8);
+  dec->imm_bytes = dec->def->imm;
+  if (dec->def->imm) {
+    if (i + dec->def->imm > count)
+      return DECODE_ERR_NO_IMMEDIATE;
+    dec->imm_value = 0;
+    for (int j = 0; j < dec->def->imm; j++)
+      dec->imm_value |= (buf[i++] << j*8);
   }
 
-end:
-  if (i != count)
-    *err |= DECODE_ERR_SURPLUS;
-  *decoded = i;
-  return def;
+  dec->len = i;
+  return DECODE_ERR_NONE;
 }
 
 bool repeat_prefix(int c) {
@@ -340,25 +261,26 @@ bool instruction_prefix(int c) {
   return repeat_prefix(c) || sreg_prefix(c);
 }
 
-static unsigned decode_prefixes(const BYTE* buf, unsigned count, int *rep, int *sreg_override, unsigned *err) {
+static int decode_prefixes(const BYTE* buf, unsigned count, BYTE *rep, BYTE *sreg_override, unsigned *decoded) {
   unsigned i;
 
   for (i = 0; i < count; i++) {
     if (repeat_prefix(buf[i])) {
       if (*rep)
-        *err |= DECODE_ERR_MULTIPLE_REPEAT_PREFIX;
+        return DECODE_ERR_MULTIPLE_REPEAT_PREFIX;
       *rep = buf[i];
     }
     else if (sreg_prefix(buf[i])) {
       if (*sreg_override)
-        *err |= DECODE_ERR_MULTIPLE_SREG_PREFIX;
+        return DECODE_ERR_MULTIPLE_SREG_PREFIX;
       *sreg_override = buf[i];
     }
     else
       break;
   }
 
-  return i;
+  *decoded = i;
+  return DECODE_ERR_NONE;
 }
 
 void decode_modrm(BYTE val, MODRM* p) {
@@ -437,28 +359,27 @@ static unsigned implicit_rm_size(const INSDEF*);
 
 static void print_operand(int opno, int flag, unsigned rm_size, int sreg_override,
                           const RM_OPERAND*, unsigned imm_bytes, DWORD imm_value,
-                          const INSDEF*, const DWORD disp_base_addr);
+                          const DWORD disp_base_addr);
 
-static void print_assembly(const DWORD addr, unsigned size, int rep, int sreg_override,
-                           const INSDEF* def,
-                           const RM_OPERAND* oper1, const RM_OPERAND* oper2,
-                           unsigned imm_bytes, DWORD imm_value) {
-    if (rep) {
-      fputs(token_name(repeat_token(rep, def->op)), stdout);
+void print_assembly(const DWORD addr, const DECODED* dec) {
+    assert(dec != NULL && dec->def != NULL && dec->len > 0);
+
+    if (dec->rep) {
+      fputs(token_name(repeat_token(dec->rep, dec->def->op)), stdout);
       putchar(' ');
     }
 
-    fputs(token_name(def->op), stdout);
+    fputs(token_name(dec->def->op), stdout);
 
-    if (def->oper1 != OF_NONE) {
-      const unsigned rm_size = implicit_rm_size(def);
+    if (dec->def->oper1 != OF_NONE) {
+      const unsigned rm_size = implicit_rm_size(dec->def);
 
       putchar(' ');
-      print_operand(1, def->oper1, rm_size, sreg_override, oper1, imm_bytes, imm_value, def, addr + size);
-      if (def->oper2 != OF_NONE) {
+      print_operand(1, dec->def->oper1, rm_size, dec->sreg_override, &dec->oper1, dec->imm_bytes, dec->imm_value, addr + dec->len);
+      if (dec->def->oper2 != OF_NONE) {
         putchar(',');
         putchar(' ');
-        print_operand(2, def->oper2, rm_size, sreg_override, oper2, imm_bytes, imm_value, def, addr + size);
+        print_operand(2, dec->def->oper2, rm_size, dec->sreg_override, &dec->oper2, dec->imm_bytes, dec->imm_value, addr + dec->len);
       }
     }
 }
@@ -539,7 +460,7 @@ static void print_displaced_addr_word(DWORD disp_base_addr, const DWORD disp_wor
 
 static void print_operand(int opno, int flag, unsigned rm_size, int sreg_override,
                           const RM_OPERAND* op, unsigned imm_bytes, DWORD imm_value,
-                          const INSDEF* def, const DWORD disp_base_addr) {
+                          const DWORD disp_base_addr) {
   switch (flag) {
   default:
     fatal("unknown operand flag: %d\n", flag);
@@ -634,7 +555,7 @@ static void print_operand(int opno, int flag, unsigned rm_size, int sreg_overrid
     break;
   // jump
   case OF_JUMP:
-    print_displaced_addr_word(disp_base_addr, imm_value, def->imm);
+    print_displaced_addr_word(disp_base_addr, imm_value, imm_bytes);
     break;
   case OF_ST:
     fputs("ST", stdout);

@@ -18,5 +18,10 @@ LOADEXE* load_exe(const char* file_name);
 void delete_loadexe(LOADEXE*);
 
 RELOC_ITEM* sorted_reloc_table(RELOC_ITEM* table, unsigned elements);
+DWORD* sorted_reloc_list(const RELOC_ITEM* table, unsigned elements);
+
+int compare_dword(const void*, const void*);
+
+void print_exe_header(const struct EXEHEADER *);
 
 #endif // LOADEXE_H

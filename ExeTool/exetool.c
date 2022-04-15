@@ -13,6 +13,7 @@
 #include "fileutil.h"
 #include "dump.h"
 #include "loadexe.h"
+#include "interact.h"
 
 static void help(void);
 static void dump_exe(const OPTIONS*);
@@ -29,6 +30,8 @@ int main(int argc, char* argv[])
 
     if (opt->compare)
       compare_exe(opt);
+    else if (opt->interactive)
+      interact(opt->file_name);
     else
       dump_exe(opt);
 
@@ -39,46 +42,19 @@ static void help(void) {
   puts("Usage: exetool [options] file");
   puts("       exetool -c file1 file2");
   putchar('\n');
-  puts("-?   help");
-  puts("-A   print data after program image (default)");
-  puts("-a   do not print data after program image");
-  puts("-h   help");
-  puts("-I   dump program image as well as EXE header (default)");
-  puts("-i   do not dump program image");
-  puts("-X   extract program image to raw binary (BIN) and COM files");
-  puts("-x   do not extract program image to files (default)");
+  puts("  -?   help");
+  puts("  -A   print data after program image (default)");
+  puts("  -a   do not print data after program image");
+  puts("  -h   help");
+  puts("  -M   dump program image as well as EXE header (default)");
+  puts("  -m   do not dump program image");
+  puts("  -X   extract program image to raw binary (BIN) and COM files");
+  puts("  -x   do not extract program image to files (default)");
   putchar('\n');
-  puts("-c   compare two EXE files");
+  puts("  -c   compare two EXE files");
+  putchar('\n');
+  puts("  -i   interactive mode: enter ? for help");
   exit(EXIT_FAILURE);
-}
-
-static int sig_char(int c)
-{
-    return isprint(c) ? c : '?';
-}
-
-static void print_exe_header(const struct EXEHEADER * h)
-{
-    printf("EXEHEADER:\n");
-
-    printf("exSignature:  %04x: ", h->exSignature);
-    putchar(sig_char(h->exSignature & 0xff));
-    putchar(sig_char((h->exSignature >> 8) & 0xff));
-    putchar('\n');
-
-    printf("exExtraBytes: %04x = %u\n", h->exExtraBytes, h->exExtraBytes);
-    printf("exPages:      %04x = %u\n", h->exPages, h->exPages);
-    printf("exRelocItems: %04x = %u\n", h->exRelocItems, h->exRelocItems);
-    printf("exHeaderSize: %04x = %u\n", h->exHeaderSize, h->exHeaderSize);
-    printf("exMinAlloc:   %04x = %u\n", h->exMinAlloc, h->exMinAlloc);
-    printf("exMaxAlloc:   %04x = %u\n", h->exMaxAlloc, h->exMaxAlloc);
-    printf("exInitSS:     %04x\n", h->exInitSS);
-    printf("exInitSP:     %04x\n", h->exInitSP);
-    printf("exCheckSum:   %04x\n", h->exCheckSum);
-    printf("exInitIP:     %04x\n", h->exInitIP);
-    printf("exInitCS:     %04x\n", h->exInitCS);
-    printf("exRelocTable: %04x = %u\n", h->exRelocTable, h->exRelocTable);
-    printf("exOverlay:    %04x = %u\n", h->exOverlay, h->exOverlay);
 }
 
 static void dump_exe(const OPTIONS* opt)

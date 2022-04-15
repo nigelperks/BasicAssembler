@@ -14,6 +14,7 @@ static void init_options(OPTIONS* opt) {
   opt->image = TRUE;
   opt->after_image = TRUE;
   opt->extract_image = FALSE;
+  opt->interactive = FALSE;
 }
 
 void delete_options(OPTIONS* opt) {
@@ -43,8 +44,9 @@ OPTIONS* parse_options(int argc, char* argv[]) {
           case 'a': opt->after_image = FALSE; break;
           case 'A': opt->after_image = TRUE; break;
           case 'c': opt->compare = TRUE; break;
-          case 'i': opt->image = FALSE; break;
-          case 'I': opt->image = TRUE; break;
+          case 'i': opt->interactive = TRUE; break;
+          case 'm': opt->image = FALSE; break;
+          case 'M': opt->image = TRUE; break;
           case 'x': opt->extract_image = FALSE; break;
           case 'X': opt->extract_image = TRUE; break;
           default: fatal("invalid option: -%c\n", a[j]); break;
