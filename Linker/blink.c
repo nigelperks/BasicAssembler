@@ -26,7 +26,7 @@ static void help(void);
 static void report_memory(void);
 
 int main(int argc, char* argv[]) {
-  STRINGLIST* files = NULL;
+  STRINGLIST* files = new_stringlist();
   const char* output_name = NULL;
   int case_sensitivity = CASE_INSENSITIVE;
   int verbose = 0;
@@ -47,6 +47,7 @@ int main(int argc, char* argv[]) {
       }
 #ifdef UNIT_TEST
       if (strcmp(arg, "-unittest") == 0) {
+        delete_stringlist(files);
         RunAllTests();
         report_memory();
         exit(EXIT_SUCCESS); // TODO: return count of failures
@@ -76,8 +77,7 @@ int main(int argc, char* argv[]) {
       }
     }
     else {
-      if (files == NULL)
-        files = new_stringlist();
+      assert(files != NULL);
       append_string(files, arg);
     }
   }
