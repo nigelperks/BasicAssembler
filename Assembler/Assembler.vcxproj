@@ -150,6 +150,7 @@
     <ClCompile Include="encoding.c" />
     <ClCompile Include="ifile.c" />
     <ClCompile Include="lexer.c" />
+    <ClCompile Include="operand.c" />
     <ClCompile Include="options.c" />
     <ClCompile Include="parse.c" />
     <ClCompile Include="pass1.c" />
@@ -163,6 +164,7 @@
     <ClInclude Include="encoding.h" />
     <ClInclude Include="ifile.h" />
     <ClInclude Include="lexer.h" />
+    <ClInclude Include="operand.h" />
     <ClInclude Include="options.h" />
     <ClInclude Include="parse.h" />
     <ClInclude Include="pass1.h" />

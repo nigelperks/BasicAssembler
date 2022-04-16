@@ -18,7 +18,7 @@ void init_state(STATE* state, unsigned max_errors) {
   state->max_errors = max_errors;
   state->curseg = NO_SEG;
   for (i = 0; i < N_SREG; i++)
-    state->assume_sym[i] = NO_SYM;
+    state->assume_sym[i] = NULL;
 }
 
 void error(STATE* state, const IFILE* ifile, const char* fmt, ...) {
@@ -86,35 +86,35 @@ unsigned token_data_size(int tok) {
 
 static BOOL parse_operand(STATE*, IFILE*, LEX*, OPERAND*);
 
-BOOL parse_operands(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op1, OPERAND* op2) {
+BOOL parse_operands(STATE* state, IFILE* ifile, LEX* lex, OPERAND* oper1, OPERAND* oper2) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(lex != NULL);
-  assert(op1 != NULL);
-  assert(op2 != NULL);
+  assert(oper1 != NULL);
+  assert(oper2 != NULL);
 
-  init_operand(op1);
-  init_operand(op2);
+  init_operand(oper1);
+  init_operand(oper2);
 
   if (lex_token(lex) != TOK_EOL) {
-    if (!parse_operand(state, ifile, lex, op1))
+    if (!parse_operand(state, ifile, lex, oper1))
       return FALSE;
     if (lex_token(lex) == ',') {
       lex_next(lex);
-      if (!parse_operand(state, ifile, lex, op2))
+      if (!parse_operand(state, ifile, lex, oper2))
         return FALSE;
     }
     else
-      add_flag(op2, OF_NONE);
+      add_flag(oper2, OF_NONE);
   }
   else {
-    add_flag(op1, OF_NONE);
-    add_flag(op2, OF_NONE);
+    add_flag(oper1, OF_NONE);
+    add_flag(oper2, OF_NONE);
   }
 
-  if (op1->type == OT_MEM && op2->type == OT_MEM) {
-    if (op1->val.mem.size_override && op2->val.mem.size_override) {
-        if (op1->val.mem.size_override != op2->val.mem.size_override)
+  if (oper1->opclass.type == OT_MEM && oper2->opclass.type == OT_MEM) {
+    if (oper1->val.mem.size_override && oper2->val.mem.size_override) {
+        if (oper1->val.mem.size_override != oper2->val.mem.size_override)
             error2(state, lex, "inconsistent size overrides");
     }
   }
@@ -132,13 +132,13 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   assert(state != NULL);
   assert(lex != NULL);
   assert(op != NULL);
-  assert(op->type == OT_NONE);
-  assert(op->nflag == 0);
+  assert(op->opclass.type == OT_NONE);
+  assert(op->opclass.nflag == 0);
 
   lookahead = lex_token(lex);
 
   if (lex_token(lex) == TOK_REG8) {
-    op->type = OT_REG;
+    op->opclass.type = OT_REG;
     op->val.reg = lex_reg(lex);
     add_flag(op, OF_RM);
     add_flag(op, OF_RM8);
@@ -152,7 +152,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   }
 
   if (lex_token(lex) == TOK_REG16) {
-    op->type = OT_REG;
+    op->opclass.type = OT_REG;
     op->val.reg = lex_reg(lex);
     add_flag(op, OF_RM);
     add_flag(op, OF_RM16);
@@ -166,7 +166,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   }
 
   if (lex_token(lex) == TOK_SREG) {
-    op->type = OT_SREG;
+    op->opclass.type = OT_SREG;
     op->val.reg = lex_reg(lex);
     add_flag(op, OF_SREG);
     lex_next(lex);
@@ -186,7 +186,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   }
 
   if (lex_token(lex) == TOK_SHORT || lex_token(lex) == TOK_NEAR) {
-    op->type = OT_JUMP;
+    op->opclass.type = OT_JUMP;
     op->val.jump.distance = (lex_token(lex) == TOK_SHORT) ? SHORT : NEAR;
     lex_next(lex);
 
@@ -210,21 +210,21 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
     }    
 
     if (lex_token(lex) == TOK_LABEL) {
-      SYMBOL_ID id = sym_lookup(ifile->st, lex_lexeme(lex));
-      if (id == NO_SYM)
-        id = sym_insert_relative(ifile->st, lex_lexeme(lex));
+      SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+      if (sym == NULL)
+        sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
       lex_next(lex);
 
-      if (sym_type(ifile->st, id) == SYM_RELATIVE) {
+      if (sym_type(sym) == SYM_RELATIVE) {
         op->val.jump.target_type = LABEL_JUMP;
-        op->val.jump.target.label = id;
+        op->val.jump.target.label = sym;
         add_flag(op, OF_JUMP);
         return TRUE;
       }
 
-      if (sym_type(ifile->st, id) == SYM_ABSOLUTE) {
+      if (sym_type(sym) == SYM_ABSOLUTE) {
         op->val.jump.target_type = ABS_JUMP;
-        op->val.jump.target.abs = sym_absolute_value(ifile->st, id);
+        op->val.jump.target.abs = sym_absolute_value(sym);
         add_flag(op, OF_JUMP);
         return TRUE;
       }
@@ -235,7 +235,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   }
 
   if (lex_token(lex) == TOK_FAR) {
-    op->type = OT_JUMP;
+    op->opclass.type = OT_JUMP;
     op->val.jump.distance = FAR;
     lex_next(lex);
 
@@ -263,14 +263,14 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
       }
     }    
     else if (lex_token(lex) == TOK_LABEL) {
-      SYMBOL_ID id = sym_lookup(ifile->st, lex_lexeme(lex));
-      if (id == NO_SYM)
-        id = sym_insert_relative(ifile->st, lex_lexeme(lex));
+      SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+      if (sym == NULL)
+        sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
       lex_next(lex);
 
-      if (sym_type(ifile->st, id) == SYM_RELATIVE) {
+      if (sym_type(sym) == SYM_RELATIVE) {
         op->val.jump.target_type = LABEL_JUMP;
-        op->val.jump.target.label = id;
+        op->val.jump.target.label = sym;
         add_flag(op, OF_FAR);
         return TRUE;
       }
@@ -281,7 +281,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   }
 
   if (lex_token(lex) == TOK_ST) {
-    op->type = OT_ST;
+    op->opclass.type = OT_ST;
     op->val.reg = 0;
     add_flag(op, OF_ST);
     if (lex_next(lex) == '(') {
@@ -317,7 +317,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
       succ = TRUE;
       break;
     case ET_REL:
-      op->type = OT_JUMP;
+      op->opclass.type = OT_JUMP;
       op->val.jump.distance = NEAR;
       op->val.jump.target_type = LABEL_JUMP;
       op->val.jump.target.label = val.label;
@@ -333,7 +333,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
         error2(state, lex, "string is not a valid immediate operand");
       break;
     case ET_SEC:
-      op->type = OT_IMM;
+      op->opclass.type = OT_IMM;
       op->val.imm.type = IMM_SECTION;
       op->val.imm.label = val.label;
       op->val.imm.sval = 0;
@@ -341,7 +341,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
       succ = TRUE;
       break;
     case ET_SEG:
-      op->type = OT_IMM;
+      op->opclass.type = OT_IMM;
       op->val.imm.type = IMM_SEG;
       op->val.imm.label = val.label;
       op->val.imm.sval = 0;
@@ -349,7 +349,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
       succ = TRUE;
       break;
     case ET_OFFSET:
-      op->type = OT_IMM;
+      op->opclass.type = OT_IMM;
       op->val.imm.type = IMM_OFFSET;
       op->val.imm.label = val.label;
       op->val.imm.sval = 0;
@@ -364,10 +364,10 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
 }
 
 static void set_immediate_absolute(OPERAND* op, long n) {
-  op->type = OT_IMM;
+  op->opclass.type = OT_IMM;
   op->val.imm.type = IMM_ABS;
   op->val.imm.sval = n;
-  op->val.imm.label = NO_SYM;
+  op->val.imm.label = NULL;
   add_flag(op, OF_IMM);
   if (n >= -0x80 && n < 0x80) {
     add_flag(op, OF_IMM8);
@@ -387,7 +387,7 @@ static BOOL parse_mem(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   assert(lex != NULL);
   assert(op != NULL);
 
-  op->type = OT_MEM;
+  op->opclass.type = OT_MEM;
   struct mem * const m = &op->val.mem;
   m->base_reg = NO_REG;
   m->index_reg = NO_REG;
@@ -487,7 +487,7 @@ static BOOL parse_disp(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   assert(ifile != NULL);
   assert(lex != NULL);
   assert(op != NULL);
-  assert(op->type = OT_MEM);
+  assert(op->opclass.type = OT_MEM);
 
   struct mem * const m = &op->val.mem;
   BOOL neg = FALSE;
@@ -507,26 +507,26 @@ static BOOL parse_disp(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   }
 
   if (lex_token(lex) == TOK_LABEL) {
-    int id = sym_lookup(ifile->st, lex_lexeme(lex));
-    if (id == NO_SYM)
-      id = sym_insert_relative(ifile->st, lex_lexeme(lex));
+    SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+    if (sym == NULL)
+      sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
 
-    switch (sym_type(ifile->st, id)) {
+    switch (sym_type(sym)) {
       case SYM_ABSOLUTE:
         m->disp_type = ABS_DISP;
-        m->disp.sval = sym_absolute_value(ifile->st, id);
+        m->disp.sval = sym_absolute_value(sym);
         if (neg)
           m->disp.sval = - m->disp.sval;
         break;
       case SYM_RELATIVE:
         if (neg) {
-          error2(state, lex, "negating an address label: %s", sym_name(ifile->st, id));
+          error2(state, lex, "negating an address label: %s", sym_name(sym));
           return FALSE;
         }
         m->disp_type = REL_DISP;
-        m->disp.label = id;
+        m->disp.label = sym;
         int rm_flag, mem_flag;
-        if (data_size_flags(sym_data_size(ifile->st, id), &rm_flag, &mem_flag)) {
+        if (data_size_flags(sym_data_size(sym), &rm_flag, &mem_flag)) {
           if (m->size_override == 0 && !has_flag(op, rm_flag)) {
             add_flag(op, rm_flag);
             add_flag(op, mem_flag);
@@ -534,7 +534,7 @@ static BOOL parse_disp(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
         }
         break;
       default:
-        error2(state, lex, "invalid label type in operand: %s", sym_name(ifile->st, id));
+        error2(state, lex, "invalid label type in operand: %s", sym_name(sym));
         return FALSE;
     }
     lex_next(lex);
@@ -650,7 +650,7 @@ static int unary_expr(STATE* state, IFILE* ifile, LEX* lex, union value * val) {
   return type;
 }
 
-static SYMBOL_ID parse_label(STATE*, IFILE*, LEX*, const char* opname);
+static const SYMBOL* parse_label(STATE*, IFILE*, LEX*, const char* opname);
 
 static int primitive_expr(STATE* state, IFILE* ifile, LEX* lex, union value * val) {
   long n = 0;
@@ -662,43 +662,43 @@ static int primitive_expr(STATE* state, IFILE* ifile, LEX* lex, union value * va
   }
 
   if (lex_token(lex) == TOK_SEG) {
-    SYMBOL_ID id = parse_label(state, ifile, lex, "SEG");
-    if (id == NO_SYM)
+    const SYMBOL* sym = parse_label(state, ifile, lex, "SEG");
+    if (sym == NULL)
       return ET_ERR;
-    val->label = id;
+    val->label = sym;
     return ET_SEG;
   }
 
   if (lex_token(lex) == TOK_OFFSET) {
-    SYMBOL_ID id = parse_label(state, ifile, lex, "OFFSET");
-    if (id == NO_SYM)
+    const SYMBOL* sym = parse_label(state, ifile, lex, "OFFSET");
+    if (sym == NULL)
       return ET_ERR;
-    val->label = id;
+    val->label = sym;
     return ET_OFFSET;
   }
 
   if (lex_token(lex) == TOK_LABEL) {
-    int id = sym_lookup(ifile->st, lex_lexeme(lex));
-    if (id == NO_SYM) {
+    SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+    if (sym == NULL) {
       val->label = sym_insert_relative(ifile->st, lex_lexeme(lex));
       lex_next(lex);
       return ET_REL;
     }
-    switch (sym_type(ifile->st, id)) {
+    switch (sym_type(sym)) {
       case SYM_ABSOLUTE:
-        val->n = sym_absolute_value(ifile->st, id);
+        val->n = sym_absolute_value(sym);
         lex_next(lex);
         return ET_ABS;
       case SYM_RELATIVE:
-        val->label = id;
+        val->label = sym;
         lex_next(lex);
         return ET_REL;
       case SYM_SECTION:
-        val->label = id;
+        val->label = sym;
         lex_next(lex);
         return ET_SEC;
       default:
-        error2(state, lex, "invalid symbol in expression: %s", sym_name(ifile->st, id));
+        error2(state, lex, "invalid symbol in expression: %s", sym_name(sym));
         return ET_ERR;
     }
   }
@@ -733,22 +733,22 @@ BOOL make_absolute(int type, union value * val) {
   return (type == ET_ABS);
 }
 
-static SYMBOL_ID parse_label(STATE* state, IFILE* ifile, LEX* lex, const char* opname) {
+static const SYMBOL* parse_label(STATE* state, IFILE* ifile, LEX* lex, const char* opname) {
   if (lex_next(lex) != TOK_LABEL) {
     error2(state, lex, "%s requires symbol", opname);
-    return NO_SYM;
+    return NULL;
   }
-  SYMBOL_ID id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM)
-    id = sym_insert_relative(ifile->st, lex_lexeme(lex));
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL)
+    sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
   else {
-    if (sym_type(ifile->st, id) != SYM_RELATIVE) {
+    if (sym_type(sym) != SYM_RELATIVE) {
       error2(state, lex, "%s requires relative label", opname);
-      return NO_SYM;
+      return NULL;
     }
   }
   lex_next(lex);
-  return id;
+  return sym;
 }
 
 #ifdef UNIT_TEST
@@ -767,10 +767,10 @@ static void test_init_state(CuTest* tc) {
   CuAssertIntEquals(tc, 0, state.errors);
   CuAssertIntEquals(tc, 33, state.max_errors);
   CuAssertIntEquals(tc, NO_SEG, state.curseg);
-  CuAssertIntEquals(tc, NO_SYM, state.assume_sym[SR_CS]);
-  CuAssertIntEquals(tc, NO_SYM, state.assume_sym[SR_DS]);
-  CuAssertIntEquals(tc, NO_SYM, state.assume_sym[SR_ES]);
-  CuAssertIntEquals(tc, NO_SYM, state.assume_sym[SR_SS]);
+  CuAssertTrue(tc, state.assume_sym[SR_CS] == NULL);
+  CuAssertTrue(tc, state.assume_sym[SR_DS] == NULL);
+  CuAssertTrue(tc, state.assume_sym[SR_ES] == NULL);
+  CuAssertTrue(tc, state.assume_sym[SR_SS] == NULL);
 }
 
 static void test_error(CuTest* tc) {
@@ -838,15 +838,15 @@ static void test_parse_disp(CuTest* tc) {
   OPERAND op;
   struct mem * const mem = &op.val.mem;
   BOOL succ;
-  int id;
+  SYMBOL* sym;
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
   lex_begin(lex, 0, 0);
 
-  op.type = OT_MEM;
+  op.opclass.type = OT_MEM;
 
-  // positive number literal
+  // positive number literal: 1234h
   mem->disp_type = -1;
   mem->disp.sval = -1;
   succ = parse_disp(&state, ifile, lex, &op);
@@ -854,7 +854,7 @@ static void test_parse_disp(CuTest* tc) {
   CuAssertIntEquals(tc, ABS_DISP, mem->disp_type);
   CuAssertIntEquals(tc, 0x1234, mem->disp.sval);
 
-  // negative number literal
+  // negative number literal: -76
   mem->disp_type = -1;
   mem->disp.sval = -1;
   succ = parse_disp(&state, ifile, lex, &op);
@@ -862,26 +862,26 @@ static void test_parse_disp(CuTest* tc) {
   CuAssertIntEquals(tc, ABS_DISP, mem->disp_type);
   CuAssertIntEquals(tc, -76, mem->disp.sval);
 
-  // undefined label
+  // undefined label: newlab
   mem->disp_type = -1;
-  mem->disp.label = -1;
+  mem->disp.label = NULL;
   succ = parse_disp(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, REL_DISP, mem->disp_type);
-  CuAssertIntEquals(tc, 0, mem->disp.label);
+  CuAssertTrue(tc, mem->disp.label == ifile->st->sym[0]);
 
-  // negative address label
+  // negative address label: -newlab
   mem->disp_type = -1;
-  mem->disp.label = -1;
+  mem->disp.label = NULL;
   CuAssertIntEquals(tc, 0, state.errors);
   succ = parse_disp(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, FALSE, succ);
   CuAssertIntEquals(tc, 1, state.errors);
   lex_next(lex);
 
-  // equ
-  id = sym_insert_absolute(ifile->st, "cabbage");
-  sym_define_absolute(ifile->st, id, 78918L);
+  // equ: cabbage
+  sym = sym_insert_absolute(ifile->st, "cabbage");
+  sym_define_absolute(sym, 78918L);
 
   mem->disp_type = -1;
   mem->disp.sval = -1;
@@ -935,117 +935,117 @@ static void test_parse_mem(CuTest* tc) {
   init_operand(&op);
   succ = parse_mem(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op.type);
+  CuAssertIntEquals(tc, OT_MEM, op.opclass.type);
   CuAssertIntEquals(tc, REG_BX, op.val.mem.base_reg);
   CuAssertIntEquals(tc, NO_REG, op.val.mem.index_reg);
   CuAssertIntEquals(tc, NO_DISP, op.val.mem.disp_type);
   CuAssertIntEquals(tc, 0, op.val.mem.size_override);
-  CuAssertIntEquals(tc, 2, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op.flags[1]);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op.opclass.flags[1]);
 
   // [word di]
   init_operand(&op);
   succ = parse_mem(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op.type);
+  CuAssertIntEquals(tc, OT_MEM, op.opclass.type);
   CuAssertIntEquals(tc, NO_REG, op.val.mem.base_reg);
   CuAssertIntEquals(tc, REG_DI, op.val.mem.index_reg);
   CuAssertIntEquals(tc, NO_DISP, op.val.mem.disp_type);
   CuAssertIntEquals(tc, 2, op.val.mem.size_override);
-  CuAssertIntEquals(tc, 6, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op.flags[1]);
-  CuAssertIntEquals(tc, OF_RM16, op.flags[2]);
-  CuAssertIntEquals(tc, OF_MEM16, op.flags[3]);
-  CuAssertIntEquals(tc, OF_DI, op.flags[4]);
-  CuAssertIntEquals(tc, OF_DI16, op.flags[5]);
+  CuAssertIntEquals(tc, 6, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_RM16, op.opclass.flags[2]);
+  CuAssertIntEquals(tc, OF_MEM16, op.opclass.flags[3]);
+  CuAssertIntEquals(tc, OF_DI, op.opclass.flags[4]);
+  CuAssertIntEquals(tc, OF_DI16, op.opclass.flags[5]);
 
   // [dword si]
   init_operand(&op);
   succ = parse_mem(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op.type);
+  CuAssertIntEquals(tc, OT_MEM, op.opclass.type);
   CuAssertIntEquals(tc, NO_REG, op.val.mem.base_reg);
   CuAssertIntEquals(tc, REG_SI, op.val.mem.index_reg);
   CuAssertIntEquals(tc, NO_DISP, op.val.mem.disp_type);
   CuAssertIntEquals(tc, 4, op.val.mem.size_override);
-  CuAssertIntEquals(tc, 5, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op.flags[1]);
-  CuAssertIntEquals(tc, OF_RM32, op.flags[2]);
-  CuAssertIntEquals(tc, OF_MEM32, op.flags[3]);
-  CuAssertIntEquals(tc, OF_SI, op.flags[4]);
+  CuAssertIntEquals(tc, 5, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_RM32, op.opclass.flags[2]);
+  CuAssertIntEquals(tc, OF_MEM32, op.opclass.flags[3]);
+  CuAssertIntEquals(tc, OF_SI, op.opclass.flags[4]);
 
   // [bp+si]
   init_operand(&op);
   succ = parse_mem(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op.type);
+  CuAssertIntEquals(tc, OT_MEM, op.opclass.type);
   CuAssertIntEquals(tc, REG_BP, op.val.mem.base_reg);
   CuAssertIntEquals(tc, REG_SI, op.val.mem.index_reg);
   CuAssertIntEquals(tc, NO_DISP, op.val.mem.disp_type);
   CuAssertIntEquals(tc, 0, op.val.mem.size_override);
-  CuAssertIntEquals(tc, 2, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op.flags[1]);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op.opclass.flags[1]);
 
   // [bx+di+40h]
   init_operand(&op);
   succ = parse_mem(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op.type);
+  CuAssertIntEquals(tc, OT_MEM, op.opclass.type);
   CuAssertIntEquals(tc, REG_BX, op.val.mem.base_reg);
   CuAssertIntEquals(tc, REG_DI, op.val.mem.index_reg);
   CuAssertIntEquals(tc, ABS_DISP, op.val.mem.disp_type);
   CuAssertIntEquals(tc, 0x40, op.val.mem.disp.sval);
   CuAssertIntEquals(tc, 0, op.val.mem.size_override);
-  CuAssertIntEquals(tc, 2, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op.flags[1]);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op.opclass.flags[1]);
 
   // [bp-24h]
   init_operand(&op);
   succ = parse_mem(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op.type);
+  CuAssertIntEquals(tc, OT_MEM, op.opclass.type);
   CuAssertIntEquals(tc, REG_BP, op.val.mem.base_reg);
   CuAssertIntEquals(tc, NO_REG, op.val.mem.index_reg);
   CuAssertIntEquals(tc, ABS_DISP, op.val.mem.disp_type);
   CuAssertIntEquals(tc, -0x24, op.val.mem.disp.sval);
   CuAssertIntEquals(tc, 0, op.val.mem.size_override);
-  CuAssertIntEquals(tc, 2, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op.flags[1]);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op.opclass.flags[1]);
 
   // [si+1234h]
   init_operand(&op);
   succ = parse_mem(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op.type);
+  CuAssertIntEquals(tc, OT_MEM, op.opclass.type);
   CuAssertIntEquals(tc, NO_REG, op.val.mem.base_reg);
   CuAssertIntEquals(tc, REG_SI, op.val.mem.index_reg);
   CuAssertIntEquals(tc, ABS_DISP, op.val.mem.disp_type);
   CuAssertIntEquals(tc, 0x1234, op.val.mem.disp.sval);
   CuAssertIntEquals(tc, 0, op.val.mem.size_override);
-  CuAssertIntEquals(tc, 2, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op.flags[1]);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op.opclass.flags[1]);
 
   // [9933h]
   init_operand(&op);
   succ = parse_mem(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op.type);
+  CuAssertIntEquals(tc, OT_MEM, op.opclass.type);
   CuAssertIntEquals(tc, NO_REG, op.val.mem.base_reg);
   CuAssertIntEquals(tc, NO_REG, op.val.mem.index_reg);
   CuAssertIntEquals(tc, ABS_DISP, op.val.mem.disp_type);
   CuAssertIntEquals(tc, 0x9933, op.val.mem.disp.sval);
   CuAssertIntEquals(tc, 0, op.val.mem.size_override);
-  CuAssertIntEquals(tc, 3, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op.flags[1]);
-  CuAssertIntEquals(tc, OF_INDIR, op.flags[2]);
+  CuAssertIntEquals(tc, 3, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_INDIR, op.opclass.flags[2]);
 
   // [ax]
   init_operand(&op);
@@ -1089,52 +1089,52 @@ static void test_parse_operand_register(CuTest* tc) {
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_REG, op.type);
+  CuAssertIntEquals(tc, OT_REG, op.opclass.type);
   CuAssertIntEquals(tc, REG_BH, op.val.reg);
-  CuAssertIntEquals(tc, 3, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_RM8, op.flags[1]);
-  CuAssertIntEquals(tc, OF_REG8, op.flags[2]);
+  CuAssertIntEquals(tc, 3, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_RM8, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_REG8, op.opclass.flags[2]);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_REG, op.type);
+  CuAssertIntEquals(tc, OT_REG, op.opclass.type);
   CuAssertIntEquals(tc, REG_AL, op.val.reg);
-  CuAssertIntEquals(tc, 4, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_RM8, op.flags[1]);
-  CuAssertIntEquals(tc, OF_REG8, op.flags[2]);
-  CuAssertIntEquals(tc, OF_AL, op.flags[3]);
+  CuAssertIntEquals(tc, 4, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_RM8, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_REG8, op.opclass.flags[2]);
+  CuAssertIntEquals(tc, OF_AL, op.opclass.flags[3]);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_REG, op.type);
+  CuAssertIntEquals(tc, OT_REG, op.opclass.type);
   CuAssertIntEquals(tc, REG_SI, op.val.reg);
-  CuAssertIntEquals(tc, 3, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_RM16, op.flags[1]);
-  CuAssertIntEquals(tc, OF_REG16, op.flags[2]);
+  CuAssertIntEquals(tc, 3, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_RM16, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_REG16, op.opclass.flags[2]);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_REG, op.type);
+  CuAssertIntEquals(tc, OT_REG, op.opclass.type);
   CuAssertIntEquals(tc, REG_AX, op.val.reg);
-  CuAssertIntEquals(tc, 4, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_RM16, op.flags[1]);
-  CuAssertIntEquals(tc, OF_REG16, op.flags[2]);
-  CuAssertIntEquals(tc, OF_AX, op.flags[3]);
+  CuAssertIntEquals(tc, 4, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_RM16, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_REG16, op.opclass.flags[2]);
+  CuAssertIntEquals(tc, OF_AX, op.opclass.flags[3]);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_SREG, op.type);
+  CuAssertIntEquals(tc, OT_SREG, op.opclass.type);
   CuAssertIntEquals(tc, SR_ES, op.val.reg);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_SREG, op.flags[0]);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_SREG, op.opclass.flags[0]);
 
   // Cleanup
 
@@ -1158,23 +1158,23 @@ static void test_parse_operand_immediate(CuTest* tc) {
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, 1234, op.val.imm.sval);
-  CuAssertIntEquals(tc, NO_SYM, op.val.imm.label);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, 0x7f, op.val.imm.sval);
-  CuAssertIntEquals(tc, NO_SYM, op.val.imm.label);
-  CuAssertIntEquals(tc, 2, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_IMM8, op.flags[1]);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
 
   CuAssertIntEquals(tc, ',', lex_token(lex));
   lex_next(lex);
@@ -1182,12 +1182,12 @@ static void test_parse_operand_immediate(CuTest* tc) {
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, -1234, op.val.imm.sval);
-  CuAssertIntEquals(tc, NO_SYM, op.val.imm.label);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
 
   CuAssertIntEquals(tc, ',', lex_token(lex));
   lex_next(lex);
@@ -1195,24 +1195,24 @@ static void test_parse_operand_immediate(CuTest* tc) {
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, -0x80, op.val.imm.sval);
-  CuAssertIntEquals(tc, NO_SYM, op.val.imm.label);
-  CuAssertIntEquals(tc, 2, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_IMM8, op.flags[1]);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, '*', op.val.imm.sval);
-  CuAssertIntEquals(tc, NO_SYM, op.val.imm.label);
-  CuAssertIntEquals(tc, 2, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_IMM8, op.flags[1]);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
 
   init_operand(&op);
   CuAssertIntEquals(tc, 0, state.errors);
@@ -1233,8 +1233,10 @@ static void test_parse_operand_label(CuTest* tc) {
   IFILE* ifile = new_ifile(src);
   LEX* lex = new_lex(src);
   OPERAND op;
-  int ahead_label, behind_label, equ_label, equ_label_imm8;
-  int next_label;
+  SYMBOL* ahead_label;
+  SYMBOL* behind_label;
+  SYMBOL* equ_label;
+  SYMBOL* equ_label_imm8;
   BOOL succ;
 
   source_pass(ifile, NULL);
@@ -1244,71 +1246,67 @@ static void test_parse_operand_label(CuTest* tc) {
   ahead_label = sym_insert_relative(ifile->st, "ahead");
 
   behind_label = sym_insert_relative(ifile->st, "behind");
-  sym_define_relative(ifile->st, behind_label, 0, 2, 0x492);
+  sym_define_relative(behind_label, 0, 2, 0x492);
 
   equ_label = sym_insert_absolute(ifile->st, "K");
-  sym_define_absolute(ifile->st, equ_label, 903);
+  sym_define_absolute(equ_label, 903);
 
   equ_label_imm8 = sym_insert_absolute(ifile->st, "TINY");
-  sym_define_absolute(ifile->st, equ_label_imm8, 3);
-
-  next_label = equ_label_imm8 + 1;
+  sym_define_absolute(equ_label_imm8, 3);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_JUMP, op.type);
+  CuAssertIntEquals(tc, OT_JUMP, op.opclass.type);
   CuAssertIntEquals(tc, NEAR, op.val.jump.distance);
   CuAssertIntEquals(tc, LABEL_JUMP, op.val.jump.target_type);
-  CuAssertIntEquals(tc, ahead_label, op.val.jump.target.label);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_JUMP, op.flags[0]);
+  CuAssertTrue(tc, op.val.jump.target.label == ahead_label);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_JUMP, op.opclass.flags[0]);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_JUMP, op.type);
+  CuAssertIntEquals(tc, OT_JUMP, op.opclass.type);
   CuAssertIntEquals(tc, NEAR, op.val.jump.distance);
   CuAssertIntEquals(tc, LABEL_JUMP, op.val.jump.target_type);
-  CuAssertIntEquals(tc, behind_label, op.val.jump.target.label);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_JUMP, op.flags[0]);
+  CuAssertTrue(tc, op.val.jump.target.label == behind_label);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_JUMP, op.opclass.flags[0]);
 
   // K
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, 903, op.val.imm.sval);
-  CuAssertIntEquals(tc, NO_SYM, op.val.imm.label);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
 
   // TINY
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, 3, op.val.imm.sval);
-  CuAssertIntEquals(tc, NO_SYM, op.val.imm.label);
-  CuAssertIntEquals(tc, 3, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_IMM8, op.flags[1]);
-  CuAssertIntEquals(tc, OF_3, op.flags[2]);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+  CuAssertIntEquals(tc, 3, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_3, op.opclass.flags[2]);
 
   // newlabel
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_JUMP, op.type);
+  CuAssertIntEquals(tc, OT_JUMP, op.opclass.type);
   CuAssertIntEquals(tc, NEAR, op.val.jump.distance);
   CuAssertIntEquals(tc, LABEL_JUMP, op.val.jump.target_type);
-  CuAssertIntEquals(tc, next_label, op.val.jump.target.label);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_JUMP, op.flags[0]);
-  next_label++;
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_JUMP, op.opclass.flags[0]);
 
   // Cleanup
 
@@ -1335,15 +1333,13 @@ static void test_parse_operand_offset(CuTest* tc) {
   init_state(&state, -1);
   lex_begin(lex, 0, 0);
 
-  int ahead_label = sym_insert_relative(ifile->st, "ahead");
+  SYMBOL* ahead_label = sym_insert_relative(ifile->st, "ahead");
 
-  int behind_label = sym_insert_relative(ifile->st, "behind");
-  sym_define_relative(ifile->st, behind_label, 0, 2, 0x492);
+  SYMBOL* behind_label = sym_insert_relative(ifile->st, "behind");
+  sym_define_relative(behind_label, 0, 2, 0x492);
 
-  int equ_label = sym_insert_absolute(ifile->st, "K");
-  sym_define_absolute(ifile->st, equ_label, 903);
-
-  int next_label = equ_label + 1;
+  SYMBOL* equ_label = sym_insert_absolute(ifile->st, "K");
+  sym_define_absolute(equ_label, 903);
 
   // "offset 39 "
   init_operand(&op);
@@ -1358,32 +1354,30 @@ static void test_parse_operand_offset(CuTest* tc) {
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, IMM_OFFSET, op.val.imm.type);
-  CuAssertIntEquals(tc, ahead_label, op.val.imm.label);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
+  CuAssertTrue(tc, op.val.imm.label == ahead_label);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
 
   // "OFFSET behind "
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, IMM_OFFSET, op.val.imm.type);
-  CuAssertIntEquals(tc, behind_label, op.val.imm.label);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
+  CuAssertTrue(tc, op.val.imm.label == behind_label);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
 
   // "OFFSET newlabel2 "
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, IMM_OFFSET, op.val.imm.type);
-  CuAssertIntEquals(tc, next_label, op.val.imm.label);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
-  next_label++;
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
 
   // "OFFSET K "
   init_operand(&op);
@@ -1417,44 +1411,40 @@ static void test_parse_operand_jump(CuTest* tc) {
   init_state(&state, -1);
   lex_begin(lex, 0, 0);
 
-  int equ_label = sym_insert_absolute(ifile->st, "K");
-  sym_define_absolute(ifile->st, equ_label, 903);
-
-  int next_label = equ_label + 1;
+  SYMBOL* equ_label = sym_insert_absolute(ifile->st, "K");
+  sym_define_absolute(equ_label, 903);
 
   // "SHORT 86Ah"
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_JUMP, op.type);
+  CuAssertIntEquals(tc, OT_JUMP, op.opclass.type);
   CuAssertIntEquals(tc, SHORT, op.val.jump.distance);
   CuAssertIntEquals(tc, ABS_JUMP, op.val.jump.target_type);
   CuAssertIntEquals(tc, 0x86a, op.val.jump.target.abs);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_JUMP, op.flags[0]);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_JUMP, op.opclass.flags[0]);
 
   // "NEAR newlabel3 "
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_JUMP, op.type);
+  CuAssertIntEquals(tc, OT_JUMP, op.opclass.type);
   CuAssertIntEquals(tc, NEAR, op.val.jump.distance);
   CuAssertIntEquals(tc, LABEL_JUMP, op.val.jump.target_type);
-  CuAssertIntEquals(tc, next_label, op.val.jump.target.label);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_JUMP, op.flags[0]);
-  next_label++;
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_JUMP, op.opclass.flags[0]);
 
   // "near K "
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_JUMP, op.type);
+  CuAssertIntEquals(tc, OT_JUMP, op.opclass.type);
   CuAssertIntEquals(tc, NEAR, op.val.jump.distance);
   CuAssertIntEquals(tc, ABS_JUMP, op.val.jump.target_type);
   CuAssertIntEquals(tc, 903, op.val.jump.target.abs);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_JUMP, op.flags[0]);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_JUMP, op.opclass.flags[0]);
 
   // Cleanup
 
@@ -1478,29 +1468,29 @@ static void test_parse_operand_memory(CuTest* tc) {
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op.type);
+  CuAssertIntEquals(tc, OT_MEM, op.opclass.type);
   CuAssertIntEquals(tc, REG_BX, op.val.mem.base_reg);
   CuAssertIntEquals(tc, NO_REG, op.val.mem.index_reg);
   CuAssertIntEquals(tc, NO_DISP, op.val.mem.disp_type);
   CuAssertIntEquals(tc, 0, op.val.mem.size_override);
-  CuAssertIntEquals(tc, 2, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op.flags[1]);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op.opclass.flags[1]);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op.type);
+  CuAssertIntEquals(tc, OT_MEM, op.opclass.type);
   CuAssertIntEquals(tc, REG_BP, op.val.mem.base_reg);
   CuAssertIntEquals(tc, REG_SI, op.val.mem.index_reg);
   CuAssertIntEquals(tc, ABS_DISP, op.val.mem.disp_type);
   CuAssertIntEquals(tc, -0x40, op.val.mem.disp.sval);
   CuAssertIntEquals(tc, 2, op.val.mem.size_override);
-  CuAssertIntEquals(tc, 4, op.nflag);
-  CuAssertIntEquals(tc, OF_RM, op.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op.flags[1]);
-  CuAssertIntEquals(tc, OF_RM16, op.flags[2]);
-  CuAssertIntEquals(tc, OF_MEM16, op.flags[3]);
+  CuAssertIntEquals(tc, 4, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_RM16, op.opclass.flags[2]);
+  CuAssertIntEquals(tc, OF_MEM16, op.opclass.flags[3]);
 
   // Cleanup
 
@@ -1559,12 +1549,12 @@ static void test_parse_operands(CuTest* tc) {
   memset(&op2, 0xff, sizeof op2);
   succ = parse_operands(&state, ifile, lex, &op1, &op2);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_NONE, op1.type);
-  CuAssertIntEquals(tc, 1, op1.nflag);
-  CuAssertIntEquals(tc, OF_NONE, op1.flags[0]);
-  CuAssertIntEquals(tc, OT_NONE, op2.type);
-  CuAssertIntEquals(tc, 1, op2.nflag);
-  CuAssertIntEquals(tc, OF_NONE, op2.flags[0]);
+  CuAssertIntEquals(tc, OT_NONE, op1.opclass.type);
+  CuAssertIntEquals(tc, 1, op1.opclass.nflag);
+  CuAssertIntEquals(tc, OF_NONE, op1.opclass.flags[0]);
+  CuAssertIntEquals(tc, OT_NONE, op2.opclass.type);
+  CuAssertIntEquals(tc, 1, op2.opclass.nflag);
+  CuAssertIntEquals(tc, OF_NONE, op2.opclass.flags[0]);
 
   // One operand
   lex_begin(lex, 1, 0);
@@ -1572,13 +1562,13 @@ static void test_parse_operands(CuTest* tc) {
   memset(&op2, 0xff, sizeof op2);
   succ = parse_operands(&state, ifile, lex, &op1, &op2);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_MEM, op1.type);
-  CuAssertIntEquals(tc, 2, op1.nflag);
-  CuAssertIntEquals(tc, OF_RM, op1.flags[0]);
-  CuAssertIntEquals(tc, OF_MEM, op1.flags[1]);
-  CuAssertIntEquals(tc, OT_NONE, op2.type);
-  CuAssertIntEquals(tc, 1, op2.nflag);
-  CuAssertIntEquals(tc, OF_NONE, op2.flags[0]);
+  CuAssertIntEquals(tc, OT_MEM, op1.opclass.type);
+  CuAssertIntEquals(tc, 2, op1.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op1.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_MEM, op1.opclass.flags[1]);
+  CuAssertIntEquals(tc, OT_NONE, op2.opclass.type);
+  CuAssertIntEquals(tc, 1, op2.opclass.nflag);
+  CuAssertIntEquals(tc, OF_NONE, op2.opclass.flags[0]);
 
   // One operand followed by incorrect syntax
   lex_begin(lex, 2, 0);
@@ -1586,16 +1576,16 @@ static void test_parse_operands(CuTest* tc) {
   memset(&op2, 0xff, sizeof op2);
   succ = parse_operands(&state, ifile, lex, &op1, &op2);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_REG, op1.type);
+  CuAssertIntEquals(tc, OT_REG, op1.opclass.type);
   CuAssertIntEquals(tc, REG_AX, op1.val.reg);
-  CuAssertIntEquals(tc, 4, op1.nflag);
-  CuAssertIntEquals(tc, OF_RM, op1.flags[0]);
-  CuAssertIntEquals(tc, OF_RM16, op1.flags[1]);
-  CuAssertIntEquals(tc, OF_REG16, op1.flags[2]);
-  CuAssertIntEquals(tc, OF_AX, op1.flags[3]);
-  CuAssertIntEquals(tc, OT_NONE, op2.type);
-  CuAssertIntEquals(tc, 1, op2.nflag);
-  CuAssertIntEquals(tc, OF_NONE, op2.flags[0]);
+  CuAssertIntEquals(tc, 4, op1.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op1.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_RM16, op1.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_REG16, op1.opclass.flags[2]);
+  CuAssertIntEquals(tc, OF_AX, op1.opclass.flags[3]);
+  CuAssertIntEquals(tc, OT_NONE, op2.opclass.type);
+  CuAssertIntEquals(tc, 1, op2.opclass.nflag);
+  CuAssertIntEquals(tc, OF_NONE, op2.opclass.flags[0]);
 
   // Two operands
   lex_begin(lex, 3, 0);
@@ -1603,18 +1593,18 @@ static void test_parse_operands(CuTest* tc) {
   memset(&op2, 0xff, sizeof op2);
   succ = parse_operands(&state, ifile, lex, &op1, &op2);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_REG, op1.type);
+  CuAssertIntEquals(tc, OT_REG, op1.opclass.type);
   CuAssertIntEquals(tc, REG_BH, op1.val.reg);
-  CuAssertIntEquals(tc, 3, op1.nflag);
-  CuAssertIntEquals(tc, OF_RM, op1.flags[0]);
-  CuAssertIntEquals(tc, OF_RM8, op1.flags[1]);
-  CuAssertIntEquals(tc, OF_REG8, op1.flags[2]);
-  CuAssertIntEquals(tc, OT_IMM, op2.type);
+  CuAssertIntEquals(tc, 3, op1.opclass.nflag);
+  CuAssertIntEquals(tc, OF_RM, op1.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_RM8, op1.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_REG8, op1.opclass.flags[2]);
+  CuAssertIntEquals(tc, OT_IMM, op2.opclass.type);
   CuAssertIntEquals(tc, IMM_ABS, op2.val.imm.type);
   CuAssertIntEquals(tc, 0x99, op2.val.imm.sval);
-  CuAssertIntEquals(tc, NO_SYM, op2.val.imm.label);
-  CuAssertIntEquals(tc, 1, op2.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op2.flags[0]);
+  CuAssertTrue(tc, op2.val.imm.label == NULL);
+  CuAssertIntEquals(tc, 1, op2.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op2.opclass.flags[0]);
 
   // Invalid operand
   lex_begin(lex, 4, 0);
@@ -1641,7 +1631,7 @@ static void test_primitive(CuTest* tc) {
   LEX* lex = new_lex(src);
   union value val;
   int type;
-  int id;
+  SYMBOL* sym;
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
@@ -1657,20 +1647,20 @@ static void test_primitive(CuTest* tc) {
   type = primitive_expr(&state, ifile, lex, &val);
   CuAssertIntEquals(tc, ET_REL, type);
   CuAssertIntEquals(tc, 1, sym_count(ifile->st));
-  CuAssertStrEquals(tc, "newlabel", sym_name(ifile->st, 0));
-  CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(ifile->st, 0));
+  CuAssertStrEquals(tc, "newlabel", sym_name(get_sym(ifile->st, 0)));
+  CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(get_sym(ifile->st, 0)));
 
-  id = sym_insert_absolute(ifile->st, "THING");
-  sym_define_absolute(ifile->st, id, -5781);
+  sym = sym_insert_absolute(ifile->st, "THING");
+  sym_define_absolute(sym, -5781);
 
-  id = sym_insert_relative(ifile->st, "HERE");
+  const SYMBOL* here_sym = sym_insert_relative(ifile->st, "HERE");
 
   sym_insert_section(ifile->st, "SegName");
 
   // HERE
   type = primitive_expr(&state, ifile, lex, &val);
   CuAssertIntEquals(tc, ET_REL, type);
-  CuAssertIntEquals(tc, id, val.label);
+  CuAssertTrue(tc, val.label == here_sym);
 
   // THING
   type = primitive_expr(&state, ifile, lex, &val);
@@ -1714,7 +1704,7 @@ static void test_expr(CuTest* tc) {
   LEX* lex = new_lex(src);
   union value val;
   int type;
-  int id;
+  SYMBOL* sym;
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
@@ -1722,8 +1712,8 @@ static void test_expr(CuTest* tc) {
   lex_begin(lex, 0, 0);
 
   // -KARR
-  id = sym_insert_absolute(ifile->st, "KARR");
-  sym_define_absolute(ifile->st, id, 0xdead);
+  sym = sym_insert_absolute(ifile->st, "KARR");
+  sym_define_absolute(sym, 0xdead);
   type = expr(&state, ifile, lex, &val);
   CuAssertIntEquals(tc, ET_ABS, type);
   CuAssertLongLongEquals(tc, -0xdead, val.n);
@@ -1734,7 +1724,7 @@ static void test_expr(CuTest* tc) {
   CuAssertLongLongEquals(tc, 14, val.n); // no operator precedence
 
   // addr addr+0"
-  id = sym_insert_relative(ifile->st, "addr");
+  sym = sym_insert_relative(ifile->st, "addr");
   type = expr(&state, ifile, lex, &val);
   CuAssertIntEquals(tc, ET_REL, type);
 
@@ -1754,7 +1744,7 @@ static void test_expr_operand(CuTest* tc) {
   IFILE* ifile = new_ifile(src);
   LEX* lex = new_lex(src);
   OPERAND op;
-  int id;
+  SYMBOL* sym;
   BOOL succ;
 
   source_pass(ifile, NULL);
@@ -1763,17 +1753,17 @@ static void test_expr_operand(CuTest* tc) {
   lex_begin(lex, 0, 0);
 
   // -KARR*3
-  id = sym_insert_absolute(ifile->st, "KARR");
-  sym_define_absolute(ifile->st, id, 0xdead);
+  sym = sym_insert_absolute(ifile->st, "KARR");
+  sym_define_absolute(sym, 0xdead);
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
-  CuAssertIntEquals(tc, OT_IMM, op.type);
-  CuAssertIntEquals(tc, 1, op.nflag);
-  CuAssertIntEquals(tc, OF_IMM, op.flags[0]);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, -0xdead*3, op.val.imm.sval);
-  CuAssertIntEquals(tc, NO_SYM, op.val.imm.label);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
 
   // Cleanup
 

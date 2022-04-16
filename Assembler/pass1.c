@@ -60,10 +60,10 @@ static void process_irec(STATE* state, IFILE* ifile, LEX* lex) {
   if (lex_token(lex) == TOK_LABEL) {
     colon = define_label(state, ifile, irec, lex);
     if (!colon && !token_is_directive(lex_token(lex))) {
-      if (irec->label == NO_SYM)
+      if (irec->label == NULL)
         error2(state, lex, "':' expected after label");
       else
-        error2(state, lex, "':' expected after label '%s'", sym_name(ifile->st, irec->label));
+        error2(state, lex, "':' expected after label '%s'", sym_name(irec->label));
     }
   }
 
@@ -93,7 +93,7 @@ static BOOL define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   assert(lex_token(lex) == TOK_LABEL);
 
   irec->label = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (irec->label == NO_SYM) {
+  if (irec->label == NULL) {
     char* name = estrdup(lex_lexeme(lex));
     BOOL colon = FALSE;
     if (lex_next(lex) == TOK_EQU)
@@ -106,7 +106,7 @@ static BOOL define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
         unsigned data_size = token_data_size(lex_token(lex));
         irec->label = sym_insert_relative(ifile->st, name);
         DWORD val = segment_pc(ifile, state->curseg);
-        sym_define_relative(ifile->st, irec->label, state->curseg, data_size, val);
+        sym_define_relative(irec->label, state->curseg, data_size, val);
       }
     }
     efree(name);
@@ -115,19 +115,19 @@ static BOOL define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
 
   lex_next(lex);
 
-  if (sym_defined(ifile->st, irec->label))
-    error2(state, lex, "label already defined: %s", sym_name(ifile->st, irec->label));
-  else if (sym_type(ifile->st, irec->label) != SYM_RELATIVE)
-    error2(state, lex, "not a relative label: %s", sym_name(ifile->st, irec->label));
+  if (sym_defined(irec->label))
+    error2(state, lex, "label already defined: %s", sym_name(irec->label));
+  else if (sym_type(irec->label) != SYM_RELATIVE)
+    error2(state, lex, "not a relative label: %s", sym_name(irec->label));
   else if (lex_token(lex) == TOK_EQU)
-    error2(state, lex, "EQU name is a relative label: %s", sym_name(ifile->st, irec->label));
+    error2(state, lex, "EQU name is a relative label: %s", sym_name(irec->label));
   else if (state->curseg == NO_SEG)
-    error2(state, lex, "label outside segment: %s", sym_name(ifile->st, irec->label));
+    error2(state, lex, "label outside segment: %s", sym_name(irec->label));
   else {
     BOOL colon = eat_colon(lex);
     unsigned data_size = token_data_size(lex_token(lex));
     DWORD val = segment_pc(ifile, state->curseg);
-    sym_define_relative(ifile->st, irec->label, state->curseg, data_size, val);
+    sym_define_relative(irec->label, state->curseg, data_size, val);
     return colon;
   }
 
@@ -147,10 +147,11 @@ static void check_symbols_defined(IFILE* ifile) {
   int i;
   unsigned count = 0;
 
-  for (i = sym_begin(ifile->st); i < sym_end(ifile->st); i++) {
-    if (!sym_defined(ifile->st, i)) {
+  for (i = sym_begin(ifile->st); i < sym_end(ifile->st); i = sym_next(ifile->st, i)) {
+    const SYMBOL* sym = get_sym(ifile->st, i);
+    if (!sym_defined(sym)) {
       fprintf(stderr, "Error: %s: symbol used but not defined: %s\n",
-        source_name(ifile->source), sym_name(ifile->st, i));
+              source_name(ifile->source), sym_name(sym));
       count++;
     }
   }
@@ -218,12 +219,12 @@ static void do_equ(STATE* state, IFILE* ifile, LEX* lex) {
 
   assert(lex_token(lex) == TOK_EQU);
 
-  if (irec->label == NO_SYM)
+  if (irec->label == NULL)
     error2(state, lex, "EQU without label");
-  else if (sym_type(ifile->st, irec->label) != SYM_ABSOLUTE)
-    error2(state, lex, "name already used as non-EQU: %s", sym_name(ifile->st, irec->label));
-  else if (sym_defined(ifile->st, irec->label))
-    error2(state, lex, "already defined: %s", sym_name(ifile->st, irec->label));
+  else if (sym_type(irec->label) != SYM_ABSOLUTE)
+    error2(state, lex, "name already used as non-EQU: %s", sym_name(irec->label));
+  else if (sym_defined(irec->label))
+    error2(state, lex, "already defined: %s", sym_name(irec->label));
   else {
     lex_next(lex);
     union value val;
@@ -231,7 +232,7 @@ static void do_equ(STATE* state, IFILE* ifile, LEX* lex) {
       case ET_ERR:
         break;
       case ET_ABS:
-        sym_define_absolute(ifile->st, irec->label, (long) val.n);
+        sym_define_absolute(irec->label, (long) val.n);
         break;
       default:
         error2(state, lex, "absolute numeric expression expected for EQU");
@@ -247,17 +248,17 @@ static void do_end(STATE* state, IFILE* ifile, LEX* lex) {
   assert(lex_token(lex) == TOK_END);
 
   if (lex_next(lex) == TOK_LABEL) {
-    if (ifile->start_label != NO_SYM)
+    if (ifile->start_label != NULL)
       error2(state, lex, "start label has already been set");
 
     ifile->start_label = sym_lookup(ifile->st, lex_lexeme(lex));
-    if (ifile->start_label == NO_SYM)
-      error2(state, lex, "start label not found: %s", lex_lexeme);
-    else if (sym_type(ifile->st, ifile->start_label) != SYM_RELATIVE)
+    if (ifile->start_label == NULL)
+      error2(state, lex, "start label not found: %s", lex_lexeme(lex));
+    else if (sym_type(ifile->start_label) != SYM_RELATIVE)
       error2(state, lex, "start label must be a relative label");
-    else if (sym_external(ifile->st, ifile->start_label))
+    else if (sym_external(ifile->start_label))
       error2(state, lex, "start label may not be external");
-    else if (!sym_defined(ifile->st, ifile->start_label))
+    else if (!sym_defined(ifile->start_label))
       error2(state, lex, "start label is not defined");
 
     lex_next(lex);
@@ -280,28 +281,28 @@ static void do_segment(STATE* state, IFILE* ifile, LEX* lex) {
 
   int seg = NO_SEG;
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM) {
-    id = sym_insert_section(ifile->st, lex_lexeme(lex));
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL) {
+    sym = sym_insert_section(ifile->st, lex_lexeme(lex));
     seg = create_segment(ifile, lex_lexeme(lex));
-    sym_define_section(ifile->st, id, ST_SEGMENT, seg);
+    sym_define_section(sym, ST_SEGMENT, seg);
     state->curseg = seg;
   }
-  else if (sym_type(ifile->st, id) == SYM_SECTION) {
-    if (sym_defined(ifile->st, id)) {
-      if (sym_section_type(ifile->st, id) == ST_SEGMENT)
-        state->curseg = seg = sym_section_ordinal(ifile->st, id);
+  else if (sym_type(sym) == SYM_SECTION) {
+    if (sym_defined(sym)) {
+      if (sym_section_type(sym) == ST_SEGMENT)
+        state->curseg = seg = sym_section_ordinal(sym);
       else
-        error2(state, lex, "segment name expected: %s", sym_name(ifile->st, id));
+        error2(state, lex, "segment name expected: %s", sym_name(sym));
     }
     else {
       seg = create_segment(ifile, lex_lexeme(lex));
-      sym_define_section(ifile->st, id, ST_SEGMENT, seg);
+      sym_define_section(sym, ST_SEGMENT, seg);
       state->curseg = seg;
     }
   }
   else
-    error2(state, lex, "segment name expected: %s", sym_name(ifile->st, id));
+    error2(state, lex, "segment name expected: %s", sym_name(sym));
 
   switch (lex_next(lex)) {
     case TOK_PRIVATE:
@@ -381,13 +382,13 @@ static void assume(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM) {
-    id = sym_insert_section(ifile->st, lex_lexeme(lex));
-    state->assume_sym[reg] = id;
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL) {
+    sym = sym_insert_section(ifile->st, lex_lexeme(lex));
+    state->assume_sym[reg] = sym;
   }
-  else if (sym_type(ifile->st, id) == SYM_SECTION)
-    state->assume_sym[reg] = id;
+  else if (sym_type(sym) == SYM_SECTION)
+    state->assume_sym[reg] = sym;
   else
     error2(state, lex, "not a segment or group: %s", lex_lexeme(lex));
 
@@ -426,19 +427,19 @@ static int get_group(STATE* state, IFILE* ifile, LEX* lex) {
     return -1;
   }
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM) {
-    id = sym_insert_section(ifile->st, lex_lexeme(lex));
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL) {
+    sym = sym_insert_section(ifile->st, lex_lexeme(lex));
     int group = create_group(ifile, lex_lexeme(lex));
-    sym_define_section(ifile->st, id, ST_GROUP, group);
+    sym_define_section(sym, ST_GROUP, group);
     return group;
   }
-  if (sym_type(ifile->st, id) == SYM_SECTION && !sym_defined(ifile->st, id)) {
+  if (sym_type(sym) == SYM_SECTION && !sym_defined(sym)) {
     int group = create_group(ifile, lex_lexeme(lex));
-    sym_define_section(ifile->st, id, ST_GROUP, group);
+    sym_define_section(sym, ST_GROUP, group);
     return group;
   }
-  error2(state, lex, "undefined group name expected: %s", sym_name(ifile->st, id));
+  error2(state, lex, "undefined group name expected: %s", sym_name(sym));
   return -1;
 }
 
@@ -448,17 +449,17 @@ static void group_segment(STATE* state, IFILE* ifile, LEX* lex, int group) {
     return;
   }
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM)
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL)
     error2(state, lex, "undefined: %s", lex_lexeme(lex));
-  else if (sym_type(ifile->st, id) != SYM_SECTION)
+  else if (sym_type(sym) != SYM_SECTION)
     error2(state, lex, "not a segment: %s", lex_lexeme(lex));
-  else if (sym_section_type(ifile->st, id) != ST_SEGMENT)
-      error2(state, lex, "defined segment expected: %s", sym_name(ifile->st, id));
+  else if (sym_section_type(sym) != ST_SEGMENT)
+      error2(state, lex, "defined segment expected: %s", sym_name(sym));
   else {
-    int seg = sym_section_ordinal(ifile->st, id);
+    int seg = sym_section_ordinal(sym);
     if (segment_group(ifile, seg) != NO_GROUP)
-      error2(state, lex, "already grouped: %s", sym_name(ifile->st, id));
+      error2(state, lex, "already grouped: %s", sym_name(sym));
     else
       set_segment_group(ifile, seg, group);
   }
@@ -755,13 +756,13 @@ static void public_symbol(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM) {
-    id = sym_insert_relative(ifile->st, lex_lexeme(lex));
-    sym_set_public(ifile->st, id);
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL) {
+    sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
+    sym_set_public(sym);
   }
-  else if (sym_type(ifile->st, id) == SYM_RELATIVE)
-    sym_set_public(ifile->st, id);
+  else if (sym_type(sym) == SYM_RELATIVE)
+    sym_set_public(sym);
   else
     error2(state, lex, "this type of symbol cannot be public: %s", lex_lexeme(lex));
 
@@ -807,13 +808,13 @@ static void external_symbol(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id != NO_SYM) {
-    error2(state, lex, "symbol already %s: %s", sym_defined(ifile->st, id) ? "defined" : "used", lex_lexeme(lex));
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym != NULL) {
+    error2(state, lex, "symbol already %s: %s", sym_defined(sym) ? "defined" : "used", lex_lexeme(lex));
     return;
   }
 
-  id = sym_insert_external(ifile->st, lex_lexeme(lex), state->curseg);
+  sym = sym_insert_external(ifile->st, lex_lexeme(lex), state->curseg);
 
   if (lex_next(lex) == ':')
     lex_next(lex);
@@ -830,7 +831,7 @@ static void external_symbol(STATE* state, IFILE* ifile, LEX* lex) {
   default: error2(state, lex, "data type expected: %s", lex_lexeme(lex));
   }
 
-  sym_set_data_size(ifile->st, id, data_size);
+  sym_set_data_size(sym, data_size);
 }
 
 static BOOL extern_type(int t) {
@@ -894,7 +895,7 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  irec->def = find_instruc(irec->op, &oper1, &oper2);
+  irec->def = find_instruc(irec->op, &oper1.opclass, &oper2.opclass);
 
   if (irec->def == NULL) {
     error(state, ifile, "instruction not supported with given operands: %s", token_name(irec->op));
@@ -959,9 +960,9 @@ static void compute_instruction_segment_override_size(STATE* state, IFILE* ifile
     ;
   else if (string_instruction(irec->def))
     compute_string_segment_override_size(state, ifile, irec, lex, &oper1->val.mem, &oper2->val.mem);
-  else if (oper1 && oper1->type == OT_MEM)
+  else if (oper1 && oper1->opclass.type == OT_MEM)
     compute_segment_override_size(state, ifile, irec, &oper1->val.mem);
-  else if (oper2 && oper2->type == OT_MEM)
+  else if (oper2 && oper2->opclass.type == OT_MEM)
     compute_segment_override_size(state, ifile, irec, &oper2->val.mem);
 }
 
@@ -1003,7 +1004,7 @@ static void check_di_override(STATE* state, LEX* lex, const struct mem * m) {
     error2(state, lex, "string destination segment override is not allowed");
 }
 
-static int addressability(STATE*, IFILE*, int label, int sreg);
+static int addressability(STATE*, IFILE*, const SYMBOL* label, int sreg);
 
 static unsigned segment_override_size(STATE* state, IFILE* ifile, const struct mem * m, BOOL *provisional) {
   const int default_sreg = (m->base_reg == REG_BP) ? SR_SS : SR_DS;
@@ -1030,18 +1031,18 @@ static unsigned segment_override_size(STATE* state, IFILE* ifile, const struct m
   return 0;
 }
 
-static int addressability(STATE* state, IFILE* ifile, int label, int sreg) {
+static int addressability(STATE* state, IFILE* ifile, const SYMBOL* label, int sreg) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(ifile->st != NULL);
-  assert(sym_type(ifile->st, label) == SYM_RELATIVE);
+  assert(sym_type(label) == SYM_RELATIVE);
   assert(sreg >= 0 && sreg < N_SREG);
 
-  SYMBOL_ID assume_id = state->assume_sym[sreg];
-  if (assume_id == NO_SYM)
+  const SYMBOL* assume_id = state->assume_sym[sreg];
+  if (assume_id == NULL)
     return NOT_ADDRESSABLE;
 
-  SEGNO symbol_seg = sym_seg(ifile->st, label);
+  SEGNO symbol_seg = sym_seg(label);
   if (symbol_seg == NO_SEG)
     return MAYBE_ADDRESSABLE;
 
@@ -1052,11 +1053,11 @@ static int addressability(STATE* state, IFILE* ifile, int label, int sreg) {
     // might be put in a group later in the source
     return MAYBE_ADDRESSABLE;
 
-  if (sym_section_type(ifile->st, assume_id) == ST_SEGMENT)
+  if (sym_section_type(assume_id) == ST_SEGMENT)
     return NOT_ADDRESSABLE;
     
-  if (sym_section_type(ifile->st, assume_id) == ST_GROUP) {
-    GROUPNO assume_group = sym_section_ordinal(ifile->st, assume_id);
+  if (sym_section_type(assume_id) == ST_GROUP) {
+    GROUPNO assume_group = sym_section_ordinal(assume_id);
     assert(assume_group != NO_GROUP);
     return (assume_group == symbol_group) ? ADDRESSABLE : NOT_ADDRESSABLE;
   }
@@ -1066,7 +1067,7 @@ static int addressability(STATE* state, IFILE* ifile, int label, int sreg) {
 
 static BOOL direct_near_jump(int op, const OPERAND* oper1, const OPERAND* oper2) {
   if (op == TOK_JMP) {
-    if (oper1->type == OT_JUMP && oper2->type == OT_NONE)
+    if (oper1->opclass.type == OT_JUMP && oper2->opclass.type == OT_NONE)
       if (oper1->val.jump.distance != FAR)
         return TRUE;
   }
@@ -1087,15 +1088,15 @@ static unsigned disp_length(long disp, unsigned min) {
 static unsigned rm_disp_len(STATE* state, IFILE* ifile, const OPERAND* op, BOOL *provisional) {
   assert(ifile != NULL);
   assert(op != NULL);
-  assert(op->type == OT_MEM || op->type == OT_REG);
+  assert(op->opclass.type == OT_MEM || op->opclass.type == OT_REG);
   assert(provisional != NULL);
 
-  if (op->type == OT_REG) {
+  if (op->opclass.type == OT_REG) {
     *provisional = FALSE;
     return 0;
   }
 
-  if (op->type != OT_MEM)
+  if (op->opclass.type != OT_MEM)
     fatal("internal: compute_rm: unexpected operand type\n");
 
   const struct mem * const m = &op->val.mem;
@@ -1125,15 +1126,15 @@ static unsigned rm_disp_len(STATE* state, IFILE* ifile, const OPERAND* op, BOOL 
   }
 
   assert(m->disp_type == REL_DISP);
-  assert(m->disp.label != NO_SYM);
-  assert(sym_type(ifile->st, m->disp.label) == SYM_RELATIVE);
+  assert(m->disp.label != NULL);
+  assert(sym_type(m->disp.label) == SYM_RELATIVE);
 
-  if (sym_external(ifile->st, m->disp.label)) {
+  if (sym_external(m->disp.label)) {
     *provisional = FALSE;
     return 2;
   }
 
-  if (!sym_defined(ifile->st, m->disp.label)) {
+  if (!sym_defined(m->disp.label)) {
     *provisional = TRUE;
     return min;
   }
@@ -1143,7 +1144,7 @@ static unsigned rm_disp_len(STATE* state, IFILE* ifile, const OPERAND* op, BOOL 
     return 2;
   }
 
-  DWORD val = sym_relative_value(ifile->st, m->disp.label);
+  DWORD val = sym_relative_value(m->disp.label);
   if (val > LONG_MAX) {
     error(state, ifile, "address out of range for signed displacement");
     *provisional = TRUE;

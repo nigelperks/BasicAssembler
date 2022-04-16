@@ -19,7 +19,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)exeheader.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)instable.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)object.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)operand.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)opclass.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)stringlist.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)token.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)utils.h" />
@@ -29,7 +29,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)disassemble.c" />
     <ClCompile Include="$(MSBuildThisFileDirectory)instable.c" />
     <ClCompile Include="$(MSBuildThisFileDirectory)object.c" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)operand.c" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)opclass.c" />
     <ClCompile Include="$(MSBuildThisFileDirectory)stringlist.c" />
     <ClCompile Include="$(MSBuildThisFileDirectory)token.c" />
     <ClCompile Include="$(MSBuildThisFileDirectory)utils.c" />

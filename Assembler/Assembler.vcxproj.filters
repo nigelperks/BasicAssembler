@@ -51,6 +51,9 @@
     <ClCompile Include="pass1.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="operand.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="options.h">
@@ -84,7 +87,10 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="symbol.h">
-      <Filter>Source Files</Filter>
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="operand.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

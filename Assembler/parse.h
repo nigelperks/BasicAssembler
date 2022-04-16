@@ -17,7 +17,7 @@ typedef struct {
   unsigned errors;
   unsigned max_errors;
   SEGNO curseg;
-  SYMBOL_ID assume_sym[N_SREG];
+  const SYMBOL* assume_sym[N_SREG];
 } STATE;
 
 void init_state(STATE*, unsigned max_errors);
@@ -40,7 +40,7 @@ enum expression_type {
 
 union value {
   long long n;
-  int label;
+  const SYMBOL* label;
   char str[MAX_EXPR_STR];
 };
 

@@ -14,7 +14,7 @@
 
 typedef struct {
   unsigned long source;
-  SYMBOL_ID label;
+  SYMBOL* label;
   int rep;
   int op;
   unsigned short operand_pos;
@@ -44,7 +44,7 @@ typedef struct {
   unsigned used;
   unsigned pos;
   SYMTAB* st;
-  SYMBOL_ID start_label;
+  const SYMBOL* start_label;
   BOOL provisional_sizes;
   char* groups[MAX_GROUP];
   GROUPNO ngroup;
@@ -75,7 +75,7 @@ void set_segment_public(IFILE*, unsigned seg);
 BOOL segment_stack(const IFILE*, unsigned seg);
 void set_segment_stack(IFILE*, unsigned seg);
 
-BOOL relocatable_relative(const IFILE*, SYMBOL_ID);
+BOOL relocatable_relative(const IFILE*, const SYMBOL*);
 
 unsigned group_count(const IFILE*);
 int create_group(IFILE*, const char* name);

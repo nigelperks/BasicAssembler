@@ -24,8 +24,8 @@ enum scope { PRIVATE, PUBLIC };
 
 typedef struct {
   char* name;
-  unsigned char type;
-  unsigned char defined;
+  BYTE type;
+  BYTE defined;
   union {
     struct {
       DWORD val;
@@ -45,7 +45,7 @@ typedef struct {
 } SYMBOL;
 
 typedef struct {
-  SYMBOL* sym;
+  SYMBOL* * sym;
   unsigned allocated;
   unsigned used;
   SYMBOL_ID next_external_id;
@@ -56,33 +56,33 @@ void delete_symbol_table(SYMTAB*);
 
 unsigned sym_count(SYMTAB*);
 SYMBOL* get_sym(SYMTAB*, int id);
-int sym_lookup(SYMTAB*, const char* name);
-int sym_insert_relative(SYMTAB*, const char* name);
-int sym_insert_absolute(SYMTAB*, const char* name);
-int sym_insert_section(SYMTAB*, const char* name);
+SYMBOL* sym_lookup(SYMTAB*, const char* name);
+SYMBOL* sym_insert_relative(SYMTAB*, const char* name);
+SYMBOL* sym_insert_absolute(SYMTAB*, const char* name);
+SYMBOL* sym_insert_section(SYMTAB*, const char* name);
 
-SYMBOL_ID sym_insert_external(SYMTAB*, const char* name, SEGNO);
+SYMBOL* sym_insert_external(SYMTAB*, const char* name, SEGNO);
 
-const char* sym_name(SYMTAB*, int id);
-int sym_type(SYMTAB*, int id);
-BOOL sym_defined(SYMTAB*, int id);
+const char* sym_name(const SYMBOL*);
+int sym_type(const SYMBOL*);
+BOOL sym_defined(const SYMBOL*);
 
-void sym_define_relative(SYMTAB*, int id, int seg, unsigned data_size, DWORD val);
-DWORD sym_relative_value(SYMTAB*, int id);
-SEGNO sym_seg(SYMTAB*, int id);
-void sym_set_public(SYMTAB*, int id);
-BOOL sym_public(SYMTAB*, int id);
-BOOL sym_external(SYMTAB*, int id);
-int sym_external_id(SYMTAB*, int id);
-unsigned sym_data_size(SYMTAB*, int id);
-void sym_set_data_size(SYMTAB*, int id, unsigned data_size);
+void sym_define_relative(SYMBOL*, int seg, unsigned data_size, DWORD val);
+DWORD sym_relative_value(const SYMBOL*);
+SEGNO sym_seg(const SYMBOL*);
+void sym_set_public(SYMBOL*);
+BOOL sym_public(const SYMBOL*);
+BOOL sym_external(const SYMBOL*);
+int sym_external_id(const SYMBOL*);
+unsigned sym_data_size(const SYMBOL*);
+void sym_set_data_size(SYMBOL*, unsigned data_size);
 
-void sym_define_absolute(SYMTAB*, int id, long val);
-long sym_absolute_value(SYMTAB*, int id);
+void sym_define_absolute(SYMBOL*, long val);
+long sym_absolute_value(const SYMBOL*);
 
-void sym_define_section(SYMTAB*, int id, int type, int ordinal);
-int sym_section_type(SYMTAB*, int id);
-int sym_section_ordinal(SYMTAB*, int id);
+void sym_define_section(SYMBOL*, int type, int ordinal);
+int sym_section_type(const SYMBOL*);
+int sym_section_ordinal(const SYMBOL*);
 
 int sym_begin(SYMTAB*);
 int sym_end(SYMTAB*);

@@ -59,7 +59,7 @@ static BOOL process_irec(STATE* state, IFILE* ifile, LEX* lex) {
 
   lex_begin(lex, irec->source, irec->operand_pos);
 
-  if (irec->label != NO_SYM)
+  if (irec->label != NULL)
     define_label(state, ifile, irec, lex);
 
   if (token_is_directive(irec->op)) {
@@ -78,24 +78,24 @@ static void define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(irec != NULL);
-  assert(irec->label != NO_SYM);
-  assert(sym_defined(ifile->st, irec->label));
+  assert(irec->label != NULL);
+  assert(sym_defined(irec->label));
 
   if (irec->op == TOK_EQU)
     return;
 
-  if (!sym_defined(ifile->st, irec->label))
-    error2(state, lex, "phase error: label undefined: %s", sym_name(ifile->st, irec->label));
-  else if (sym_type(ifile->st, irec->label) != SYM_RELATIVE)
-    error2(state, lex, "phase error: not a relative label: %s", sym_name(ifile->st, irec->label));
+  if (!sym_defined(irec->label))
+    error2(state, lex, "phase error: label undefined: %s", sym_name(irec->label));
+  else if (sym_type(irec->label) != SYM_RELATIVE)
+    error2(state, lex, "phase error: not a relative label: %s", sym_name(irec->label));
   else if (state->curseg == NO_SEG)
-    error2(state, lex, "phase error: label outside segment: %s", sym_name(ifile->st, irec->label));
-  else if (sym_seg(ifile->st, irec->label) != state->curseg)
-    error2(state, lex, "phase error: label in unexpected segment: %s", sym_name(ifile->st, irec->label));
+    error2(state, lex, "phase error: label outside segment: %s", sym_name(irec->label));
+  else if (sym_seg(irec->label) != state->curseg)
+    error2(state, lex, "phase error: label in unexpected segment: %s", sym_name(irec->label));
   else {
     unsigned data_size = token_data_size(irec->op);
     DWORD val = segment_pc(ifile, state->curseg);
-    sym_define_relative(ifile->st, irec->label, state->curseg, data_size, val);
+    sym_define_relative(irec->label, state->curseg, data_size, val);
   }
 }
 
@@ -172,16 +172,14 @@ static void do_segment(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   if (state->curseg != NO_SEG)
     error2(state, lex, "segment %s is already open", segment_name(ifile, state->curseg));
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM ||
-      !sym_defined(ifile->st, id) ||
-      sym_type(ifile->st, id) != SYM_SECTION ||
-      sym_section_type(ifile->st, id) != ST_SEGMENT) {
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL|| !sym_defined(sym) || sym_type(sym) != SYM_SECTION ||
+      sym_section_type(sym) != ST_SEGMENT) {
     error2(state, lex, "defined segment name expected: %s", lex_lexeme(lex));
     exit(EXIT_FAILURE);
   }
 
-  state->curseg = sym_section_ordinal(ifile->st, id);
+  state->curseg = sym_section_ordinal(sym);
   lex_next(lex);
 }
 
@@ -263,15 +261,13 @@ static void assume(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM ||
-      !sym_defined(ifile->st, id) ||
-      sym_type(ifile->st, id) != SYM_SECTION) {
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL || !sym_defined(sym) || sym_type(sym) != SYM_SECTION) {
     error2(state, lex, "defined segment or group expected: %s", lex_lexeme(lex));
     exit(EXIT_FAILURE);
   }
 
-  state->assume_sym[reg] = id;
+  state->assume_sym[reg] = sym;
 
   lex_next(lex);
 }
@@ -298,21 +294,21 @@ static BOOL process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
     return FALSE;
   }
 
-  int cs_assume_sym = state->assume_sym[SR_CS];
-  if (cs_assume_sym == NO_SYM) {
+  const SYMBOL* cs_assume_sym = state->assume_sym[SR_CS];
+  if (cs_assume_sym == NULL) {
     error2(state, lex, "CS has no ASSUME");
     return FALSE;
   }
-  assert(sym_type(ifile->st, cs_assume_sym) == SYM_SECTION);
-  switch (sym_section_type(ifile->st, cs_assume_sym)) {
+  assert(sym_type(cs_assume_sym) == SYM_SECTION);
+  switch (sym_section_type(cs_assume_sym)) {
     case ST_SEGMENT:
-      if (sym_section_ordinal(ifile->st, cs_assume_sym) != state->curseg) {
+      if (sym_section_ordinal(cs_assume_sym) != state->curseg) {
         error2(state, lex, "CS is not the current segment");
         return FALSE;
       }
       break;
     case ST_GROUP: {
-      int assume_group = sym_section_ordinal(ifile->st, cs_assume_sym);
+      int assume_group = sym_section_ordinal(cs_assume_sym);
       if (segment_group(ifile, state->curseg) != assume_group) {
         error2(state, lex, "the current segment is outside the CS assume group");
         return FALSE;
@@ -346,8 +342,8 @@ static BOOL jump_same_module_segment(STATE*, IFILE*, const struct jump *, DWORD 
 static void size_near_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
                       const OPERAND* oper1, const OPERAND* oper2) {
   assert(irec->op == TOK_JMP);
-  assert(oper1->type == OT_JUMP);
-  assert(oper2->type == OT_NONE);
+  assert(oper1->opclass.type == OT_JUMP);
+  assert(oper2->opclass.type == OT_NONE);
 
   irec->near_jump_size = 0;
   irec->size = 1; // size of instruction except displacement
@@ -390,24 +386,24 @@ static BOOL jump_same_module_segment(STATE* state, IFILE* ifile, const struct ju
     return FALSE;
 
   if (p->target_type == ABS_JUMP) {
-    SYMBOL_ID CSID = state->assume_sym[SR_CS];
-    if (sym_section_type(ifile->st, CSID) == ST_SEGMENT) {
+    const SYMBOL* cs_sym = state->assume_sym[SR_CS];
+    if (sym_section_type(cs_sym) == ST_SEGMENT) {
       *addr = p->target.abs;
       return TRUE;
     }
-    assert(sym_section_type(ifile->st, CSID) == ST_GROUP);
+    assert(sym_section_type(cs_sym) == ST_GROUP);
     return FALSE;
   }
 
   assert(p->target_type == LABEL_JUMP);
-  assert(p->target.label != NO_SYM);
-  assert(sym_defined(ifile->st, p->target.label));
-  assert(sym_type(ifile->st, p->target.label) == SYM_RELATIVE);
+  assert(p->target.label != NULL);
+  assert(sym_defined(p->target.label));
+  assert(sym_type(p->target.label) == SYM_RELATIVE);
 
-  if (sym_external(ifile->st, p->target.label))
+  if (sym_external(p->target.label))
     return FALSE;
 
-  *addr = sym_relative_value(ifile->st, p->target.label);
+  *addr = sym_relative_value(p->target.label);
   return TRUE;
 }
 
@@ -426,7 +422,7 @@ static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
   assert(irec != NULL);
   assert(lex != NULL);
 
-  irec->def = find_instruc(irec->op, oper1, oper2);
+  irec->def = find_instruc(irec->op, &oper1->opclass, &oper2->opclass);
 
   if (irec->def == NULL) {
     error(state, ifile, "instruction not supported with given operands: %s", token_name(irec->op));
@@ -491,9 +487,9 @@ static unsigned instruction_segment_override_size(STATE* state, IFILE* ifile, IR
     size = 0;
   else if (string_instruction(irec->def))
     size = string_sreg_override_size(state, ifile, lex, &oper1->val.mem, &oper2->val.mem);
-  else if (oper1 && oper1->type == OT_MEM)
+  else if (oper1 && oper1->opclass.type == OT_MEM)
     size = operand_sreg_override_size(state, ifile, lex, &oper1->val.mem);
-  else if (oper2 && oper2->type == OT_MEM)
+  else if (oper2 && oper2->opclass.type == OT_MEM)
     size = operand_sreg_override_size(state, ifile, lex, &oper2->val.mem);
   else
     size = 0;
@@ -534,9 +530,9 @@ static unsigned operand_sreg_override_size(STATE* state, IFILE* ifile, LEX* lex,
   if (m->disp_type != REL_DISP)
     return 0;
 
-  int symbol_seg = sym_seg(ifile->st, m->disp.label);
+  int symbol_seg = sym_seg(m->disp.label);
   if (symbol_seg == NO_SEG) {
-    error2(state, lex, "symbol has no segment: %s", sym_name(ifile->st, m->disp.label));
+    error2(state, lex, "symbol has no segment: %s", sym_name(m->disp.label));
     return 0;
   }
 
@@ -547,7 +543,7 @@ static unsigned operand_sreg_override_size(STATE* state, IFILE* ifile, LEX* lex,
   if (addressable_at_all(state, ifile, symbol_seg, &sreg))
     return (sreg != default_sreg);
 
-  error2(state, lex, "not accessible via any segment register: %s", sym_name(ifile->st, m->disp.label));
+  error2(state, lex, "not accessible via any segment register: %s", sym_name(m->disp.label));
   return 0;
 }
 
@@ -558,24 +554,24 @@ static BOOL addressable(STATE* state, IFILE* ifile, SEGNO symbol_seg, int sreg) 
   assert(symbol_seg != NO_SEG);
   assert(sreg >= 0 && sreg < N_SREG);
 
-  SYMBOL_ID assume_id = state->assume_sym[sreg];
-  if (assume_id == NO_SYM)
+  const SYMBOL* assume_sym = state->assume_sym[sreg];
+  if (assume_sym == NULL)
     return FALSE;
 
   GROUPNO symbol_group = segment_group(ifile, symbol_seg);
   if (symbol_group == NO_GROUP) {
-    if (sym_section_type(ifile->st, assume_id) == ST_SEGMENT) {
-      SEGNO sreg_seg = sym_section_ordinal(ifile->st, assume_id);
+    if (sym_section_type(assume_sym) == ST_SEGMENT) {
+      SEGNO sreg_seg = sym_section_ordinal(assume_sym);
       return symbol_seg == sreg_seg;
     }
-    assert(sym_section_type(ifile->st, assume_id) == ST_GROUP);
+    assert(sym_section_type(assume_sym) == ST_GROUP);
     return FALSE;
   }
 
-  if (sym_section_type(ifile->st, assume_id) == ST_SEGMENT)
+  if (sym_section_type(assume_sym) == ST_SEGMENT)
     return FALSE;
 
-  GROUPNO sreg_group = sym_section_ordinal(ifile->st, assume_id);
+  GROUPNO sreg_group = sym_section_ordinal(assume_sym);
   return symbol_group == sreg_group;
 }
 
@@ -609,12 +605,12 @@ static unsigned disp_length(long disp, unsigned min) {
 static unsigned rm_disp_len(STATE* state, IFILE* ifile, const OPERAND* op) {
   assert(ifile != NULL);
   assert(op != NULL);
-  assert(op->type == OT_MEM || op->type == OT_REG);
+  assert(op->opclass.type == OT_MEM || op->opclass.type == OT_REG);
 
-  if (op->type == OT_REG)
+  if (op->opclass.type == OT_REG)
     return 0;
 
-  if (op->type != OT_MEM)
+  if (op->opclass.type != OT_MEM)
     fatal("internal: compute_rm: unexpected operand type\n");
 
   const struct mem * const m = &op->val.mem;
@@ -639,17 +635,17 @@ static unsigned rm_disp_len(STATE* state, IFILE* ifile, const OPERAND* op) {
     return disp_length(m->disp.sval, min);
 
   assert(m->disp_type == REL_DISP);
-  assert(m->disp.label != NO_SYM);
-  assert(sym_type(ifile->st, m->disp.label) == SYM_RELATIVE);
-  assert(sym_defined(ifile->st, m->disp.label));
+  assert(m->disp.label != NULL);
+  assert(sym_type(m->disp.label) == SYM_RELATIVE);
+  assert(sym_defined(m->disp.label));
 
-  if (sym_external(ifile->st, m->disp.label))
+  if (sym_external(m->disp.label))
     return 2;
 
   if (relocatable_relative(ifile, m->disp.label))
     return 2;
 
-  DWORD val = sym_relative_value(ifile->st, m->disp.label);
+  DWORD val = sym_relative_value(m->disp.label);
   if (val > LONG_MAX) {
     error(state, ifile, "address out of range for signed displacement\n");
     return min;

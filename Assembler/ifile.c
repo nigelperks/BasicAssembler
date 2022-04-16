@@ -22,7 +22,7 @@ IFILE* new_ifile(SOURCE* src) {
   ifile->used = 0;
   ifile->pos = 0;
   ifile->st = new_symbol_table();
-  ifile->start_label = NO_SYM;
+  ifile->start_label = NULL;
   ifile->provisional_sizes = FALSE;
   ifile->ngroup = 0;
   ifile->nseg = 0;
@@ -52,7 +52,7 @@ IREC* new_irec(IFILE* ifile) {
   assert(ifile->used < ifile->allocated);
   IREC* irec = &ifile->recs[ifile->used++];
   irec->source = NO_SOURCE;
-  irec->label = NO_SYM;
+  irec->label = NULL;
   irec->rep = TOK_NONE;
   irec->op = TOK_NONE;
   irec->operand_pos = 0;
@@ -202,12 +202,12 @@ void set_segment_public(IFILE* ifile, unsigned seg) {
   ifile->segments[seg].public = TRUE;
 }
 
-BOOL relocatable_relative(const IFILE* ifile, SYMBOL_ID id) {
+BOOL relocatable_relative(const IFILE* ifile, const SYMBOL* sym) {
   assert(ifile != NULL);
   assert(ifile->st != NULL);
-  assert(id >= 0 && (unsigned)id < ifile->st->used);
-  if (sym_type(ifile->st, id) == SYM_RELATIVE) {
-    SEGNO segno = sym_seg(ifile->st, id);
+  assert(sym != NULL);
+  if (sym_type(sym) == SYM_RELATIVE) {
+    SEGNO segno = sym_seg(sym);
     if (segno >= 0 && segno < (SEGNO)ifile->nseg) {
       const ASM_SEGMENT* seg = &ifile->segments[segno];
       if (seg->public || seg->group != NO_GROUP)
@@ -251,7 +251,7 @@ static void test_new_ifile(CuTest* tc) {
   CuAssertIntEquals(tc, 0, ifile->used);
   CuAssertIntEquals(tc, 0, ifile->pos);
   CuAssertPtrNotNull(tc, ifile->st);
-  CuAssertIntEquals(tc, NO_SYM, ifile->start_label);
+  CuAssertTrue(tc, ifile->start_label == NULL);
   CuAssertIntEquals(tc, FALSE, ifile->provisional_sizes);
   CuAssertIntEquals(tc, 0, ifile->ngroup);
   CuAssertIntEquals(tc, 0, ifile->nseg);
@@ -270,7 +270,7 @@ static void test_new_irec(CuTest* tc) {
 
   CuAssertPtrNotNull(tc, irec);
   CuAssertIntEquals(tc, NO_SOURCE, irec->source);
-  CuAssertIntEquals(tc, NO_SYM, irec->label);
+  CuAssertPtrEquals(tc, NULL, irec->label);
   CuAssertIntEquals(tc, TOK_NONE, irec->rep);
   CuAssertIntEquals(tc, TOK_NONE, irec->op);
   CuAssertIntEquals(tc, 0, irec->operand_pos);
@@ -287,7 +287,7 @@ static void test_new_irec(CuTest* tc) {
   irec = new_irec(ifile);
   CuAssertPtrNotNull(tc, irec);
   CuAssertIntEquals(tc, NO_SOURCE, irec->source);
-  CuAssertIntEquals(tc, NO_SYM, irec->label);
+  CuAssertPtrEquals(tc, NULL, irec->label);
   CuAssertIntEquals(tc, 0, irec->size);
   CuAssertPtrNotNull(tc, ifile->recs);
   CuAssertIntEquals(tc, 2, ifile->used);

@@ -47,7 +47,7 @@ OFILE* encoding_pass(IFILE* ifile, const Options* options) {
   for (ifile->pos = 0; ifile->pos < irec_count(ifile); ifile->pos++)
     process_irec(&state, ifile, lex, ofile);
 
-  if (ifile->start_label != NO_SYM)
+  if (ifile->start_label != NULL)
     emit_start(ifile, ofile);
 
   delete_lex(lex);
@@ -76,17 +76,17 @@ static void emit_groupno(OFILE* ofile, GROUPNO group) {
 
 static void emit_start(IFILE* ifile, OFILE* ofile) {
   assert(ifile != NULL);
-  assert(ifile->start_label != NO_SYM);
-  assert(sym_type(ifile->st, ifile->start_label) == SYM_RELATIVE &&
-         sym_defined(ifile->st, ifile->start_label) &&
-         !sym_external(ifile->st, ifile->start_label));
+  assert(ifile->start_label != NULL);
+  assert(sym_type(ifile->start_label) == SYM_RELATIVE &&
+         sym_defined(ifile->start_label) &&
+         !sym_external(ifile->start_label));
   assert(ofile != NULL);
 
   emit_object_signal(ofile, OBJ_BEGIN_START);
 
-  emit_segno(ofile, sym_seg(ifile->st, ifile->start_label));
+  emit_segno(ofile, sym_seg(ifile->start_label));
 
-  DWORD offset = sym_relative_value(ifile->st, ifile->start_label);
+  DWORD offset = sym_relative_value(ifile->start_label);
   if (offset > (WORD)(-1))
     fatal("cannot emit offset beyond 64K\n");
   emit_object_word(ofile, OBJ_OFFSET, (WORD) offset);
@@ -151,55 +151,57 @@ static void emit_group(GROUPNO groupno, const char* name, OFILE* ofile) {
   emit_object_signal(ofile, OBJ_END_GROUP);
 }
 
-static void emit_external(SYMTAB*, SYMBOL_ID, OFILE*);
+static void emit_external(const SYMBOL*, OFILE*);
 
 static void emit_externals(SYMTAB* st, OFILE* ofile) {
   for (int id = sym_begin(st); id != sym_end(st); id = sym_next(st, id)) {
-    if (sym_external(st, id))
-      emit_external(st, id, ofile);
+    const SYMBOL* sym = get_sym(st, id);
+    if (sym_external(sym))
+      emit_external(sym, ofile);
   }
 }
 
-static void emit_external(SYMTAB* st, SYMBOL_ID sym_id, OFILE* ofile) {
-  assert(sym_external(st, sym_id));
+static void emit_external(const SYMBOL* sym, OFILE* ofile) {
+  assert(sym_external(sym));
 
   emit_object_signal(ofile, OBJ_BEGIN_EXTRN_DEF);
 
-  SYMBOL_ID ext_id = sym_external_id(st, sym_id);
+  SYMBOL_ID ext_id = sym_external_id(sym);
   assert(ext_id >= 0);
   if (ext_id > (WORD)(-1))
     fatal("cannot emit external symbol ID beyond 64K\n");
   emit_object_word(ofile, OBJ_ID, ext_id);
 
-  emit_object_data(ofile, OBJ_NAME, sym_name(st, sym_id), strlen(sym_name(st, sym_id)));
+  emit_object_data(ofile, OBJ_NAME, sym_name(sym), strlen(sym_name(sym)));
 
-  emit_segno(ofile, sym_seg(st, sym_id));
+  emit_segno(ofile, sym_seg(sym));
 
   emit_object_signal(ofile, OBJ_END_EXTRN_DEF);
 }
 
-static void emit_public(SYMTAB*, int id, OFILE*);
+static void emit_public(const SYMBOL*, OFILE*);
 
 static void emit_publics(SYMTAB* st, OFILE* ofile) {
   for (int id = sym_begin(st); id != sym_end(st); id = sym_next(st, id)) {
-    if (sym_public(st, id))
-      emit_public(st, id, ofile);
+    const SYMBOL* sym = get_sym(st, id);
+    if (sym_public(sym))
+      emit_public(sym, ofile);
   }
 }
 
-static void emit_public(SYMTAB* st, int id, OFILE* ofile) {
-  assert(sym_public(st, id));
-  assert(sym_type(st, id) == SYM_RELATIVE);
-  assert(!sym_external(st, id));
-  assert(sym_defined(st, id));
+static void emit_public(const SYMBOL* sym, OFILE* ofile) {
+  assert(sym_public(sym));
+  assert(sym_type(sym) == SYM_RELATIVE);
+  assert(!sym_external(sym));
+  assert(sym_defined(sym));
 
   emit_object_signal(ofile, OBJ_BEGIN_PUBLIC);
 
-  emit_object_data(ofile, OBJ_NAME, sym_name(st, id), strlen(sym_name(st, id)));
+  emit_object_data(ofile, OBJ_NAME, sym_name(sym), strlen(sym_name(sym)));
 
-  emit_segno(ofile, sym_seg(st, id));
+  emit_segno(ofile, sym_seg(sym));
 
-  DWORD offset = sym_relative_value(st, id);
+  DWORD offset = sym_relative_value(sym);
   if (offset > (WORD)(-1))
     fatal("cannot emit offset beyond 64K\n");
   emit_object_word(ofile, OBJ_OFFSET, (WORD) offset);
@@ -269,15 +271,15 @@ static void do_equ(STATE* state, IFILE* ifile, LEX* lex) {
 
   assert(lex_token(lex) == TOK_EQU);
 
-  if (irec->label == NO_SYM)
+  if (irec->label == NULL)
     error2(state, lex, "EQU without label");
-  else if (sym_type(ifile->st, irec->label) != SYM_ABSOLUTE)
-    error2(state, lex, "phase error: non-EQU name: %s", sym_name(ifile->st, irec->label));
-  else if (!sym_defined(ifile->st, irec->label))
-    error2(state, lex, "phase error: undefined: %s", sym_name(ifile->st, irec->label));
+  else if (sym_type(irec->label) != SYM_ABSOLUTE)
+    error2(state, lex, "phase error: non-EQU name: %s", sym_name(irec->label));
+  else if (!sym_defined(irec->label))
+    error2(state, lex, "phase error: undefined: %s", sym_name(irec->label));
   else if (lex_next(lex) != TOK_NUM)
     error2(state, lex, "only numeric EQU is supported");
-  else if (sym_absolute_value(ifile->st, irec->label) != lex_val(lex))
+  else if (sym_absolute_value(irec->label) != lex_val(lex))
     error2(state, lex, "phase error: EQU value has changed");
   else
     lex_next(lex);
@@ -310,15 +312,13 @@ static void do_segment(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* 
   if (state->curseg != NO_SEG)
     error2(state, lex, "segment %s is already open", segment_name(ifile, state->curseg));
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM ||
-      sym_type(ifile->st, id) != SYM_SECTION ||
-      sym_section_type(ifile->st, id) != ST_SEGMENT) {
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL || sym_type(sym) != SYM_SECTION || sym_section_type(sym) != ST_SEGMENT) {
     error2(state, lex, "segment name expected: %s", lex_lexeme(lex));
     exit(EXIT_FAILURE);
   }
 
-  state->curseg = sym_section_ordinal(ifile->st, id);
+  state->curseg = sym_section_ordinal(sym);
   assert(state->curseg >= 0);
   if (state->curseg > 0xff)
     fatal("cannot emit segment number > 255\n");
@@ -400,15 +400,13 @@ static void assume(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM ||
-      !sym_defined(ifile->st, id) ||
-      sym_type(ifile->st, id) != SYM_SECTION) {
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL || !sym_defined(sym) || sym_type(sym) != SYM_SECTION) {
     error2(state, lex, "phase error: defined segment or group expected: %s", lex_lexeme(lex));
     exit(EXIT_FAILURE);
   }
 
-  state->assume_sym[reg] = id;
+  state->assume_sym[reg] = sym;
 
   lex_next(lex);
 }
@@ -632,31 +630,31 @@ static size_t word_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
       if (relocatable_relative(ifile, val.label)) {
         emit_object_signal(ofile, OBJ_BEGIN_OFFSET);
         emit_object_word(ofile, OBJ_POS, (WORD) segment_pc(ifile, state->curseg));
-        emit_segno(ofile, sym_seg(ifile->st, val.label));
+        emit_segno(ofile, sym_seg(val.label));
         emit_object_signal(ofile, OBJ_END_OFFSET);
       }
-      emit_object_word(ofile, OBJ_DW, (WORD) sym_relative_value(ifile->st, val.label));
+      emit_object_word(ofile, OBJ_DW, (WORD) sym_relative_value(val.label));
       size = 2;
       break;
     case ET_SEC:
-      if (sym_section_type(ifile->st, val.label) == ST_SEGMENT) {
+      if (sym_section_type(val.label) == ST_SEGMENT) {
         emit_object_signal(ofile, OBJ_BEGIN_SEG_ADDR);
         emit_object_word(ofile, OBJ_POS, (WORD) segment_pc(ifile, state->curseg));
-        emit_segno(ofile, sym_section_ordinal(ifile->st, val.label));
+        emit_segno(ofile, sym_section_ordinal(val.label));
         emit_object_signal(ofile, OBJ_END_SEG_ADDR);
       }
       else {
-        assert(sym_section_type(ifile->st, val.label) == ST_GROUP);
+        assert(sym_section_type(val.label) == ST_GROUP);
         emit_object_signal(ofile, OBJ_BEGIN_GROUP_ADDR);
         emit_object_word(ofile, OBJ_POS, (WORD) segment_pc(ifile, state->curseg));
-        emit_groupno(ofile, sym_section_ordinal(ifile->st, val.label));
+        emit_groupno(ofile, sym_section_ordinal(val.label));
         emit_object_signal(ofile, OBJ_END_GROUP_ADDR);
       }
       emit_object_word(ofile, OBJ_DW, 0);
       size = 2;
       break;
     case ET_SEG: {
-      SEGNO segno = sym_seg(ifile->st, val.label);
+      SEGNO segno = sym_seg(val.label);
       GROUPNO groupno = segment_group(ifile, segno);
       if (groupno == NO_GROUP) {
         emit_object_signal(ofile, OBJ_BEGIN_SEG_ADDR);
@@ -855,10 +853,10 @@ static void check_public_symbol(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM || sym_type(ifile->st, id) != SYM_RELATIVE || !sym_public(ifile->st, id))
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL || sym_type(sym) != SYM_RELATIVE || !sym_public(sym))
     error2(state, lex, "phase error: public symbol not set up correctly: %s", lex_lexeme(lex));
-  else if (!sym_defined(ifile->st, id))
+  else if (!sym_defined(sym))
     error2(state, lex, "public symbol not defined: %s", lex_lexeme(lex));
 
   lex_next(lex);
@@ -888,8 +886,8 @@ static void check_external_symbol(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  int id = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (id == NO_SYM || sym_type(ifile->st, id) != SYM_RELATIVE || !sym_external(ifile->st, id))
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL || sym_type(sym) != SYM_RELATIVE || !sym_external(sym))
     error2(state, lex, "phase error: external symbol not set up correctly: %s", lex_lexeme(lex));
 
   if (lex_next(lex) == ':')
@@ -920,14 +918,14 @@ enum reloc_type {
 
 typedef struct {
   short type;
-  SYMBOL_ID symbol_id;
+  const SYMBOL* symbol;
 } RELOC_REQ;
 
 typedef struct {
   DWORD pos;
   short type;
   BOOL jump; // relative to instruction; otherwise data displacement
-  SYMBOL_ID symbol_id;
+  const SYMBOL* symbol;
 } RELOC_INF;
 
 #define MAX_RELOC (2)
@@ -953,7 +951,7 @@ static void add_reloc(RELOC_LIST* p, const RELOC_REQ* req, BOOL jump, DWORD pos)
   p->relocs[p->count].pos = pos;
   p->relocs[p->count].type = req->type;
   p->relocs[p->count].jump = jump;
-  p->relocs[p->count].symbol_id = req->symbol_id;
+  p->relocs[p->count].symbol = req->symbol;
   p->count++;
 }
 
@@ -982,21 +980,21 @@ static void process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
     return;
   }
 
-  int cs_assume_sym = state->assume_sym[SR_CS];
-  if (cs_assume_sym == NO_SYM) {
+  const SYMBOL* cs_assume_sym = state->assume_sym[SR_CS];
+  if (cs_assume_sym == NULL) {
     error2(state, lex, "CS has no ASSUME");
     return;
   }
-  assert(sym_type(ifile->st, cs_assume_sym) == SYM_SECTION);
-  switch (sym_section_type(ifile->st, cs_assume_sym)) {
+  assert(sym_type(cs_assume_sym) == SYM_SECTION);
+  switch (sym_section_type(cs_assume_sym)) {
     case ST_SEGMENT:
-      if (sym_section_ordinal(ifile->st, cs_assume_sym) != state->curseg) {
+      if (sym_section_ordinal(cs_assume_sym) != state->curseg) {
         error2(state, lex, "CS is not the current segment");
         return;
       }
       break;
     case ST_GROUP: {
-      int assume_group = sym_section_ordinal(ifile->st, cs_assume_sym);
+      int assume_group = sym_section_ordinal(cs_assume_sym);
       if (segment_group(ifile, state->curseg) != assume_group) {
         error2(state, lex, "the current segment is outside the CS assume group");
         return;
@@ -1050,13 +1048,13 @@ static void emit_relocation(STATE* state, IFILE* ifile, const RELOC_INF* rel, OF
     case RT_OFFSET:
       emit_object_signal(ofile, OBJ_BEGIN_OFFSET);
       emit_object_word(ofile, OBJ_POS, (WORD)pos);
-      emit_segno(ofile, sym_seg(ifile->st, rel->symbol_id));
+      emit_segno(ofile, sym_seg(rel->symbol));
       emit_object_signal(ofile, OBJ_END_OFFSET);
       break;
     case RT_EXTERNAL:
       emit_object_signal(ofile, OBJ_BEGIN_EXTRN_USE);
       emit_object_word(ofile, OBJ_POS, (WORD)pos);
-      SYMBOL_ID ext_id = sym_external_id(ifile->st, rel->symbol_id);
+      SYMBOL_ID ext_id = sym_external_id(rel->symbol);
       assert(ext_id >= 0);
       if (ext_id > (WORD)(-1))
         fatal("cannot emit external symbol ID beyond 64K\n");
@@ -1068,26 +1066,26 @@ static void emit_relocation(STATE* state, IFILE* ifile, const RELOC_INF* rel, OF
     case RT_GROUP_ABSOLUTE_JUMP:
       emit_object_signal(ofile, OBJ_BEGIN_GROUP_ABS_JUMP);
       emit_object_word(ofile, OBJ_POS, (WORD)pos);
-      emit_groupno(ofile, sym_section_ordinal(ifile->st, rel->symbol_id));
+      emit_groupno(ofile, sym_section_ordinal(rel->symbol));
       emit_object_signal(ofile, OBJ_END_GROUP_ABS_JUMP);
       break;
     case RT_SECTION:
-      if (sym_section_type(ifile->st, rel->symbol_id) == ST_SEGMENT) {
+      if (sym_section_type(rel->symbol) == ST_SEGMENT) {
         emit_object_signal(ofile, OBJ_BEGIN_SEG_ADDR);
         emit_object_word(ofile, OBJ_POS, (WORD)pos);
-        emit_segno(ofile, sym_section_ordinal(ifile->st, rel->symbol_id));
+        emit_segno(ofile, sym_section_ordinal(rel->symbol));
         emit_object_signal(ofile, OBJ_END_SEG_ADDR);
       }
       else {
-        assert(sym_section_type(ifile->st, rel->symbol_id) == ST_GROUP);
+        assert(sym_section_type(rel->symbol) == ST_GROUP);
         emit_object_signal(ofile, OBJ_BEGIN_GROUP_ADDR);
         emit_object_word(ofile, OBJ_POS, (WORD)pos);
-        emit_groupno(ofile, sym_section_ordinal(ifile->st, rel->symbol_id));
+        emit_groupno(ofile, sym_section_ordinal(rel->symbol));
         emit_object_signal(ofile, OBJ_END_GROUP_ADDR);
       }
       break;
     case RT_SEG: {
-      SEGNO segno = sym_seg(ifile->st, rel->symbol_id);
+      SEGNO segno = sym_seg(rel->symbol);
       GROUPNO groupno = segment_group(ifile, segno);
       if (groupno == NO_GROUP) {
         emit_object_signal(ofile, OBJ_BEGIN_SEG_ADDR);
@@ -1123,9 +1121,9 @@ static unsigned encode_near_direct_jump(STATE* state, IFILE* ifile, IREC* irec, 
   assert(irec->op == TOK_JMP);
   assert(lex != NULL);
   assert(oper1 != NULL);
-  assert(oper1->type == OT_JUMP);
+  assert(oper1->opclass.type == OT_JUMP);
   assert(oper2 != NULL);
-  assert(oper2->type == OT_NONE);
+  assert(oper2->opclass.type == OT_NONE);
   assert(buf != NULL);
   assert(relocs != NULL);
 
@@ -1151,7 +1149,7 @@ static unsigned encode_relative(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
   assert(irec != NULL);
   assert(lex != NULL);
   assert(oper1 != NULL);
-  assert(oper1->type == OT_JUMP);
+  assert(oper1->opclass.type == OT_JUMP);
   assert(disp_size == 1 || disp_size == 2);
   assert(buf != NULL);
   assert(relocs != NULL);
@@ -1173,12 +1171,12 @@ static unsigned encode_relative(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
       error(state, ifile, "jump address is out of 16-bit range: %05lx", (unsigned long) dest);
       return i;
     }
-    SYMBOL_ID CSID = state->assume_sym[SR_CS];
+    const SYMBOL* CS = state->assume_sym[SR_CS];
     // if CS -> group, absolute address is relative to start of group
-    if (sym_section_type(ifile->st, CSID) == ST_GROUP) {
+    if (sym_section_type(CS) == ST_GROUP) {
       assert(disp_size == 2);
       rel.type = RT_GROUP_ABSOLUTE_JUMP;
-      rel.symbol_id = CSID;
+      rel.symbol = CS;
       add_reloc(relocs, &rel, JUMP_RELOC, i);
       write_word_le(buf + i, (WORD) dest);
       return i + 2;
@@ -1189,18 +1187,18 @@ static unsigned encode_relative(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
   }
 
   assert(oper1->val.jump.target_type == LABEL_JUMP);
-  assert(oper1->val.jump.target.label != NO_SYM);
-  SYMBOL_ID id = oper1->val.jump.target.label;
-  assert(sym_type(ifile->st, id) == SYM_RELATIVE);
+  assert(oper1->val.jump.target.label != NULL);
+  const SYMBOL* sym = oper1->val.jump.target.label;
+  assert(sym_type(sym) == SYM_RELATIVE);
 
-  const char* name = sym_name(ifile->st, id);
+  const char* name = sym_name(sym);
 
-  if (!sym_defined(ifile->st, id))
+  if (!sym_defined(sym))
     fatal("internal: symbol not defined in encoding pass: %s\n", name);
 
-  rel.symbol_id = id;
+  rel.symbol = sym;
 
-  if (sym_external(ifile->st, id)) {
+  if (sym_external(sym)) {
     assert(disp_size == 2);
     rel.type = RT_EXTERNAL;
     add_reloc(relocs, &rel, JUMP_RELOC, i);
@@ -1209,9 +1207,9 @@ static unsigned encode_relative(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
     return i;
   }
 
-  assert(sym_seg(ifile->st, id) != NO_SEG);
-  if (sym_seg(ifile->st, id) == state->curseg) {
-    DWORD dest = sym_relative_value(ifile->st, id);
+  assert(sym_seg(sym) != NO_SEG);
+  if (sym_seg(sym) == state->curseg) {
+    DWORD dest = sym_relative_value(sym);
     encode_disp(state, lex, dest, pc + i, disp_size, buf + i);
     return i + disp_size;
   }
@@ -1226,7 +1224,7 @@ static unsigned encode_relative(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
 
 static unsigned encode_far(IFILE* ifile, const OPERAND* oper1, BYTE* buf, unsigned i, RELOC_LIST* relocs) {
     assert(oper1 != NULL);
-    assert(oper1->type == OT_JUMP);
+    assert(oper1->opclass.type == OT_JUMP);
     assert(oper1->val.jump.distance == FAR);
 
     if (oper1->val.jump.target_type == FAR_JUMP) {
@@ -1238,15 +1236,15 @@ static unsigned encode_far(IFILE* ifile, const OPERAND* oper1, BYTE* buf, unsign
     }
 
     assert(oper1->val.jump.target_type == LABEL_JUMP);
-    SYMBOL_ID label = oper1->val.jump.target.label;
-    assert(sym_type(ifile->st, label) == SYM_RELATIVE);
+    const SYMBOL* label = oper1->val.jump.target.label;
+    assert(sym_type(label) == SYM_RELATIVE);
 
     // offset relocation is DATA_RELOC not JUMP_RELOC
     // because it is offset in segment, not PC-relative
     RELOC_REQ rel;
-    rel.symbol_id = label;
+    rel.symbol = label;
 
-    if (sym_external(ifile->st, label)) {
+    if (sym_external(label)) {
       rel.type = RT_EXTERNAL;
       add_reloc(relocs, &rel, DATA_RELOC, i);
       buf[i++] = 0;
@@ -1257,7 +1255,7 @@ static unsigned encode_far(IFILE* ifile, const OPERAND* oper1, BYTE* buf, unsign
         rel.type = RT_OFFSET;
         add_reloc(relocs, &rel, DATA_RELOC, i);
       }
-      write_word_le(buf + i, (WORD) sym_relative_value(ifile->st, label));
+      write_word_le(buf + i, (WORD) sym_relative_value(label));
       i += 2;
     }
 
@@ -1411,12 +1409,12 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
     buf[i++] = encode_modrm(mod, reg, rm);
   }
   else if (irec->def->oper1 == OF_INDIR) {
-    assert(oper1->type == OT_MEM);
+    assert(oper1->opclass.type == OT_MEM);
     disp_code = displacement_code(ifile, &oper1->val.mem, &rel);
     disp_len = 2;
   }
   else if (irec->def->oper2 == OF_INDIR) {
-    assert(oper2->type == OT_MEM);
+    assert(oper2->opclass.type == OT_MEM);
     disp_code = displacement_code(ifile, &oper2->val.mem, &rel);
     disp_len = 2;
   }
@@ -1439,9 +1437,9 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
 
     rel.type = RT_NONE;
 
-    if (oper1->type == OT_IMM)
+    if (oper1->opclass.type == OT_IMM)
       val = immediate_value(ifile, &oper1->val.imm, &rel);
-    else if (oper2->type == OT_IMM)
+    else if (oper2->opclass.type == OT_IMM)
       val = immediate_value(ifile, &oper2->val.imm, &rel);
     else
       error2(state, lex, "internal error: no immediate");
@@ -1462,7 +1460,7 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
   return i;
 }
 
-static long relative_symbol_value(IFILE*, int id, RELOC_REQ*);
+static long relative_symbol_value(IFILE*, const SYMBOL*, RELOC_REQ*);
 
 static long immediate_value(IFILE* ifile, const struct imm * imm, RELOC_REQ* rel) {
   assert(ifile != NULL);
@@ -1471,23 +1469,23 @@ static long immediate_value(IFILE* ifile, const struct imm * imm, RELOC_REQ* rel
 
   switch (imm->type) {
     case IMM_ABS:
-      assert(imm->label == NO_SYM);
+      assert(imm->label == NULL);
       rel->type = RT_NONE;
       return imm->sval;
     case IMM_OFFSET:
-      assert(imm->label != NO_SYM);
+      assert(imm->label != NULL);
       return relative_symbol_value(ifile, imm->label, rel);
     case IMM_SEG:
-      assert(imm->label != NO_SYM);
+      assert(imm->label != NULL);
       assert(imm->sval == 0);
       rel->type = RT_SEG;
-      rel->symbol_id = imm->label;
+      rel->symbol = imm->label;
       return 0;
     case IMM_SECTION:
-      assert(imm->label != NO_SYM);
+      assert(imm->label != NULL);
       assert(imm->sval == 0);
       rel->type = RT_SECTION;
-      rel->symbol_id = imm->label;
+      rel->symbol = imm->label;
       return 0;
   }
   assert(0 && "unknown immediate value type");
@@ -1506,30 +1504,30 @@ static long displacement(IFILE* ifile, const struct mem * const m, RELOC_REQ* re
   }
 
   assert(m->disp_type == REL_DISP);
-  assert(m->disp.label != NO_SYM);
+  assert(m->disp.label != NULL);
   return relative_symbol_value(ifile, m->disp.label, rel);
 }
 
-static long relative_symbol_value(IFILE* ifile, int id, RELOC_REQ* rel) {
-  assert(sym_type(ifile->st, id) == SYM_RELATIVE);
+static long relative_symbol_value(IFILE* ifile, const SYMBOL* sym, RELOC_REQ* rel) {
+  assert(sym_type(sym) == SYM_RELATIVE);
 
-  const char* name = sym_name(ifile->st, id);
+  const char* name = sym_name(sym);
 
-  if (!sym_defined(ifile->st, id))
+  if (!sym_defined(sym))
     fatal("internal: symbol not defined in encoding pass: %s\n", name);
 
-  rel->symbol_id = id;
+  rel->symbol = sym;
 
-  if (sym_external(ifile->st, id)) {
+  if (sym_external(sym)) {
     rel->type = RT_EXTERNAL;
     return 0;
   }
 
-  DWORD addr = sym_relative_value(ifile->st, id);
+  DWORD addr = sym_relative_value(sym);
   if (addr > LONG_MAX)
     fatal("address out of range for signed displacement: %s\n", name);
 
-  if (relocatable_relative(ifile, id))
+  if (relocatable_relative(ifile, sym))
     rel->type = RT_OFFSET;
 
   return addr;
@@ -1551,10 +1549,10 @@ static BOOL compute_sreg_override(STATE* state, IFILE* ifile, IREC* irec, LEX* l
   if (string_instruction(irec->def))
     return string_sreg_override(state, ifile, lex, &oper1->val.mem, &oper2->val.mem, code);
 
-  if (oper1 && oper1->type == OT_MEM)
+  if (oper1 && oper1->opclass.type == OT_MEM)
     return operand_sreg_override(state, ifile, lex, &oper1->val.mem, code);
 
-  if (oper2 && oper2->type == OT_MEM)
+  if (oper2 && oper2->opclass.type == OT_MEM)
     return operand_sreg_override(state, ifile, lex, &oper2->val.mem, code);
 
   return FALSE;
@@ -1587,8 +1585,9 @@ static BOOL string_sreg_override(STATE* state, IFILE* ifile, LEX* lex,
   return FALSE;
 }
 
-static BOOL addressable(STATE*, IFILE*, SYMBOL_ID, int sreg);
-static BOOL addressable_at_all(STATE*, IFILE*, SYMBOL_ID, int *sreg);
+static BOOL addressable(STATE*, IFILE*, const SYMBOL* label, int sreg);
+
+static BOOL addressable_at_all(STATE*, IFILE*, const SYMBOL* label, int *sreg);
 
 static BOOL operand_sreg_override(STATE* state, IFILE* ifile, LEX* lex, const struct mem * m, BYTE *code) {
   assert(state != NULL);
@@ -1622,44 +1621,43 @@ static BOOL operand_sreg_override(STATE* state, IFILE* ifile, LEX* lex, const st
     return FALSE;
   }
 
-  error2(state, lex, "not accessible via any segment register: %s", sym_name(ifile->st, m->disp.label));
+  error2(state, lex, "not accessible via any segment register: %s", sym_name(m->disp.label));
   return FALSE;
 }
 
-static BOOL addressable(STATE* state, IFILE* ifile, SYMBOL_ID label, int sreg) {
+static BOOL addressable(STATE* state, IFILE* ifile, const SYMBOL* label, int sreg) {
   assert(state != NULL);
   assert(ifile != NULL);
-  assert(ifile->st != NULL);
-  assert(label != NO_SYM);
-  assert(sym_type(ifile->st, label) == SYM_RELATIVE);
+  assert(label != NULL);
+  assert(sym_type(label) == SYM_RELATIVE);
   assert(sreg >= 0 && sreg < N_SREG);
 
-  SYMBOL_ID assume_id = state->assume_sym[sreg];
-  if (assume_id == NO_SYM)
+  const SYMBOL* assume_sym = state->assume_sym[sreg];
+  if (assume_sym == NULL)
     return FALSE;
 
-  SEGNO symbol_seg = sym_seg(ifile->st, label);
+  SEGNO symbol_seg = sym_seg(label);
   assert(symbol_seg != NO_SEG);
 
   GROUPNO symbol_group = segment_group(ifile, symbol_seg);
   if (symbol_group == NO_GROUP) {
-    if (sym_section_type(ifile->st, assume_id) == ST_SEGMENT) {
-      SEGNO sreg_seg = sym_section_ordinal(ifile->st, assume_id);
+    if (sym_section_type(assume_sym) == ST_SEGMENT) {
+      SEGNO sreg_seg = sym_section_ordinal(assume_sym);
       return symbol_seg == sreg_seg;
     }
-    assert(sym_section_type(ifile->st, assume_id) == ST_GROUP);
+    assert(sym_section_type(assume_sym) == ST_GROUP);
     return FALSE;
   }
 
-  if (sym_section_type(ifile->st, assume_id) == ST_SEGMENT)
+  if (sym_section_type(assume_sym) == ST_SEGMENT)
     return FALSE;
 
-  GROUPNO sreg_group = sym_section_ordinal(ifile->st, assume_id);
+  GROUPNO sreg_group = sym_section_ordinal(assume_sym);
   return symbol_group == sreg_group;
 }
 
 // TODO: efficiency of algorithm.
-static BOOL addressable_at_all(STATE* state, IFILE* ifile, SYMBOL_ID label, int *sreg) {
+static BOOL addressable_at_all(STATE* state, IFILE* ifile, const SYMBOL* label, int *sreg) {
   static const int regs[] = { SR_DS, SR_ES, SR_SS, SR_CS };
 
   for (unsigned i = 0; i < sizeof regs / sizeof regs[0]; i++) {
@@ -1681,12 +1679,12 @@ static BYTE encode_sreg_override(int sreg) {
 
 static unsigned mem_disp_len(STATE*, IFILE*, const OPERAND*, long *disp, RELOC_REQ* rel);
 
-static void compute_rm(STATE* state, IFILE* ifile, const OPERAND* op,
+static void compute_rm(STATE* state, IFILE* ifile, const OPERAND* oper,
                        unsigned *mod, unsigned *rm, unsigned *disp_len,
                        DWORD *disp_code, RELOC_REQ* rel) {
   assert(ifile != NULL);
-  assert(op != NULL);
-  assert(op->type == OT_MEM || op->type == OT_REG);
+  assert(oper != NULL);
+  assert(oper->opclass.type == OT_MEM || oper->opclass.type == OT_REG);
   assert(mod != NULL);
   assert(rm != NULL);
   assert(disp_len != NULL);
@@ -1695,20 +1693,20 @@ static void compute_rm(STATE* state, IFILE* ifile, const OPERAND* op,
 
   rel->type = RT_NONE;
 
-  if (op->type == OT_REG) {
+  if (oper->opclass.type == OT_REG) {
     *mod = 3;
-    *rm = op->val.reg;
+    *rm = oper->val.reg;
     *disp_len = 0;
     return;
   }
 
-  if (op->type != OT_MEM)
+  if (oper->opclass.type != OT_MEM)
     fatal("internal: compute_rm: unexpected operand type\n");
 
-  const struct mem * const m = &op->val.mem;
+  const struct mem * const m = &oper->val.mem;
 
   long disp;
-  *disp_len = mem_disp_len(state, ifile, op, &disp, rel);
+  *disp_len = mem_disp_len(state, ifile, oper, &disp, rel);
   *disp_code = (DWORD) disp;
 
   // [addr]
@@ -1775,13 +1773,13 @@ static unsigned disp_length(long disp, unsigned min) {
   return 2;
 }
 
-static unsigned mem_disp_len(STATE* state, IFILE* ifile, const OPERAND* op, long *disp, RELOC_REQ* rel) {
+static unsigned mem_disp_len(STATE* state, IFILE* ifile, const OPERAND* oper, long *disp, RELOC_REQ* rel) {
   assert(ifile != NULL);
-  assert(op != NULL);
-  assert(op->type == OT_MEM);
+  assert(oper != NULL);
+  assert(oper->opclass.type == OT_MEM);
   assert(disp != NULL);
 
-  const struct mem * const m = &op->val.mem;
+  const struct mem * const m = &oper->val.mem;
 
   unsigned min = (m->base_reg == REG_BP && m->index_reg == NO_REG) ? 1 : 0;
 
@@ -1800,18 +1798,18 @@ static unsigned mem_disp_len(STATE* state, IFILE* ifile, const OPERAND* op, long
   }
 
   assert(m->disp_type == REL_DISP);
-  assert(m->disp.label != NO_SYM);
-  assert(sym_type(ifile->st, m->disp.label) == SYM_RELATIVE);
-  assert(sym_defined(ifile->st, m->disp.label));
+  assert(m->disp.label != NULL);
+  assert(sym_type(m->disp.label) == SYM_RELATIVE);
+  assert(sym_defined(m->disp.label));
 
-  if (sym_external(ifile->st, m->disp.label)) {
+  if (sym_external(m->disp.label)) {
     rel->type = RT_EXTERNAL;
-    rel->symbol_id = m->disp.label;
+    rel->symbol = m->disp.label;
     *disp = 0;
     return 2;
   }
 
-  DWORD val = sym_relative_value(ifile->st, m->disp.label);
+  DWORD val = sym_relative_value(m->disp.label);
   if (val > LONG_MAX) {
     error(state, ifile, "address out of range for signed displacement\n");
     val = 0;
@@ -1820,7 +1818,7 @@ static unsigned mem_disp_len(STATE* state, IFILE* ifile, const OPERAND* op, long
 
   if (relocatable_relative(ifile, m->disp.label)) {
     rel->type = RT_OFFSET;
-    rel->symbol_id = m->disp.label;
+    rel->symbol = m->disp.label;
     return 2;
   }
 
@@ -1847,16 +1845,17 @@ static BYTE encode_modrm(unsigned mod, unsigned reg, unsigned rm) {
 static void test_reloc(CuTest* tc) {
   RELOC_LIST list;
   RELOC_REQ req;
+  SYMBOL dummy;
 
   init_reloc_list(&list);
   CuAssertIntEquals(tc, 0, list.count);
 
   req.type = RT_OFFSET;
-  req.symbol_id = 9;
+  req.symbol = &dummy;
   add_reloc(&list, &req, JUMP_RELOC, 0x1234);
   CuAssertIntEquals(tc, 1, list.count);
   CuAssertIntEquals(tc, RT_OFFSET, list.relocs[0].type);
-  CuAssertIntEquals(tc, 9, list.relocs[0].symbol_id);
+  CuAssertTrue(tc, list.relocs[0].symbol == &dummy);
   CuAssertIntEquals(tc, 0x1234, list.relocs[0].pos);
   CuAssertIntEquals(tc, TRUE, list.relocs[0].jump);
 }

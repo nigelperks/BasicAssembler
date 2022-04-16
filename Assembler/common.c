@@ -18,12 +18,10 @@ void perform_ends(STATE* state, IFILE* ifile, LEX* lex) {
     error2(state, lex, "no segment is open");
 
   if (lex_token(lex) == TOK_LABEL) {
-    int id = sym_lookup(ifile->st, lex_lexeme(lex));
-    if (id == NO_SYM ||
-        sym_type(ifile->st, id) != SYM_SECTION ||
-        sym_section_type(ifile->st, id) != ST_SEGMENT)
+    SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+    if (sym == NULL || sym_type(sym) != SYM_SECTION || sym_section_type(sym) != ST_SEGMENT)
       error2(state, lex, "segment name expected: %s", lex_lexeme(lex));
-    else if (state->curseg != NO_SEG && sym_section_ordinal(ifile->st, id) != state->curseg)
+    else if (state->curseg != NO_SEG && sym_section_ordinal(sym) != state->curseg)
       error2(state, lex, "mismatched segment name");
     lex_next(lex);
   }

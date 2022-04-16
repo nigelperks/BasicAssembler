@@ -19,6 +19,8 @@ const char* reg16_name(unsigned reg);
 const char* reg8_name(unsigned reg);
 const char* sreg_name(unsigned reg);
 
+#define NO_REG (-1)
+
 enum {
   TOK_NONE = 256,
   TOK_EOL,

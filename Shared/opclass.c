@@ -1,6 +1,10 @@
+// Basic Assembler
+// Copyright (c) 2021-2 Nigel Perks
+// Operand types and flags for matching operands in instruction table.
+
+#include <stddef.h>
 #include <assert.h>
-#include "operand.h"
-#include "token.h"
+#include "opclass.h"
 
 const char* operand_type_name(int t) {
   const char* s = NULL;
@@ -17,11 +21,6 @@ const char* operand_type_name(int t) {
 
   assert(s != NULL);
   return s;
-}
-
-void init_operand(OPERAND* op) {
-  op->type = OT_NONE;
-  op->nflag = 0;
 }
 
 const char* operand_flag_name(int flag) {
@@ -61,7 +60,12 @@ const char* operand_flag_name(int flag) {
   return s;
 }
 
-void add_flag(OPERAND* op, int flag) {
+void init_operand_class(OPERAND_CLASS* op) {
+  op->type = OT_NONE;
+  op->nflag = 0;
+}
+
+void add_class_flag(OPERAND_CLASS* op, int flag) {
   assert(op != NULL);
 
   if (op->nflag >= OPERAND_FLAGS)
@@ -70,14 +74,18 @@ void add_flag(OPERAND* op, int flag) {
   op->flags[op->nflag++] = flag;
 }
 
-BOOL has_flag(const OPERAND* op, int flag) {
+BOOL has_class_flag(const OPERAND_CLASS* op, int flag) {
   assert(op != NULL);
 
-  for (unsigned i = 0; i < op->nflag; i++)
+  for (int i = 0; i < op->nflag; i++)
     if (op->flags[i] == flag)
       return TRUE;
 
   return FALSE;
+}
+
+BOOL flag_matches(const OPERAND_CLASS* op, int flag) {
+  return (flag == OF_NONE && op->type == OT_NONE) || has_class_flag(op, flag);
 }
 
 
@@ -86,12 +94,12 @@ BOOL has_flag(const OPERAND* op, int flag) {
 #include <string.h>
 #include "CuTest.h"
 
-static void test_init_operand(CuTest* tc) {
-  OPERAND op;
+static void test_init_operand_class(CuTest* tc) {
+  OPERAND_CLASS op;
 
   memset(&op, 0xff, sizeof op);
 
-  init_operand(&op);
+  init_operand_class(&op);
 
   CuAssertIntEquals(tc, OT_NONE, op.type);
   CuAssertIntEquals(tc, 0, op.nflag);
@@ -103,27 +111,27 @@ static void test_operand_flag_name(CuTest* tc) {
   CuAssertStrEquals(tc, "???", operand_flag_name(-1));
 }
 
-static void test_add_flag(CuTest* tc) {
-  OPERAND op;
+static void test_add_class_flag(CuTest* tc) {
+  OPERAND_CLASS op;
 
-  init_operand(&op);
+  init_operand_class(&op);
   CuAssertIntEquals(tc, 0, op.nflag);
 
-  add_flag(&op, OF_JUMP);
+  add_class_flag(&op, OF_JUMP);
   CuAssertIntEquals(tc, 1, op.nflag);
   CuAssertIntEquals(tc, OF_JUMP, op.flags[0]);
 
-  add_flag(&op, OF_RM16);
+  add_class_flag(&op, OF_RM16);
   CuAssertIntEquals(tc, 2, op.nflag);
   CuAssertIntEquals(tc, OF_JUMP, op.flags[0]);
   CuAssertIntEquals(tc, OF_RM16, op.flags[1]);
 }
 
-CuSuite* operand_test_suite(void) {
+CuSuite* operand_class_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
-  SUITE_ADD_TEST(suite, test_init_operand);
+  SUITE_ADD_TEST(suite, test_init_operand_class);
   SUITE_ADD_TEST(suite, test_operand_flag_name);
-  SUITE_ADD_TEST(suite, test_add_flag);
+  SUITE_ADD_TEST(suite, test_add_class_flag);
   return suite;
 }
 

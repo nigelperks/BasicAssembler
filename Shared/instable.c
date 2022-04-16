@@ -1,10 +1,9 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Instruction table
 
 #include <assert.h>
 #include "instable.h"
-#include "operand.h"
 #include "token.h"
 
 static const INSDEF instable[] = {
@@ -551,23 +550,17 @@ BYTE opcode_prefix_code(int i) {
   return 0x9B;
 }
 
-static BOOL flag_matches(const OPERAND*, int flag);
-
-const INSDEF* find_instruc(int op, const OPERAND* oper1, const OPERAND* oper2) {
+const INSDEF* find_instruc(int op, const OPERAND_CLASS* op1, const OPERAND_CLASS* op2) {
   const INSDEF* p;
 
   for (p = instable; p->op != TOK_NONE; p++) {
     if (p->op == op) {
-      if (flag_matches(oper1, p->oper1) && flag_matches(oper2, p->oper2))
+      if (flag_matches(op1, p->oper1) && flag_matches(op2, p->oper2))
         return p;
     }
   }
 
   return NULL;
-}
-
-static BOOL flag_matches(const OPERAND* op, int flag) {
-  return (flag == OF_NONE && op->type == OT_NONE) || has_flag(op, flag);
 }
 
 void print_insdef(const INSDEF* def) {
@@ -634,11 +627,11 @@ int repeat_token(BYTE repcode, int op_token) {
 
 static void test_find_instruc(CuTest* tc) {
   const INSDEF* def;
-  OPERAND oper1;
-  OPERAND oper2;
+  OPERAND_CLASS oper1;
+  OPERAND_CLASS oper2;
 
-  init_operand(&oper1);
-  init_operand(&oper2);
+  init_operand_class(&oper1);
+  init_operand_class(&oper2);
 
   def = find_instruc(TOK_DB, &oper1, &oper2);
   CuAssertTrue(tc, def == NULL);
@@ -680,12 +673,12 @@ static void test_repeats(CuTest* tc) {
 
 static void test_none_flag(CuTest* tc) {
   const INSDEF* def;
-  OPERAND op1, op2;
+  OPERAND_CLASS op1, op2;
 
-  init_operand(&op1);
-  init_operand(&op2);
+  init_operand_class(&op1);
+  init_operand_class(&op2);
   op1.type = OT_IMM;
-  add_flag(&op1, OF_IMM);
+  add_class_flag(&op1, OF_IMM);
   def = find_instruc(TOK_PUSHF, &op1, &op2);
   CuAssertTrue(tc, def == NULL);
 }

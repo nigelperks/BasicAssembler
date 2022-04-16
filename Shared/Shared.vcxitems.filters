@@ -15,9 +15,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)instable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)operand.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)object.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -36,6 +33,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)disassemble.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)opclass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)utils.c">
@@ -50,9 +50,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)instable.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)operand.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)stringlist.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -60,6 +57,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)disassemble.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)opclass.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -1,11 +1,12 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Instruction table.
 
 #ifndef INSTABLE_H
 #define INSTABLE_H
 
-#include "operand.h"
+#include "opclass.h"
+#include "utils.h"
 
 enum modrm {
   RMN,  // no ModR/M byte
@@ -48,7 +49,7 @@ typedef struct {
 
 BOOL opcode_lea(int opcode);
 
-const INSDEF* find_instruc(int operation, const OPERAND* oper1, const OPERAND* oper2);
+const INSDEF* find_instruc(int operation, const OPERAND_CLASS* operand1, const OPERAND_CLASS* operand2);
 
 #define MAX_SECOND_OPCODES (4)
 

@@ -143,7 +143,7 @@ extern CuSuite* ifile_test_suite(void);
 extern CuSuite* sourcepass_test_suite(void);
 extern CuSuite* instable_test_suite(void);
 extern CuSuite* options_test_suite(void);
-extern CuSuite* operand_test_suite(void);
+extern CuSuite* operand_class_test_suite(void);
 extern CuSuite* parse_test_suite(void);
 extern CuSuite* encoding_test_suite(void);
 
@@ -160,7 +160,7 @@ void RunAllTests(void) {
   CuSuiteAddSuite(suite, sourcepass_test_suite());
   CuSuiteAddSuite(suite, instable_test_suite());
   CuSuiteAddSuite(suite, options_test_suite());
-  CuSuiteAddSuite(suite, operand_test_suite());
+  CuSuiteAddSuite(suite, operand_class_test_suite());
   CuSuiteAddSuite(suite, parse_test_suite());
   CuSuiteAddSuite(suite, encoding_test_suite());
   CuSuiteRun(suite);
