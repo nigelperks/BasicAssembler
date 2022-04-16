@@ -48,6 +48,30 @@ static void dump_file(const char* filename) {
           pc[segno] += orec->u.data.size;
         }
         break;
+      case OBJ_DS:
+        if (segno >= 0 && segno < MAX_SEGMENTS)
+          pc[segno] += orec->u.data.size;
+        break;
+      case OBJ_DB:
+        if (segno >= 0 && segno < MAX_SEGMENTS)
+          pc[segno] += 1;
+        break;
+      case OBJ_DW:
+        if (segno >= 0 && segno < MAX_SEGMENTS)
+          pc[segno] += 2;
+        break;
+      case OBJ_DD:
+        if (segno >= 0 && segno < MAX_SEGMENTS)
+          pc[segno] += 4;
+        break;
+      case OBJ_DQ:
+        if (segno >= 0 && segno < MAX_SEGMENTS)
+          pc[segno] += 8;
+        break;
+      case OBJ_DT:
+        if (segno >= 0 && segno < MAX_SEGMENTS)
+          pc[segno] += 10;
+        break;
       case OBJ_ORG:
         if (segno >= 0 && segno < MAX_SEGMENTS)
           pc[segno] = objword(orec);
