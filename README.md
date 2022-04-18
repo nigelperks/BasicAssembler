@@ -8,8 +8,9 @@ Please see LICENSE.
 2. How to test
 3. How to use
 4. Language supported
-5. Design choices
-6. References
+5. Memory model
+6. Design choices
+7. References
 
 
 ## 1. How to build
@@ -109,8 +110,9 @@ Memory operands must be bracketed: [base+index+disp]
 
 Components base, index, displacement are optional but must appear in that order.
 
-No simplified memory models. Use SEGMENT, GROUP and ASSUME. Their behaviour is
-intended to match Turbo Assembler for now.
+Only the TINY simplified memory model so far.
+Otherwise use SEGMENT, GROUP and ASSUME, whose behaviour
+is intended to match Turbo Assembler for now.
 
 Directives:
 
@@ -136,10 +138,14 @@ Directives:
 
 ## 5. Memory model
 ---------------
+(1) Simplified model:
+
 MODEL TINY
 - code segment _CODE in group _GROUP
 - data segment _DATA in group _GROUP
 - all segment registers assumed to address _GROUP
+
+(2) Explicit segments:
 
 SEGMENT name [PUBLIC|STACK]
 ...
