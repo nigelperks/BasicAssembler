@@ -142,11 +142,8 @@ static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, S
     SEGNO psegno = NO_SEG;
     if (seg_public(module_seg)) {
       psegno = find_public_segment(program_segs, seg_name(module_seg));
-      if (psegno == NO_SEG) {
+      if (psegno == NO_SEG)
         psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
-        if (verbose >= 2)
-          printf("Add public segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
-      }
       else {
         if (verbose >= 2)
           printf("Found public segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
@@ -161,11 +158,8 @@ static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, S
     }
     else if (seg_stack(module_seg)) {
       psegno = find_stack_segment(program_segs, seg_name(module_seg));
-      if (psegno == NO_SEG) {
+      if (psegno == NO_SEG)
         psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
-        if (verbose >= 2)
-          printf("Add stack segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
-      }
       else {
         if (verbose >= 2)
           printf("Found stack segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
@@ -178,11 +172,8 @@ static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, S
         }
       }
     }
-    else {
+    else
       psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
-      if (verbose >= 2)
-        printf("Add private segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
-    }
     assert(psegno != NO_SEG);
     map->map[i].segno = psegno;
     map->map[i].base = padded_length(get_segment(program_segs, psegno), seg_p2align(module_seg));
@@ -196,8 +187,9 @@ static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT* seg, GROU
     fatal("segment is both PUBLIC and STACK: %s\n", seg_name(seg));
   SEGNO psegno = add_segment(program, seg_name(seg), seg_public(seg), seg_stack(seg), group);
   set_segment_p2align(program, psegno, seg_p2align(seg));
+  const char* type = seg_public(seg) ? "public" : (seg_stack(seg) ? "stack" : "private");
   if (verbose >= 2)
-    printf("Add private segment %d: %s\n", (int)psegno, segment_name(program, psegno));
+    printf("Add %s segment %d: %s\n", type, (int)psegno, segment_name(program, psegno));
   return psegno;
 }
 
