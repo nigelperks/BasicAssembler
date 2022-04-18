@@ -26,6 +26,9 @@ IFILE* new_ifile(SOURCE* src) {
   ifile->provisional_sizes = FALSE;
   ifile->ngroup = 0;
   ifile->nseg = 0;
+  ifile->model_group = NULL;
+  ifile->codeseg = NULL;
+  ifile->dataseg = NULL;
 
   return ifile;
 }
@@ -146,6 +149,7 @@ int create_segment(IFILE* ifile, const char* name) {
   p->stack = FALSE;
   p->group = NO_GROUP;
   p->pc = 0;
+  p->p2align = 4;
   return seg;
 }
 
@@ -235,6 +239,18 @@ void reset_pc(IFILE* ifile) {
     ifile->segments[i].pc = 0;
 }
 
+void set_segment_p2align(IFILE* ifile, unsigned seg, unsigned align) {
+  assert(ifile != NULL);
+  assert(seg < ifile->nseg);
+  ifile->segments[seg].p2align = (align > 12) ? 12 : align;
+}
+
+unsigned segment_p2align(IFILE* ifile, unsigned seg) {
+  assert(ifile != NULL);
+  assert(seg < ifile->nseg);
+  return ifile->segments[seg].p2align;
+}
+
 #ifdef UNIT_TEST
 
 #include "CuTest.h"
@@ -255,7 +271,9 @@ static void test_new_ifile(CuTest* tc) {
   CuAssertIntEquals(tc, FALSE, ifile->provisional_sizes);
   CuAssertIntEquals(tc, 0, ifile->ngroup);
   CuAssertIntEquals(tc, 0, ifile->nseg);
-
+  CuAssertTrue(tc, ifile->model_group == NULL);
+  CuAssertTrue(tc, ifile->codeseg == NULL);
+  CuAssertTrue(tc, ifile->dataseg == NULL);
   CuAssertIntEquals(tc, 0, irec_count(ifile));
 
   delete_ifile(ifile);
@@ -327,6 +345,7 @@ static void test_segments(CuTest* tc) {
   inc_segment_pc(ifile, seg0, 0x531);
   CuAssertIntEquals(tc, 0x744, segment_pc(ifile, seg0));
   CuAssertIntEquals(tc, NO_GROUP, segment_group(ifile, seg0));
+  CuAssertIntEquals(tc, 4, segment_p2align(ifile, seg0));
 
   int group0 = create_group(ifile, "DGROUP");
   CuAssertIntEquals(tc, 0, group0);

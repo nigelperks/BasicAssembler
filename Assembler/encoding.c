@@ -132,6 +132,8 @@ static void emit_segment(IFILE* ifile, SEGNO segno, OFILE* ofile) {
   if (group != NO_GROUP)
     emit_groupno(ofile, group);
 
+  emit_object_byte(ofile, OBJ_P2ALIGN, segment_p2align(ifile, segno));
+
   emit_object_signal(ofile, OBJ_END_SEGMENT);
 }
 
@@ -229,7 +231,9 @@ static void process_irec(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
 }
 
 static void do_assume(STATE*, IFILE*, IREC*, LEX*);
-static void do_end(STATE*, IFILE*, IREC*, LEX*);
+static void do_codeseg(STATE*, IFILE*, LEX*, OFILE*);
+static void do_dataseg(STATE*, IFILE*, LEX*, OFILE*);
+static void do_end(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void do_ends(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void do_extrn(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void do_org(STATE*, IFILE*, IREC*, LEX*, OFILE*);
@@ -248,16 +252,19 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
   switch (irec->op) {
     case TOK_IDEAL: break;
     case TOK_ASSUME: do_assume(state, ifile, irec, lex); break;
+    case TOK_CODESEG: do_codeseg(state, ifile, lex, ofile); break;
+    case TOK_DATASEG: do_dataseg(state, ifile, lex, ofile); break;
     case TOK_DB: define_bytes(state, ifile, irec, lex, ofile); break;
     case TOK_DW: define_words(state, ifile, irec, lex, ofile); break;
     case TOK_DD: define_dwords(state, ifile, irec, lex, ofile); break;
     case TOK_DQ: define_qwords(state, ifile, irec, lex, ofile); break;
     case TOK_DT: define_tbytes(state, ifile, irec, lex, ofile); break;
-    case TOK_END: do_end(state, ifile, irec, lex); break;
+    case TOK_END: do_end(state, ifile, irec, lex, ofile); break;
     case TOK_ENDS: do_ends(state, ifile, irec, lex, ofile); break;
     case TOK_EQU: lex_discard_line(lex); break; // already handled
     case TOK_EXTRN: do_extrn(state, ifile, irec, lex, ofile); break;
     case TOK_GROUP: lex_discard_line(lex); break; // already handled
+    case TOK_MODEL: lex_discard_line(lex); break; // already handled
     case TOK_ORG: do_org(state, ifile, irec, lex, ofile); break;
     case TOK_PUBLIC: do_public(state, ifile, irec, lex, ofile); break;
     case TOK_SEGMENT: do_segment(state, ifile, irec, lex, ofile); break;
@@ -285,12 +292,19 @@ static void do_equ(STATE* state, IFILE* ifile, LEX* lex) {
     lex_next(lex);
 }
 
-static void do_end(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
+static void do_end(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(irec != NULL);
   assert(irec->op == TOK_END);
   assert(lex != NULL);
+
+  if (state->curseg != NO_SEG) {
+    assert(ifile->model_group); // otherwise caught in pass 1
+    assert(state->curseg >= 0 && state->curseg < 0x100);
+    emit_object_byte(ofile, OBJ_CLOSE_SEGMENT, (BYTE) state->curseg);
+    state->curseg = NO_SEG;
+  }
 
   if (lex_token(lex) == TOK_LABEL)
     // start label set in pass 1
@@ -409,6 +423,28 @@ static void assume(STATE* state, IFILE* ifile, LEX* lex) {
   state->assume_sym[reg] = sym;
 
   lex_next(lex);
+}
+
+static void do_codeseg(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
+  if (state->curseg != NO_SEG) {
+    assert(state->curseg >= 0 && state->curseg < 0x100);
+    emit_object_byte(ofile, OBJ_CLOSE_SEGMENT, (BYTE) state->curseg);
+    state->curseg = NO_SEG;
+  }
+  perform_codeseg(state, ifile, lex);
+  assert(state->curseg >= 0 && state->curseg < 0x100);
+  emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) state->curseg);
+}
+
+static void do_dataseg(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
+  if (state->curseg != NO_SEG) {
+    assert(state->curseg >= 0 && state->curseg < 0x100);
+    emit_object_byte(ofile, OBJ_CLOSE_SEGMENT, (BYTE) state->curseg);
+    state->curseg = NO_SEG;
+  }
+  perform_dataseg(state, ifile, lex);
+  assert(state->curseg >= 0 && state->curseg < 0x100);
+  emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) state->curseg);
 }
 
 enum db_node_type { DB_VALUE, DB_STR, DB_DUP };

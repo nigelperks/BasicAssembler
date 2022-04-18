@@ -114,7 +114,9 @@ intended to match Turbo Assembler for now.
 
 Directives:
 
-- ASSUME   -- assume segment registers reference given segments or groups
+- ASSUME   -- assume segment registers address specified segments or groups
+- CODESEG  -- open the code segment of the current memory model
+- DATASEG  -- open the data segment of the current memory model
 - DB       -- define byte or byte (ASCII) string
 - DD       -- define dword (4 bytes)
 - DQ       -- define qword (8 bytes)
@@ -126,12 +128,27 @@ Directives:
             (BYTE, WORD, DWORD, PROC)
 - GROUP    -- define a group and list its segments
 - IDEAL    -- no effect, allows Turbo Assembler to process the source unchanged
+- MODEL    -- set memory model
 - ORG      -- set segment origin (use 100h for main segment of COM program)
 - PUBLIC   -- make specified symbols public
 - SEGMENT  -- open named segment
 
 
-## 5. Design choices
+## 5. Memory model
+---------------
+MODEL TINY
+- code segment _CODE in group _GROUP
+- data segment _DATA in group _GROUP
+- all segment registers assumed to address _GROUP
+
+SEGMENT name [PUBLIC|STACK]
+...
+ENDS [name]
+
+ASSUME DS:_DATA,...
+
+
+## 6. Design choices
 -----------------
 1. The aim was to write my own assembler and linker from scratch.
 2. Target 16-bit MS-DOS to get something simple working.
@@ -142,7 +159,7 @@ Directives:
 7. Custom object format in order to understand linking.
 
 
-## 6. References
+## 7. References
 -------------
 The single most instructive and inspiring text was David Salomon's _Assemblers
 and Loaders_.

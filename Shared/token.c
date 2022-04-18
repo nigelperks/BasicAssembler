@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Assembler tokens.
 
 #include <string.h>
@@ -26,6 +26,7 @@ static const struct keyword {
   // directives
   { TOK_ASSUME,  "ASSUME" },
   { TOK_CODESEG, "CODESEG" },
+  { TOK_DATASEG, "DATASEG" },
   { TOK_DB,      "DB" },
   { TOK_DD,      "DD" },
   { TOK_DQ,      "DQ" },

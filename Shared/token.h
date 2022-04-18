@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Assembler tokens.
 
 #ifndef TOKEN_H
@@ -33,6 +33,7 @@ enum {
   // directives
   TOK_ASSUME,
   TOK_CODESEG,
+  TOK_DATASEG,
   TOK_DB,
   TOK_DD,
   TOK_DQ,

@@ -14,6 +14,7 @@ SEGMENT* new_segment(const char* name, BOOL public, BOOL stack, GROUPNO group) {
   seg->public = public;
   seg->stack = stack;
   seg->group = group;
+  seg->p2align = DEFAULT_SEGMENT_P2ALIGN;
 
   seg->pc = 0;
   seg->data = NULL;
@@ -85,18 +86,21 @@ BOOL seg_stack(const SEGMENT* seg) {
   return seg->stack;
 }
 
+unsigned seg_p2align(const SEGMENT* seg) {
+  assert(seg != NULL);
+  return seg->p2align;
+}
+
 #define ALLOCATION_UNIT (0x4000)
 
-static void write_segment(SEGMENT* seg, DWORD offset, const BYTE* buf, unsigned size) {
+static void ensure_space(SEGMENT* seg, DWORD offset, unsigned size) {
   assert(seg != NULL);
 
   if (size == 0)
     return;
 
   if (offset + size < offset)
-    fatal("segment size overflow\n");
-
-  assert(buf != NULL);
+    fatal("segment size overflow: offset %08lxh, size %0xh = %u\n", (unsigned long) offset, size);
 
   if (offset > seg->allocated || seg->allocated - offset < size) {
     size_t allocate = offset + size;
@@ -126,6 +130,14 @@ static void write_segment(SEGMENT* seg, DWORD offset, const BYTE* buf, unsigned 
     if (offset + size > seg->hi)
       seg->hi = offset + size;
   }
+}
+
+static void write_segment(SEGMENT* seg, DWORD offset, const BYTE* buf, unsigned size) {
+  ensure_space(seg, offset, size);
+
+  assert(seg->data != NULL);
+  assert(seg->allocated > offset);
+  assert(seg->allocated - offset >= size);
 
   memcpy(seg->data + offset, buf, size);
 }
@@ -144,24 +156,22 @@ void append_segment_data(SEGMENT* dest, const SEGMENT* src) {
   dest->pc = dest->hi;
 }
 
-void pad_segment_to_paragraph(SEGMENT* seg) {
+void pad_segment(SEGMENT* seg, unsigned p2align) {
   assert(seg != NULL);
-  seg->pc = seg->hi;
-  if (seg->hi % 16) {
-    BYTE buf[16];
-    memset(buf, 0, sizeof buf);
-    emit_segment_data(seg, buf, 16 - seg->hi % 16);
-    assert(seg->hi % 16 == 0);
-    assert(seg->pc == seg->hi);
+  unsigned align = 1 << p2align;
+  if (seg->hi % align) {
+    ensure_space(seg, seg->hi, align - seg->hi % align);
+    assert(seg->hi % align == 0);
   }
+  seg->pc = seg->hi;
 }
 
-DWORD padded_length(const SEGMENT* seg) {
+DWORD padded_length(const SEGMENT* seg, unsigned p2align) {
   assert(seg != NULL);
   DWORD len = seg->hi;
-  if (len % 16)
-    len += (16 - len % 16);
-  assert(len % 16 == 0);
+  unsigned align = 1 << p2align;
+  if (len % align)
+    len += (align - len % align);
   return len;
 }
 
@@ -178,6 +188,7 @@ static void test_new_segment(CuTest* tc) {
   CuAssertIntEquals(tc, TRUE, p->public);
   CuAssertIntEquals(tc, FALSE, p->stack);
   CuAssertIntEquals(tc, 3, p->group);
+  CuAssertIntEquals(tc, 4, p->p2align);
   CuAssertIntEquals(tc, 0, p->pc);
   CuAssertPtrEquals(tc, NULL, p->data);
   CuAssertIntEquals(tc, 0, p->allocated);
@@ -202,6 +213,7 @@ static void test_new_segment(CuTest* tc) {
   CuAssertIntEquals(tc, FALSE, p->public);
   CuAssertIntEquals(tc, TRUE, p->stack);
   CuAssertIntEquals(tc, NO_GROUP, p->group);
+  CuAssertIntEquals(tc, 4, p->p2align);
 
   CuAssertStrEquals(tc, "charlie", seg_name(p));
   CuAssertIntEquals(tc, NO_GROUP, seg_group(p));
@@ -213,19 +225,25 @@ static void test_new_segment(CuTest* tc) {
 static void test_padded_length(CuTest* tc) {
   SEGMENT* seg = new_segment(NULL, FALSE, FALSE, NO_GROUP);
 
-  CuAssertIntEquals(tc, 0, padded_length(seg));
+  CuAssertIntEquals(tc, 0, padded_length(seg, 4));
 
   seg->hi = 1;
-  CuAssertIntEquals(tc, 16, padded_length(seg));
+  CuAssertIntEquals(tc, 16, padded_length(seg, 4));
 
   seg->hi = 15;
-  CuAssertIntEquals(tc, 16, padded_length(seg));
+  CuAssertIntEquals(tc, 16, padded_length(seg, 4));
 
   seg->hi = 16;
-  CuAssertIntEquals(tc, 16, padded_length(seg));
+  CuAssertIntEquals(tc, 16, padded_length(seg, 4));
 
   seg->hi = 17;
-  CuAssertIntEquals(tc, 32, padded_length(seg));
+  CuAssertIntEquals(tc, 32, padded_length(seg, 4));
+
+  CuAssertIntEquals(tc, 17, padded_length(seg, 0));
+  CuAssertIntEquals(tc, 18, padded_length(seg, 1));
+  CuAssertIntEquals(tc, 20, padded_length(seg, 2));
+  CuAssertIntEquals(tc, 24, padded_length(seg, 3));
+  CuAssertIntEquals(tc, 256, padded_length(seg, 8));
 
   delete_segment(seg);
 }
@@ -233,31 +251,47 @@ static void test_padded_length(CuTest* tc) {
 static void test_pad_segment(CuTest* tc) {
   SEGMENT* seg = new_segment(NULL, FALSE, FALSE, NO_GROUP);
 
-  pad_segment_to_paragraph(seg);
+  pad_segment(seg, 4);
   CuAssertIntEquals(tc, 0, seg->hi);
   CuAssertPtrEquals(tc, NULL, seg->data);
 
   seg->allocated = 128;
   seg->data = emalloc(seg->allocated);
 
-  pad_segment_to_paragraph(seg);
+  pad_segment(seg, 4);
   CuAssertIntEquals(tc, 0, seg->hi);
 
   seg->hi = 1;
-  pad_segment_to_paragraph(seg);
+  pad_segment(seg, 4);
   CuAssertIntEquals(tc, 16, seg->hi);
   CuAssertIntEquals(tc, 16, seg->pc);
 
   seg->hi = 16;
-  pad_segment_to_paragraph(seg);
+  pad_segment(seg, 4);
   CuAssertIntEquals(tc, 16, seg->hi);
   CuAssertIntEquals(tc, 16, seg->pc);
 
   seg->hi = 129;
-  pad_segment_to_paragraph(seg);
+  pad_segment(seg, 4);
   CuAssertIntEquals(tc, 144, seg->hi);
   CuAssertIntEquals(tc, 144, seg->pc);
   CuAssertTrue(tc, seg->allocated >= 144);
+
+  seg->hi = 145;
+  pad_segment(seg, 0);
+  CuAssertIntEquals(tc, 145, seg->hi);
+  CuAssertIntEquals(tc, 145, seg->pc);
+  CuAssertTrue(tc, seg->allocated >= 145);
+
+  pad_segment(seg, 1);
+  CuAssertIntEquals(tc, 146, seg->hi);
+  CuAssertIntEquals(tc, 146, seg->pc);
+  CuAssertTrue(tc, seg->allocated >= 146);
+
+  pad_segment(seg, 7);
+  CuAssertIntEquals(tc, 256, seg->hi);
+  CuAssertIntEquals(tc, 256, seg->pc);
+  CuAssertTrue(tc, seg->allocated >= 256);
 
   delete_segment(seg);
 }

@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Object records.
 
 #ifndef OBJECT_H
@@ -49,6 +49,7 @@ enum object_record_type {
   OBJ_END_SEG_ADDR,
   OBJ_BEGIN_GROUP_ADDR,
   OBJ_END_GROUP_ADDR,
+  OBJ_P2ALIGN,
 };
 
 typedef struct {

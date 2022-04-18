@@ -91,7 +91,8 @@ static void define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   else if (state->curseg == NO_SEG)
     error2(state, lex, "phase error: label outside segment: %s", sym_name(irec->label));
   else if (sym_seg(irec->label) != state->curseg)
-    error2(state, lex, "phase error: label in unexpected segment: %s", sym_name(irec->label));
+    error2(state, lex, "phase error: label '%s' defined in segment '%s', found in '%s'",
+           sym_name(irec->label), segment_name(ifile, sym_seg(irec->label)), segment_name(ifile, state->curseg));
   else {
     unsigned data_size = token_data_size(irec->op);
     DWORD val = segment_pc(ifile, state->curseg);
@@ -110,18 +111,13 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
   assert(token_is_directive(irec->op));
 
   switch (irec->op) {
-    case TOK_ASSUME:
-      do_assume(state, ifile, irec, lex);
-      break;
-    case TOK_ENDS:
-      do_ends(state, ifile, irec, lex);
-      break;
-    case TOK_ORG:
-      do_org(state, ifile, irec, lex);
-      break;
-    case TOK_SEGMENT:
-      do_segment(state, ifile, irec, lex);
-      break;
+    case TOK_ASSUME: do_assume(state, ifile, irec, lex); break;
+    case TOK_CODESEG: perform_codeseg(state, ifile, lex); break;
+    case TOK_DATASEG: perform_dataseg(state, ifile, lex); break;
+    case TOK_ENDS: do_ends(state, ifile, irec, lex); break;
+    case TOK_ORG: do_org(state, ifile, irec, lex); break;
+    case TOK_SEGMENT: do_segment(state, ifile, irec, lex); break;
+    // data: just increment PC
     case TOK_DB:
     case TOK_DW:
     case TOK_DD:
@@ -135,6 +131,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
     case TOK_EXTRN:
     case TOK_GROUP:
     case TOK_IDEAL:
+    case TOK_MODEL:
     case TOK_PUBLIC:
       break;
     default:
@@ -547,22 +544,23 @@ static unsigned operand_sreg_override_size(STATE* state, IFILE* ifile, LEX* lex,
   return 0;
 }
 
-static BOOL addressable(STATE* state, IFILE* ifile, SEGNO symbol_seg, int sreg) {
+// Is the given segment addressable via the given segment register?
+static BOOL addressable(STATE* state, IFILE* ifile, SEGNO segno, int sreg) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(ifile->st != NULL);
-  assert(symbol_seg != NO_SEG);
+  assert(segno != NO_SEG);
   assert(sreg >= 0 && sreg < N_SREG);
 
   const SYMBOL* assume_sym = state->assume_sym[sreg];
   if (assume_sym == NULL)
     return FALSE;
 
-  GROUPNO symbol_group = segment_group(ifile, symbol_seg);
-  if (symbol_group == NO_GROUP) {
+  GROUPNO segno_group = segment_group(ifile, segno);
+  if (segno_group == NO_GROUP) {
     if (sym_section_type(assume_sym) == ST_SEGMENT) {
       SEGNO sreg_seg = sym_section_ordinal(assume_sym);
-      return symbol_seg == sreg_seg;
+      return segno == sreg_seg;
     }
     assert(sym_section_type(assume_sym) == ST_GROUP);
     return FALSE;
@@ -572,7 +570,7 @@ static BOOL addressable(STATE* state, IFILE* ifile, SEGNO symbol_seg, int sreg) 
     return FALSE;
 
   GROUPNO sreg_group = sym_section_ordinal(assume_sym);
-  return symbol_group == sreg_group;
+  return segno_group == sreg_group;
 }
 
 // TODO: efficiency of algorithm.

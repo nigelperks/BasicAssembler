@@ -108,7 +108,7 @@ static void define_group(STATE* state, const OFILE* ofile, SEGMENTED* segs, int 
         if (groupno < group_list_count(segs->groups))
           fatal("group redefined\n");
         if (groupno != group_list_count(segs->groups))
-          fatal("unexpected ordinal in segment definition\n");
+          fatal("unexpected ordinal in group definition\n");
         if (name[0] == '\0')
           fatal("group definition lacks name\n");
         if (group_defined(segs->groups, name))
@@ -148,6 +148,7 @@ static void define_segment(STATE* state, const OFILE* ofile, SEGMENTED* segs, in
   GROUPNO groupno = NO_GROUP;
   BOOL public = FALSE;
   BOOL stack = FALSE;
+  unsigned p2align = 4;
 
   for (state->pos++; state->pos < ofile->used; state->pos++) {
     rec = ofile->recs + state->pos;
@@ -172,6 +173,7 @@ static void define_segment(STATE* state, const OFILE* ofile, SEGMENTED* segs, in
         if (groupno != NO_GROUP && groupno >= group_list_count(segs->groups))
           fatal("segment: %s: group number out of range: %u\n", name, groupno);
         add_segment(segs->segs, name, public, stack, groupno);
+        set_segment_p2align(segs->segs, segno, p2align);
         return;
       }
       case OBJ_ORDINAL:
@@ -191,6 +193,9 @@ static void define_segment(STATE* state, const OFILE* ofile, SEGMENTED* segs, in
         break;
       case OBJ_STACK:
         stack = TRUE;
+        break;
+      case OBJ_P2ALIGN:
+        p2align = objbyte(rec);
         break;
       default:
         fatal("invalid object record type in segment definition: %d\n", rec->type);

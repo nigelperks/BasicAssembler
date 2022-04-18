@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Routines common to more than one pass.
 
 // The idea is that parse.c is utilities and operand-parsing, lower level than
@@ -33,4 +33,28 @@ BOOL string_instruction(const INSDEF* def) {
   assert(def != NULL);
   return def->oper1 == OF_DI || def->oper1 == OF_DI8 || def->oper1 == OF_DI16 ||
          def->oper1 == OF_SI || def->oper1 == OF_SI8 || def->oper1 == OF_SI16;
+}
+
+void perform_codeseg(STATE* state, IFILE* ifile, LEX* lex) {
+  if (ifile->model_group) {
+    state->assume_sym[SR_CS] = ifile->model_group;
+    state->assume_sym[SR_DS] = ifile->model_group;
+    state->assume_sym[SR_ES] = ifile->model_group;
+    state->assume_sym[SR_SS] = ifile->model_group;
+    state->curseg = sym_section_ordinal(ifile->codeseg);
+  }
+  else
+    error2(state, lex, "no memory model");
+}
+
+void perform_dataseg(STATE* state, IFILE* ifile, LEX* lex) {
+  if (ifile->model_group) {
+    state->assume_sym[SR_CS] = ifile->model_group;
+    state->assume_sym[SR_DS] = ifile->model_group;
+    state->assume_sym[SR_ES] = ifile->model_group;
+    state->assume_sym[SR_SS] = ifile->model_group;
+    state->curseg = sym_section_ordinal(ifile->dataseg);
+  }
+  else
+    error2(state, lex, "no memory model");
 }

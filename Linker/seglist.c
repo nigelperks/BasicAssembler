@@ -144,6 +144,12 @@ void remove_segment(SEGMENT_LIST* list, SEGNO index) {
   list->seg[index] = NULL;
 }
 
+void set_segment_p2align(SEGMENT_LIST* list, SEGNO i, unsigned p2align) {
+  assert(list != NULL);
+  assert(i < list->used);
+  list->seg[i]->p2align = (p2align > MAX_SEGMENT_P2ALIGN) ? MAX_SEGMENT_P2ALIGN : p2align;
+}
+
 SEGNO first_proper_segment(SEGMENT_LIST* list) {
   assert(list != NULL);
   return next_proper_segment(list, -1);

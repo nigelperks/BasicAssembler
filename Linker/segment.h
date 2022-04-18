@@ -8,11 +8,15 @@
 #include "utils.h"
 #include "symbol.h"
 
+#define DEFAULT_SEGMENT_P2ALIGN (4)
+#define MAX_SEGMENT_P2ALIGN (12)
+
 typedef struct {
   char* name;
   BOOL public;
   BOOL stack;
   int group;
+  BYTE p2align;
 
   unsigned long pc;
   BYTE* data;
@@ -33,9 +37,10 @@ BYTE* seg_data(SEGMENT*);
 int seg_group(const SEGMENT*);
 BOOL seg_public(const SEGMENT*);
 BOOL seg_stack(const SEGMENT*);
+unsigned seg_p2align(const SEGMENT*);
 
-DWORD padded_length(const SEGMENT*);
-void pad_segment_to_paragraph(SEGMENT*);
+DWORD padded_length(const SEGMENT*, unsigned p2align);
+void pad_segment(SEGMENT*, unsigned p2align);
 
 void emit_segment_data(SEGMENT*, const BYTE*, unsigned size);
 void append_segment_data(SEGMENT* dest, const SEGMENT* src);

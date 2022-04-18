@@ -121,6 +121,8 @@ static VECTOR* add_module_groups_to_program(GROUP_LIST* program_groups, GROUP_LI
   return map;
 }
 
+static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT*, GROUPNO, int verbose);
+
 // Add module segments to program where necessary,
 // combining public segments of matching name.
 // Produce a map from module segment number to program segment.
@@ -141,7 +143,7 @@ static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, S
     if (seg_public(module_seg)) {
       psegno = find_public_segment(program_segs, seg_name(module_seg));
       if (psegno == NO_SEG) {
-        psegno = add_segment(program_segs, seg_name(module_seg), TRUE, FALSE, program_group);
+        psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
         if (verbose >= 2)
           printf("Add public segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
       }
@@ -160,7 +162,7 @@ static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, S
     else if (seg_stack(module_seg)) {
       psegno = find_stack_segment(program_segs, seg_name(module_seg));
       if (psegno == NO_SEG) {
-        psegno = add_segment(program_segs, seg_name(module_seg), FALSE, TRUE, program_group);
+        psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
         if (verbose >= 2)
           printf("Add stack segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
       }
@@ -177,16 +179,26 @@ static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, S
       }
     }
     else {
-      psegno = add_segment(program_segs, seg_name(module_seg), FALSE, FALSE, program_group);
+      psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
       if (verbose >= 2)
         printf("Add private segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
     }
     assert(psegno != NO_SEG);
     map->map[i].segno = psegno;
-    map->map[i].base = padded_length(get_segment(program_segs, psegno));
+    map->map[i].base = padded_length(get_segment(program_segs, psegno), seg_p2align(module_seg));
   }
 
   return map;
+}
+
+static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT* seg, GROUPNO group, int verbose) {
+  if (seg_public(seg) && seg_stack(seg))
+    fatal("segment is both PUBLIC and STACK: %s\n", seg_name(seg));
+  SEGNO psegno = add_segment(program, seg_name(seg), seg_public(seg), seg_stack(seg), group);
+  set_segment_p2align(program, psegno, seg_p2align(seg));
+  if (verbose >= 2)
+    printf("Add private segment %d: %s\n", (int)psegno, segment_name(program, psegno));
+  return psegno;
 }
 
 static SYMBOL_ID add_module_symbol_to_program(SYMTAB* prog_st, const SYMTAB* module_st, SYMBOL_ID module_id,
@@ -390,7 +402,7 @@ static void add_segment_data(SEGNO destno, SEGMENT* dest, SEGNO srcno, SEGMENT* 
   assert(source != NULL);
 
   if (segment_has_data(source)) {
-    pad_segment_to_paragraph(dest);
+    pad_segment(dest, seg_p2align(source));
     if (seg_hi(dest) >= 0x10000UL)
       fatal("destination segment %d: %s is already %lu bytes in size\n",
           (int) destno, seg_name(dest), (unsigned long) seg_hi(dest));

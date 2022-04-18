@@ -163,11 +163,14 @@ static void check_symbols_defined(IFILE* ifile) {
 }
 
 static void do_assume(STATE*, IFILE*, LEX*);
+static void do_codeseg(STATE*, IFILE*, LEX*);
+static void do_dataseg(STATE*, IFILE*, LEX*);
 static void do_end(STATE*, IFILE*, LEX*);
 static void do_ends(STATE*, IFILE*, LEX*);
 static void do_equ(STATE*, IFILE*, LEX*);
 static void do_extrn(STATE*, IFILE*, LEX*);
 static void do_group(STATE*, IFILE*, LEX*);
+static void do_model(STATE*, IFILE*, LEX*);
 static void do_org(STATE*, IFILE*, LEX*);
 static void do_public(STATE*, IFILE*, LEX*);
 static void do_segment(STATE*, IFILE*, LEX*);
@@ -188,6 +191,8 @@ static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
   switch (irec->op) {
     case TOK_IDEAL: lex_next(lex); break;
     case TOK_ASSUME: do_assume(state, ifile, lex); break;
+    case TOK_CODESEG: do_codeseg(state, ifile, lex); break;
+    case TOK_DATASEG: do_dataseg(state, ifile, lex); break;
     case TOK_DB: define_bytes(state, ifile, lex); break;
     case TOK_DD: define_dwords(state, ifile, lex); break;
     case TOK_DQ: define_qwords(state, ifile, lex); break;
@@ -198,15 +203,10 @@ static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
     case TOK_EQU: do_equ(state, ifile, lex); break;
     case TOK_EXTRN: do_extrn(state, ifile, lex); break;
     case TOK_GROUP: do_group(state, ifile, lex); break;
+    case TOK_MODEL: do_model(state, ifile, lex); break;
     case TOK_ORG: do_org(state, ifile, lex); break;
     case TOK_PUBLIC: do_public(state, ifile, lex); break;
     case TOK_SEGMENT: do_segment(state, ifile, lex); break;
-    // simplified memory model
-    case TOK_CODESEG:
-    case TOK_MODEL:
-      error2(state, lex, "simplified memory models are not supported");
-      lex_discard_line(lex);
-      break;
     default:
       error2(state, lex, "directive not implemented: %s", token_name(irec->op));
       lex_discard_line(lex);
@@ -246,6 +246,13 @@ static void do_end(STATE* state, IFILE* ifile, LEX* lex) {
   assert(ifile != NULL);
   assert(lex != NULL);
   assert(lex_token(lex) == TOK_END);
+
+  if (state->curseg != NO_SEG) {
+    if (ifile->model_group)
+      state->curseg = NO_SEG;
+    else
+      error2(state, lex, "a segment is open: %s", segment_name(ifile, state->curseg));
+  }
 
   if (lex_next(lex) == TOK_LABEL) {
     if (ifile->start_label != NULL)
@@ -327,27 +334,6 @@ static void do_ends(STATE* state, IFILE* ifile, LEX* lex) {
 
   lex_next(lex);
   perform_ends(state, ifile, lex);
-}
-
-static void do_org(STATE* state, IFILE* ifile, LEX* lex) {
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(lex_token(lex) == TOK_ORG);
-
-  if (state->curseg == NO_SEG) {
-    error(state, ifile, "ORG outside segment");
-    return;
-  }
-
-  if (lex_next(lex) != TOK_NUM) {
-    error(state, ifile, "numeric literal origin required");
-    return;
-  }
-
-  if (lex_val(lex) < segment_pc(ifile, state->curseg))
-    error(state, ifile, "ORG value is less than current location");
-  set_segment_pc(ifile, state->curseg, lex_val(lex));
-  lex_next(lex);
 }
 
 static void assume(STATE*, IFILE*, LEX*);
@@ -464,6 +450,130 @@ static void group_segment(STATE* state, IFILE* ifile, LEX* lex, int group) {
       set_segment_group(ifile, seg, group);
   }
 
+  lex_next(lex);
+}
+
+static void set_model_tiny(STATE*, IFILE*, LEX*);
+
+static void do_model(STATE* state, IFILE* ifile, LEX* lex) {
+  assert(lex != NULL);
+  assert(lex_token(lex) == TOK_MODEL);
+
+  if (lex_next(lex) != TOK_LABEL) {
+    error2(state, lex, "model name expected");
+    lex_discard_line(lex);
+    return;
+  }
+
+  if (ifile->model_group) {
+    error2(state, lex, "a memory model has already been set");
+    return;
+  }
+
+  if (_stricmp(lex_lexeme(lex), "tiny") == 0)
+    set_model_tiny(state, ifile, lex);
+  else {
+    error2(state, lex, "model name expected");
+    lex_discard_line(lex);
+  }
+}
+
+static SYMBOL* model_segment(STATE*, IFILE*, LEX*, const char* name);
+static SYMBOL* model_group(STATE*, IFILE*, LEX*, const char* name);
+
+static void set_model_tiny(STATE* state, IFILE* ifile, LEX* lex) {
+  assert(state != NULL);
+  assert(ifile != NULL);
+  assert(lex != NULL);
+  assert(lex_token(lex) == TOK_LABEL && _stricmp(lex_lexeme(lex), "tiny") == 0);
+
+  lex_next(lex);
+
+  if (ifile->nseg > 0) {
+    error2(state, lex, "a segment has already been created");
+    return;
+  }
+
+  if (ifile->ngroup > 0) {
+    error2(state, lex, "a group has already been created");
+    return;
+  }
+
+  SYMBOL* code = model_segment(state, ifile, lex, "_CODE");
+  SYMBOL* data = model_segment(state, ifile, lex, "_DATA");
+  SYMBOL* group = model_group(state, ifile, lex, "_GROUP");
+
+  set_segment_group(ifile, sym_section_ordinal(code), sym_section_ordinal(group));
+  set_segment_group(ifile, sym_section_ordinal(data), sym_section_ordinal(group));
+
+  ifile->codeseg = code;
+  ifile->dataseg = data;
+  ifile->model_group = group;
+
+  state->assume_sym[SR_CS] = group;
+  state->assume_sym[SR_DS] = group;
+  state->assume_sym[SR_ES] = group;
+  state->assume_sym[SR_SS] = group;
+}
+
+static SYMBOL* model_segment(STATE* state, IFILE* ifile, LEX* lex, const char* name) {
+  SYMBOL* sym = sym_lookup(ifile->st, name);
+  if (sym) {
+    error2(state, lex, "cannot create segment because name already used: %s", name);
+    return NULL;
+  }
+  sym = sym_insert_section(ifile->st, name);
+  int seg = create_segment(ifile, name);
+  set_segment_public(ifile, seg);
+  set_segment_p2align(ifile, seg, 1);
+  sym_define_section(sym, ST_SEGMENT, seg);
+  return sym;
+}
+
+static SYMBOL* model_group(STATE* state, IFILE* ifile, LEX* lex, const char* name) {
+  SYMBOL* sym = sym_lookup(ifile->st, name);
+  if (sym) {
+    error2(state, lex, "cannot create group because name already used: %s", name);
+    return NULL;
+  }
+  sym = sym_insert_section(ifile->st, name);
+  int group = create_group(ifile, name);
+  sym_define_section(sym, ST_GROUP, group);
+  return sym;
+}
+
+static void do_codeseg(STATE* state, IFILE* ifile, LEX* lex) {
+  assert(lex != NULL);
+  assert(lex_token(lex) == TOK_CODESEG);
+  lex_next(lex);
+  perform_codeseg(state, ifile, lex);
+}
+
+static void do_dataseg(STATE* state, IFILE* ifile, LEX* lex) {
+  assert(lex != NULL);
+  assert(lex_token(lex) == TOK_DATASEG);
+  lex_next(lex);
+  perform_dataseg(state, ifile, lex);
+}
+
+static void do_org(STATE* state, IFILE* ifile, LEX* lex) {
+  assert(ifile != NULL);
+  assert(lex != NULL);
+  assert(lex_token(lex) == TOK_ORG);
+
+  if (state->curseg == NO_SEG) {
+    error(state, ifile, "ORG outside segment");
+    return;
+  }
+
+  if (lex_next(lex) != TOK_NUM) {
+    error(state, ifile, "numeric literal origin required");
+    return;
+  }
+
+  if (lex_val(lex) < segment_pc(ifile, state->curseg))
+    error(state, ifile, "ORG value is less than current location");
+  set_segment_pc(ifile, state->curseg, lex_val(lex));
   lex_next(lex);
 }
 

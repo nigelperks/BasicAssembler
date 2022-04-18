@@ -67,6 +67,7 @@ static const struct {
   /* OBJ_END_SEG_ADDR */         { "END_SEG_ADDR",         OK_SIGNAL },
   /* OBJ_BEGIN_GROUP_ADDR */     { "BEGIN_GROUP_ADDR",     OK_SIGNAL },
   /* OBJ_END_GROUP_ADDR */       { "END_GROUP_ADDR",       OK_SIGNAL },
+  /* OBJ_P2ALIGN */              { "P2ALIGN",              OK_BYTE },
 };
 
 void clear_orec(OREC* rec) {

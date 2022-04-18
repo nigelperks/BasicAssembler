@@ -5,6 +5,7 @@
 #ifndef IFILE_H
 #define IFILE_H
 
+#include <stdbool.h>
 #include "utils.h"
 #include "source.h"
 #include "instable.h"
@@ -35,6 +36,7 @@ typedef struct {
   BOOL stack;
   GROUPNO group;
   DWORD pc;
+  BYTE p2align;
 } ASM_SEGMENT;
 
 typedef struct {
@@ -50,6 +52,9 @@ typedef struct {
   GROUPNO ngroup;
   ASM_SEGMENT segments[MAX_SEGMENT];
   unsigned nseg;
+  const SYMBOL* model_group;
+  const SYMBOL* codeseg;
+  const SYMBOL* dataseg;
 } IFILE;
 
 IFILE* new_ifile(SOURCE*);
@@ -74,6 +79,8 @@ BOOL segment_public(const IFILE*, unsigned seg);
 void set_segment_public(IFILE*, unsigned seg);
 BOOL segment_stack(const IFILE*, unsigned seg);
 void set_segment_stack(IFILE*, unsigned seg);
+unsigned segment_p2align(IFILE*, unsigned seg);
+void set_segment_p2align(IFILE*, unsigned seg, unsigned align);
 
 BOOL relocatable_relative(const IFILE*, const SYMBOL*);
 

@@ -93,7 +93,7 @@ static void join_segments(SEGMENTED* prog, SEGNO dest_segno, SEGNO source_segno,
   if (verbose)
     printf("Consolidate into group: segment %d: %s\n", (int)source_segno, seg_name(source_seg));
 
-  pad_segment_to_paragraph(dest_seg);
+  pad_segment(dest_seg, seg_p2align(source_seg));
   DWORD base = seg_hi(dest_seg);
 
   //assert(MAX_SEGMENT_SIZE <= (WORD)(-1));
