@@ -19,6 +19,7 @@ SEGMENT_LIST* new_segment_list(int case_sensitivity);
 void delete_segment_list(SEGMENT_LIST*);
 SEGNO segment_list_count(SEGMENT_LIST*);
 SEGMENT* get_segment(SEGMENT_LIST*, SEGNO);
+const SEGMENT* get_segment_const(const SEGMENT_LIST*, SEGNO);
 void set_segment(SEGMENT_LIST*, SEGNO, SEGMENT*);
 const char* segment_name(const SEGMENT_LIST*, SEGNO);
 BOOL segment_public(const SEGMENT_LIST*, SEGNO);

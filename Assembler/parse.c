@@ -26,12 +26,14 @@ void error(STATE* state, const IFILE* ifile, const char* fmt, ...) {
   assert(ifile != NULL);
   assert(fmt != NULL);
 
-  const IREC* irec = get_irec_const(ifile, ifile->pos);
-  unsigned lineno = source_lineno(ifile->source, irec->source);
+  fprintf(stderr, "Error: %s: ", source_name(ifile->source));
 
-  state->errors++;
+  if (ifile->pos < ifile->used) {
+    const IREC* irec = get_irec_const(ifile, ifile->pos);
+    unsigned lineno = source_lineno(ifile->source, irec->source);
 
-  fprintf(stderr, "Error: %s: %u: ", source_name(ifile->source), lineno);
+    fprintf(stderr, "%u: ", lineno);
+  }
 
   va_list ap;
   va_start(ap, fmt);
@@ -39,6 +41,8 @@ void error(STATE* state, const IFILE* ifile, const char* fmt, ...) {
   va_end(ap);
 
   fputc('\n', stderr);
+
+  state->errors++;
 
   if (state->errors >= state->max_errors)
     fatal("maximum errors reached\n");
@@ -659,6 +663,11 @@ static int primitive_expr(STATE* state, IFILE* ifile, LEX* lex, union value * va
     val->n = lex_lval(lex);
     lex_next(lex);
     return ET_ABS;
+  }
+
+  if (lex_token(lex) == '?') {
+    lex_next(lex);
+    return ET_UNDEF;
   }
 
   if (lex_token(lex) == TOK_SEG) {

@@ -28,6 +28,7 @@ BOOL parse_operands(STATE*, IFILE*, LEX*, OPERAND* op1, OPERAND* op2);
 
 enum expression_type {
   ET_ERR,    // invalid expression
+  ET_UNDEF,  // undefined value: '?'
   ET_ABS,    // absolute symbol or number literal
   ET_REL,    // relative symbol
   ET_STR,    // '...' or "..."

@@ -140,7 +140,7 @@ static void test_resolve_external(CuTest* tc) {
   SEGNO s0 = add_segment(segs, "SEG0", FALSE, FALSE, NO_GROUP);
   SEGMENT* seg0 = get_segment(segs, s0);
   static const BYTE DATA0[] = { 0xef, 0x11, 0x3f, 0x42, 0x99, 0x99, 0xfa, 0x00, 0x00, 0xce, 0xBE, 0x00, 0x00, 0xCD, 0xEF };
-  emit_segment_data(seg0, DATA0, sizeof DATA0);
+  write_segment(seg0, 0, DATA0, sizeof DATA0);
   CuAssertIntEquals(tc, sizeof DATA0, seg0->hi);
 
   SEGNO s1 = add_segment(segs, "SEG1", FALSE, FALSE, NO_GROUP);

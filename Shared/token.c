@@ -7,7 +7,7 @@
 #include "token.h"
 
 BOOL token_is_directive(int tok) {
-  return tok >= TOK_ASSUME && tok <= TOK_SEGMENT;
+  return tok >= TOK_ASSUME && tok <= TOK_UDATASEG;
 }
 
 BOOL token_is_opcode(int tok) {
@@ -24,27 +24,29 @@ static const struct keyword {
   const char* name;
 } keywords[] = {
   // directives
-  { TOK_ASSUME,  "ASSUME" },
-  { TOK_CODESEG, "CODESEG" },
-  { TOK_DATASEG, "DATASEG" },
-  { TOK_DB,      "DB" },
-  { TOK_DD,      "DD" },
-  { TOK_DQ,      "DQ" },
-  { TOK_DT,      "DT" },
-  { TOK_DW,      "DW" },
-  { TOK_END,     "END" },
-  { TOK_ENDS,    "ENDS" },
-  { TOK_EQU,     "EQU" },
-  { TOK_EXTRN,   "EXTRN" },
-  { TOK_GROUP,   "GROUP" },
-  { TOK_IDEAL,   "IDEAL" },
-  { TOK_MODEL,   "MODEL" },
-  { TOK_ORG,     "ORG" },
-  { TOK_PRIVATE, "PRIVATE" },
-  { TOK_PROC,    "PROC" },
-  { TOK_PUBLIC,  "PUBLIC" },
-  { TOK_SEGMENT, "SEGMENT" },
-  { TOK_STACK,   "STACK" },
+  { TOK_ASSUME,   "ASSUME" },
+  { TOK_CODESEG,  "CODESEG" },
+  { TOK_DATASEG,  "DATASEG" },
+  { TOK_DB,       "DB" },
+  { TOK_DD,       "DD" },
+  { TOK_DQ,       "DQ" },
+  { TOK_DT,       "DT" },
+  { TOK_DW,       "DW" },
+  { TOK_END,      "END" },
+  { TOK_ENDS,     "ENDS" },
+  { TOK_EQU,      "EQU" },
+  { TOK_EXTRN,    "EXTRN" },
+  { TOK_GROUP,    "GROUP" },
+  { TOK_IDEAL,    "IDEAL" },
+  { TOK_MODEL,    "MODEL" },
+  { TOK_ORG,      "ORG" },
+  { TOK_PRIVATE,  "PRIVATE" },
+  { TOK_PROC,     "PROC" },
+  { TOK_PUBLIC,   "PUBLIC" },
+  { TOK_SEGMENT,  "SEGMENT" },
+  { TOK_STACK,    "STACK" },
+  { TOK_UDATASEG, "UDATASEG" },
+  { TOK_UNINIT,   "UNINIT" },
   // operators
   { TOK_BYTE,    "BYTE" },
   { TOK_DUP,     "DUP" },

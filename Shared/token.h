@@ -52,6 +52,8 @@ enum {
   TOK_PUBLIC,
   TOK_SEGMENT,
   TOK_STACK,
+  TOK_UDATASEG,
+  TOK_UNINIT,
   // operators
   TOK_BYTE,
   TOK_DUP,

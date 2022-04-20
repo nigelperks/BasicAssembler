@@ -27,11 +27,12 @@ typedef struct {
   DWORD hi;
   IMAGE_START start;
   IMAGE_STACK stack;
+  DWORD space;
 } IMAGE;
 
 IMAGE* new_image(void);
 void delete_image(IMAGE*);
 
-IMAGE* build_image(SEGMENTED*, int verbose);
+IMAGE* build_image(const SEGMENTED*, int verbose);
 
 #endif // IMAGE_H

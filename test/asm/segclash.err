@@ -1,0 +1,25 @@
+Error: segclash.asm: 9: segment attributes clash with previous definition:
+    SEGMENT SEG1 PUBLIC
+                       ^
+Error: segclash.asm: 11: segment attributes clash with previous definition:
+    SEGMENT SEG1 STACK
+                      ^
+Error: segclash.asm: 22: segment attributes clash with previous definition:
+    SEGMENT SEG2 PUBLIC
+                       ^
+Error: segclash.asm: 24: segment attributes clash with previous definition:
+    SEGMENT SEG2 STACK
+                      ^
+Error: segclash.asm: 35: segment attributes clash with previous definition:
+    SEGMENT SEG3 PRIVATE
+                        ^
+Error: segclash.asm: 37: segment attributes clash with previous definition:
+    SEGMENT SEG3 STACK
+                      ^
+Error: segclash.asm: 48: segment attributes clash with previous definition:
+    SEGMENT SEG4 PRIVATE
+                        ^
+Error: segclash.asm: 50: segment attributes clash with previous definition:
+    SEGMENT SEG4 PUBLIC
+                       ^
+Errors: 8

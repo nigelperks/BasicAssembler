@@ -29,12 +29,12 @@ BUILDEXE* build_exe(SEGMENTED* prog, IMAGE* image) {
   if (!image->start.set)
     fatal("no start address for EXE\n");
 
+  if (image->hi / PAGE_SIZE > (unsigned)((WORD)(-1) - HEADER_PAGES - 2))
+    fatal("image too large for EXE\n");
+
   BUILDEXE* exe = emalloc(sizeof *exe);
 
   exe->image = image;
-
-  if (image->hi / PAGE_SIZE > (unsigned)((WORD)(-1) - HEADER_PAGES - 2))
-    fatal("image too large for EXE\n");
 
   exe->header.exSignature = 0x5A4D;
   exe->header.exExtraBytes = image->hi % PAGE_SIZE;
@@ -53,7 +53,7 @@ BUILDEXE* build_exe(SEGMENTED* prog, IMAGE* image) {
   }
 
   exe->header.exHeaderSize = HEADER_PARAGRAPHS;
-  exe->header.exMinAlloc = 0; // Assembler 1: stack_paragraphs + (image_size % PARA_SIZE != 0)
+  exe->header.exMinAlloc = (WORD) (image->space / 16 + (image->space % 16 != 0));
   exe->header.exMaxAlloc = 0xffff; // Turbo compatible
   if (image->stack.set) {
     exe->header.exInitSS = image->stack.seg;

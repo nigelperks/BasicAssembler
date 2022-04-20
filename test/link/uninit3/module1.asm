@@ -1,0 +1,26 @@
+	IDEAL
+
+	ASSUME	CS:MAIN,DS:UDATA
+
+	SEGMENT	MAIN
+	ORG	100h
+	ENDS	MAIN
+
+	SEGMENT	UDATA PUBLIC UNINIT
+	EXTRN	_bill: WORD
+	ENDS	UDATA
+
+	SEGMENT	MAIN
+start:
+	mov	ax, [_fred]
+	mov	dx, [_bill]
+	mov	si, OFFSET _fred
+	mov	di, OFFSET _bill
+	int	20h
+	ENDS	MAIN
+
+	SEGMENT	UDATA PUBLIC UNINIT
+_fred	DW	?
+	ENDS	UDATA
+
+	END	start

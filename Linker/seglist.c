@@ -36,6 +36,12 @@ SEGMENT* get_segment(SEGMENT_LIST* list, SEGNO index) {
   return list->seg[index];
 }
 
+const SEGMENT* get_segment_const(const SEGMENT_LIST* list, SEGNO index) {
+  assert(list != NULL);
+  assert(index < list->used);
+  return list->seg[index];
+}
+
 void set_segment(SEGMENT_LIST* list, SEGNO index, SEGMENT* seg) {
   assert(list != NULL);
   assert(index < list->used);

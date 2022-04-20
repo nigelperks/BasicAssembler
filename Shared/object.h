@@ -50,6 +50,7 @@ enum object_record_type {
   OBJ_BEGIN_GROUP_ADDR,
   OBJ_END_GROUP_ADDR,
   OBJ_P2ALIGN,
+  OBJ_SPACE,
 };
 
 typedef struct {

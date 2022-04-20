@@ -118,7 +118,7 @@ def compare_com(refName, outputName):
     fatal("Mismatch: " + refName + " " + os.path.abspath(outputName))
   print("Match: " + refName + " " + os.path.abspath(outputName))
 
-def test_com(tools, config, sources):
+def test_com(tools, config, sources, force_ref, keepDosBox):
   announce(sources, "COM")
   objects = assemble(tools, sources)
   test_com = "test.com"
@@ -126,9 +126,11 @@ def test_com(tools, config, sources):
   if r != 0:
     fatal("COM linking error: %d" % r)
   refName = "a.co_" if len(sources) > 1 else bare_name(sources[0]) + ".co_"
+  if force_ref and os.path.isfile(refName):
+    os.remove(refName)
   if not os.path.isfile(refName):
     run_turbo_in_dosbox(config["DosBoxMount"], config["DosBoxTestDir"],
-                        sources, linkCOM=True, linkEXE=False, keepDosBox=False)
+                        sources, linkCOM=True, linkEXE=False, keepDosBox=keepDosBox)
     comName = bare_name(sources[0]) + ".COM"
     refCOM = os.path.join(config["DosBoxMount"], config["DosBoxTestDir"], comName)
     shutil.copy2(refCOM, refName)
@@ -146,7 +148,7 @@ def compare_exe(tools, refName, outputName):
     fatal("Mismatch: " + refName + " " + os.path.abspath(outputName))
   print("Match: " + refName + " " + os.path.abspath(outputName))
 
-def test_exe(tools, config, sources):
+def test_exe(tools, config, sources, force_ref, keepDosBox):
   announce(sources, "EXE")
   objects = assemble(tools, sources)
   test_exe = "test.exe"
@@ -154,9 +156,11 @@ def test_exe(tools, config, sources):
   if r != 0:
     fatal("EXE linking error: %d" % r)
   refName = "a.ex_" if len(sources) > 1 else bare_name(sources[0]) + ".ex_"
+  if force_ref and os.path.isfile(refName):
+    os.remove(refName)
   if not os.path.isfile(refName):
     run_turbo_in_dosbox(config["DosBoxMount"], config["DosBoxTestDir"],
-                        sources, linkCOM=False, linkEXE=True, keepDosBox=False)
+                        sources, linkCOM=False, linkEXE=True, keepDosBox=keepDosBox)
     exeName = bare_name(sources[0]) + ".EXE"
     refEXE = os.path.join(config["DosBoxMount"], config["DosBoxTestDir"], exeName)
     shutil.copy2(refEXE, refName)
@@ -189,7 +193,7 @@ def test_link_error(tools, sources):
     fatal("Linking succeeded unexpectedly")
   compare_err(LINKING_ERROR_REFERENCE, test_err)
 
-def test(tools, config, sources):
+def test(tools, config, sources, force_ref, keepDosBox):
   if len(sources) == 1:
     error_file = bare_name(sources[0]) + ".err"
     if os.path.isfile(error_file):
@@ -200,16 +204,16 @@ def test(tools, config, sources):
     return
   formats = config["formats"] if "formats" in config else "both"
   if formats == "com":
-    test_com(tools, config, sources)
+    test_com(tools, config, sources, force_ref, keepDosBox)
   elif formats == "exe":
-    test_exe(tools, config, sources)
+    test_exe(tools, config, sources, force_ref, keepDosBox)
   elif formats == "both":
-    test_com(tools, config, sources)
-    test_exe(tools, config, sources)
+    test_com(tools, config, sources, force_ref, keepDosBox)
+    test_exe(tools, config, sources, force_ref, keepDosBox)
   else:
     fatal("Invalid config: formats=" + formats)
 
-def test_dir(tools, config, name):
+def test_dir(tools, config, name, force_ref, keepDosBox):
   cfg = copy(config)
   os.chdir(name)
   if os.path.isfile(CONFIG_NAME):
@@ -218,18 +222,18 @@ def test_dir(tools, config, name):
     if config_on(cfg, "link"):
       sources = glob("*.asm")
       if sources != []:
-        test(tools, cfg, sources)
+        test(tools, cfg, sources, force_ref, keepDosBox)
     else:
       for x in glob("*.asm"):
-        test(tools, cfg, [x])
+        test(tools, cfg, [x], force_ref, keepDosBox)
   for x in glob("*"):
     if os.path.isdir(x):
-      test_dir(tools, cfg, x)
+      test_dir(tools, cfg, x, force_ref, keepDosBox)
   os.chdir("..")
 
 # Given a test directory or source file, test it
 # by processing the configurations on the path.
-def test_source(tools, config, source):
+def test_source(tools, config, source, force_ref, keepDosBox):
   cfg = copy(config)
   components = source.split(os.sep)
   saved = os.getcwd()
@@ -243,10 +247,10 @@ def test_source(tools, config, source):
         add_config(cfg, CONFIG_NAME)
   name = components[-1]
   if os.path.isdir(name):
-    test_dir(tools, cfg, name)
+    test_dir(tools, cfg, name, force_ref, keepDosBox)
   elif os.path.isfile(name):
     if name.lower().endswith(".asm"):
-      test(tools, cfg, [name])
+      test(tools, cfg, [name], force_ref, keepDosBox)
     else:
       fatal("Not a .asm source file: " + source)
   else:
@@ -293,11 +297,17 @@ def main(argv):
   sources = []
   cleaning = False
   clean_on_success = True
+  force_ref = False
+  keepDosBox = False
 
   for arg in argv[1:]:
     if arg[0] == '-':
       if arg == "-clean" or arg == "--clean":
         cleaning = True
+      elif arg == "-f" or arg == "--force-ref":
+        force_ref = True
+      elif arg == "-k" or arg == "--keep-dosbox":
+        keepDosBox = True
       elif arg in ["-?", "-h", "--help"]:
         help()
       else:
@@ -323,10 +333,10 @@ def main(argv):
   if sources == []:
     for name in glob("*"):
       if os.path.isdir(name):
-        test_dir(tools, config, name)
+        test_dir(tools, config, name, force_ref, keepDosBox)
   else:
     for source in sources:
-      test_source(tools, config, source)
+      test_source(tools, config, source, force_ref, keepDosBox)
 
   if clean_on_success:
     clean(sources)

@@ -15,5 +15,6 @@ BOOL string_instruction(const INSDEF*);
 
 void perform_codeseg(STATE*, IFILE*, LEX*);
 void perform_dataseg(STATE*, IFILE*, LEX*);
+void perform_udataseg(STATE*, IFILE*, LEX*);
 
 #endif // COMMON_H

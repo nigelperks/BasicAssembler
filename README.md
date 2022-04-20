@@ -141,13 +141,14 @@ Directives:
 (1) Simplified model:
 
 MODEL TINY
-- code segment _CODE in group _GROUP
-- data segment _DATA in group _GROUP
+- CODESEG: code segment _CODE in group _GROUP
+- DATASEG: data segment _DATA in group _GROUP
+- UDATASEG: uninitialized data segment _BSS in group _GROUP
 - all segment registers assumed to address _GROUP
 
 (2) Explicit segments:
 
-SEGMENT name [PUBLIC|STACK]
+SEGMENT name [PUBLIC|STACK|UNINIT]
 ...
 ENDS [name]
 

@@ -42,19 +42,11 @@ static void retarget_module_fixups_to_program(FIXUPS* module_fixups,
 
 static void update_module_externals_symbol_id(FIXUPS* module_fixups, VECTOR* module_to_program_symbol_map);
 
-static void move_segments_data(SEGMENT_LIST* prog, SEGMENT_LIST* module, SEGMENT_MAP*, int verbose);
+static void move_segments_data(SEGMENT_LIST* prog, SEGMENT_LIST* module, SEGMENT_MAP*, const char* module_name, int verbose);
 
 static void define_start(START* prog_start, START* module_start, SEGMENT_MAP* module_to_program_seg_map, SEGMENT_LIST* prog_segs, int verbose);
 
-/*
-  SEGMENT_LIST* segs;           // data, group membership
-  GROUP_LIST* groups;           // group names
-  GLOBAL_OFFSET_INFO* offsets;  // (holding_seg, holding_offset, holding_len, addressed_seg)
-  SYMTAB* st;                   // (name, segno, offset, defined) -- IN FLUX!
-  EXTERNALS* ext;               // (holding_seg, holding_offset, holding_len, id, jump-flag)
-*/
 void incorporate_module(SEGMENTED* prog, SEGMENTED* module, int verbose) {
-
   if (verbose)
     printf("Incorporate module %s into %s\n", module->name, prog->name);
 
@@ -74,7 +66,7 @@ void incorporate_module(SEGMENTED* prog, SEGMENTED* module, int verbose) {
 
   update_module_externals_symbol_id(module->fixups, module_to_program_symbol_map);
 
-  move_segments_data(prog->segs, module->segs, module_to_program_seg_map, verbose);
+  move_segments_data(prog->segs, module->segs, module_to_program_seg_map, module->name, verbose);
 
   append_fixups(prog->fixups, module->fixups);
 
@@ -121,7 +113,13 @@ static VECTOR* add_module_groups_to_program(GROUP_LIST* program_groups, GROUP_LI
   return map;
 }
 
-static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT*, GROUPNO, int verbose);
+static void add_module_segment_to_program(SEGMENT_LIST* program_segs,
+                                          const SEGMENT_LIST* module_segs,
+                                          SEGNO module_segno,
+                                          const VECTOR* module_to_program_group_map,
+                                          const GROUP_LIST* program_groups,
+                                          SEGMENT_MAP* module_to_program_segment_map,
+                                          int verbose);
 
 // Add module segments to program where necessary,
 // combining public segments of matching name.
@@ -135,51 +133,73 @@ static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, S
 
   SEGMENT_MAP* map = new_segment_map(segment_list_count(module_segs));
 
-  for (SEGNO i = 0; i < segment_list_count(module_segs); i++) {
-    SEGMENT* module_seg = get_segment(module_segs, i);
-    GROUPNO module_group = seg_group(module_seg);
-    GROUPNO program_group = (module_group == NO_GROUP) ? NO_GROUP : (GROUPNO) module_to_program_group_map->val[module_group];
-    SEGNO psegno = NO_SEG;
-    if (seg_public(module_seg)) {
-      psegno = find_public_segment(program_segs, seg_name(module_seg));
-      if (psegno == NO_SEG)
-        psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
-      else {
-        if (verbose >= 2)
-          printf("Found public segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
-        GROUPNO prev_group = segment_group(program_segs, psegno);
-        if (prev_group != program_group) {
-          const char* prev_group_name = (prev_group == NO_GROUP) ? "none" : group_name(program_groups, prev_group);
-          const char* dest_group_name = (program_group == NO_GROUP) ? "none" : group_name(program_groups, program_group);       
-          fatal("Conflicting groups for public segment %s: %s, %s\n",
-                seg_name(module_seg), prev_group_name, dest_group_name);
-        }
-      }
-    }
-    else if (seg_stack(module_seg)) {
-      psegno = find_stack_segment(program_segs, seg_name(module_seg));
-      if (psegno == NO_SEG)
-        psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
-      else {
-        if (verbose >= 2)
-          printf("Found stack segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
-        GROUPNO prev_group = segment_group(program_segs, psegno);
-        if (prev_group != program_group) {
-          const char* prev_group_name = (prev_group == NO_GROUP) ? "none" : group_name(program_groups, prev_group);
-          const char* dest_group_name = (program_group == NO_GROUP) ? "none" : group_name(program_groups, program_group);       
-          fatal("Conflicting groups for stack segment %s: %s, %s\n",
-                seg_name(module_seg), prev_group_name, dest_group_name);
-        }
-      }
-    }
-    else
-      psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
-    assert(psegno != NO_SEG);
-    map->map[i].segno = psegno;
-    map->map[i].base = padded_length(get_segment(program_segs, psegno), seg_p2align(module_seg));
-  }
+  for (SEGNO i = 0; i < segment_list_count(module_segs); i++)
+    add_module_segment_to_program(program_segs, module_segs, i, module_to_program_group_map, program_groups, map, verbose);
 
   return map;
+}
+
+static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT*, GROUPNO, int verbose);
+static SEGNO add_public_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, int verbose);
+static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, int verbose);
+
+static void add_module_segment_to_program(SEGMENT_LIST* program_segs,
+                                          const SEGMENT_LIST* module_segs,
+                                          SEGNO module_segno,
+                                          const VECTOR* module_to_program_group_map,
+                                          const GROUP_LIST* program_groups,
+                                          SEGMENT_MAP* segment_map,
+                                          int verbose) {
+  const SEGMENT* module_seg = get_segment_const(module_segs, module_segno);
+  GROUPNO module_group = seg_group(module_seg);
+  GROUPNO program_group = (module_group == NO_GROUP) ? NO_GROUP : (GROUPNO) module_to_program_group_map->val[module_group];
+  SEGNO psegno = NO_SEG;
+  if (seg_public(module_seg))
+    psegno = add_public_segment(program_segs, module_seg, program_groups, program_group, verbose);
+  else if (seg_stack(module_seg))
+    psegno = add_stack_segment(program_segs, module_seg, program_groups, program_group, verbose);
+  else
+    psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
+  assert(psegno != NO_SEG);
+  const SEGMENT* program_seg = get_segment(program_segs, psegno);
+  segment_map->map[module_segno].segno = psegno;
+  segment_map->map[module_segno].base = segment_end_p2aligned(program_seg, seg_p2align(module_seg));
+}
+
+static SEGNO add_public_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, int verbose) {
+  SEGNO psegno = find_public_segment(program_segs, seg_name(module_seg));
+  if (psegno == NO_SEG)
+    psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
+  else {
+    if (verbose >= 2)
+      printf("Found public segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
+    GROUPNO prev_group = segment_group(program_segs, psegno);
+    if (prev_group != program_group) {
+      const char* prev_group_name = (prev_group == NO_GROUP) ? "none" : group_name(program_groups, prev_group);
+      const char* dest_group_name = (program_group == NO_GROUP) ? "none" : group_name(program_groups, program_group);
+      fatal("Conflicting groups for public segment %s: %s, %s\n",
+            seg_name(module_seg), prev_group_name, dest_group_name);
+    }
+  }
+  return psegno;
+}
+
+static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, int verbose) {
+  SEGNO psegno = find_stack_segment(program_segs, seg_name(module_seg));
+  if (psegno == NO_SEG)
+    psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
+  else {
+    if (verbose >= 2)
+      printf("Found stack segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
+    GROUPNO prev_group = segment_group(program_segs, psegno);
+    if (prev_group != program_group) {
+      const char* prev_group_name = (prev_group == NO_GROUP) ? "none" : group_name(program_groups, prev_group);
+      const char* dest_group_name = (program_group == NO_GROUP) ? "none" : group_name(program_groups, program_group);
+      fatal("Conflicting groups for stack segment %s: %s, %s\n",
+            seg_name(module_seg), prev_group_name, dest_group_name);
+    }
+  }
+  return psegno;
 }
 
 static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT* seg, GROUPNO group, int verbose) {
@@ -375,39 +395,54 @@ static void update_module_externals_symbol_id(FIXUPS* fixups, VECTOR* module_to_
   }
 }
 
-static void add_segment_data(SEGNO destno, SEGMENT* dest, SEGNO srcno, SEGMENT* source, int verbose);
+static void combine(SEGMENT* dest, SEGMENT* source, const char* module_name, int verbose);
 
 // Note this does not use the base values in the segment map,
 // it just appends to the end of the destination segments.
-static void move_segments_data(SEGMENT_LIST* prog, SEGMENT_LIST* module, SEGMENT_MAP* seg_map, int verbose) {
+static void move_segments_data(SEGMENT_LIST* prog, SEGMENT_LIST* module, SEGMENT_MAP* seg_map, const char* module_name, int verbose) {
   for (SEGNO i = 0; i < segment_list_count(module); i++) {
-    SEGMENT* src = get_segment(module, i);
-    SEGNO destno = seg_map->map[i].segno;
-    SEGMENT* dest = get_segment(prog, destno);
-    add_segment_data(destno, dest, i, src, verbose);
+    SEGMENT* source = get_segment(module, i);
+    SEGMENT* dest = get_segment(prog, seg_map->map[i].segno);
+    combine(dest, source, module_name, verbose);
     remove_segment(module, i);
   }
 }
 
-static void add_segment_data(SEGNO destno, SEGMENT* dest, SEGNO srcno, SEGMENT* source, int verbose) {
+static void combine(SEGMENT* dest, SEGMENT* source, const char* module_name, int verbose) {
   assert(dest != NULL);
   assert(source != NULL);
+  assert(module_name != NULL);
+
+  if (verbose >= 2)
+    printf("Append module '%s' segment '%s' from 0x%04x to program segment '%s' at 0x%04x\n",
+           module_name,
+           seg_name(source), (unsigned)seg_lo(source),
+           seg_name(dest), (unsigned)(segment_end(dest) + seg_lo(source)));
 
   if (segment_has_data(source)) {
-    pad_segment(dest, seg_p2align(source));
-    if (seg_hi(dest) >= 0x10000UL)
-      fatal("destination segment %d: %s is already %lu bytes in size\n",
-          (int) destno, seg_name(dest), (unsigned long) seg_hi(dest));
-    if (0x10000UL - seg_hi(dest) < seg_hi(source))
-      fatal("destination segment %d: %s has %lu bytes free; cannot append segment %d: %s of size %lu\n",
-          (int) destno, seg_name(dest), (unsigned long) (0x10000UL - seg_hi(dest)),
-          (int) srcno, seg_name(source), (unsigned long) seg_hi(source));
-    if (verbose >= 2)
-      printf("Append segment %d: %s from 0x%04x to segment %d: %s at 0x%04x\n",
-             (int)srcno, seg_name(source), (unsigned)seg_lo(source),
-             (int)destno, seg_name(dest), (unsigned)(seg_hi(dest) + seg_lo(source)));
-    append_segment_data(dest, source);
+    if (seg_space(dest))
+      fatal("cannot combine initialized data in '%s' in '%s' on top of uninitialized space in '%s'\n",
+            seg_name(source), module_name, seg_name(dest));
+
+    if (seg_space(source))
+      fatal("segment '%s' has both initialized and uninitialized data\n", seg_name(source));
+
+    align_segment_hi(dest, seg_p2align(source));
+    append_segment(dest, source);
   }
+
+  if (seg_space(source)) {
+    if (segment_has_data(dest))
+      fatal("cannot combine uninitialized space in '%s' in '%s' with initialized data in '%s'\n",
+            seg_name(source), module_name, seg_name(dest));
+
+    space_out(dest, seg_p2align(source));
+    append_segment(dest, source);
+  }
+
+  const unsigned long size = segment_end(dest);
+  if (size > 0x10000UL)
+    fatal("combined segment '%s' is too big: %lu = %0xh bytes\n", seg_name(dest), size, size);
 }
 
 
@@ -765,9 +800,8 @@ static void test_update_offsets(CuTest* tc) {
 
   SEGNO segno0 = add_segment(module_segs, "SEG0", FALSE, FALSE, NO_GROUP);
   SEGMENT* seg0 = get_segment(module_segs, segno0);
-  seg0->pc = 0x100;
   static const BYTE DATA0[] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77 };
-  emit_segment_data(seg0, DATA0, sizeof DATA0);
+  write_segment(seg0, 0x100, DATA0, sizeof DATA0);
 
 // add_offset_fixup(info, holding_seg, holding_offset, addressed_seg)
   FIXUP* offset0 = add_offset_fixup(module_offsets, 0, 0x104, 1);
@@ -775,9 +809,8 @@ static void test_update_offsets(CuTest* tc) {
 
   SEGNO segno1 = add_segment(module_segs, "SEG1", FALSE, FALSE, NO_GROUP);
   SEGMENT* seg1 = get_segment(module_segs, segno1);
-  seg1->pc = 0;
   static const BYTE DATA1[] = { 0xDE, 0xAD, 0xFA, 0xCE };
-  emit_segment_data(seg1, DATA1, sizeof DATA1);
+  write_segment(seg1, 0, DATA1, sizeof DATA1);
 
   FIXUP* offset2 = add_offset_fixup(module_offsets, 1, 0, 0);
 
@@ -825,9 +858,8 @@ static void test_update_externals(CuTest* tc) {
 
   SEGNO segno0 = add_segment(module_segs, "SEG0", FALSE, FALSE, NO_GROUP);
   SEGMENT* seg0 = get_segment(module_segs, segno0);
-  seg0->pc = 0x100;
   static const BYTE DATA0[] = { 0x00, 0x11, 0x00, 0x00, 0x44, 0x55, 0x00, 0x00 };
-  emit_segment_data(seg0, DATA0, sizeof DATA0);
+  write_segment(seg0, 0x100, DATA0, sizeof DATA0);
 
 // int ext_insert(ext, segno, offset_pos, offset_len, sym_id, jump)
 
@@ -836,9 +868,8 @@ static void test_update_externals(CuTest* tc) {
 
   SEGNO segno1 = add_segment(module_segs, "SEG1", FALSE, FALSE, NO_GROUP);
   SEGMENT* seg1 = get_segment(module_segs, segno1);
-  seg1->pc = 0;
   static const BYTE DATA1[] = { 0x00, 0x00, 0xFA, 0xCE, 0x00, 0x00 };
-  emit_segment_data(seg1, DATA1, sizeof DATA1);
+  write_segment(seg1, 0, DATA1, sizeof DATA1);
 
   int ext2 = add_external_fixup(ext, 1, 0, 5, FALSE);
   int ext3 = add_external_fixup(ext, 1, 4, 7, TRUE);
@@ -913,7 +944,7 @@ static void test_move_data(CuTest* tc) {
 
   static const BYTE P0DATA[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
   SEGMENT* pseg0 = get_segment(dest, p0);
-  emit_segment_data(pseg0, P0DATA, sizeof P0DATA);
+  write_segment(pseg0, 0, P0DATA, sizeof P0DATA);
   CuAssertIntEquals(tc, 0, pseg0->lo);
   CuAssertIntEquals(tc, 11, pseg0->hi);
 
@@ -921,16 +952,14 @@ static void test_move_data(CuTest* tc) {
 
   SEGNO m0 = add_segment(src, "MSEG0", FALSE, FALSE, 2);
   SEGMENT* mseg0 = get_segment(src, m0);
-  mseg0->pc = 0x20;
   static const BYTE M0DATA[] = { 0x90, 0x80, 0x70, 0x60, 0x50, 0x40, 0x30, 0x20 };
-  emit_segment_data(mseg0, M0DATA, sizeof M0DATA);
+  write_segment(mseg0, 0x20, M0DATA, sizeof M0DATA);
   CuAssertIntEquals(tc, 0x20 + sizeof M0DATA, mseg0->hi);
 
   SEGNO m1 = add_segment(src, "PSEG0", TRUE, FALSE, NO_GROUP);
   SEGMENT* mseg1 = get_segment(src, m1);
-  mseg1->pc = 0x30;
   static const BYTE M1DATA[] = { 0x55, 0x44, 0x33, 0x22, 0x11, 0x00, 0xDD, 0xCC };
-  emit_segment_data(mseg1, M1DATA, sizeof M1DATA);
+  write_segment(mseg1, 0x30, M1DATA, sizeof M1DATA);
   CuAssertIntEquals(tc, 0x30 + sizeof M1DATA, mseg1->hi);
 
   SEGMENT_MAP* seg_map = new_segment_map(2);
@@ -939,7 +968,7 @@ static void test_move_data(CuTest* tc) {
   seg_map->map[1].segno = 0;
   seg_map->map[1].base = 0x120; // not used when appending to program segment 0
 
-  move_segments_data(dest, src, seg_map, 0);
+  move_segments_data(dest, src, seg_map, "dummy", 0);
 
   CuAssertIntEquals(tc, 3, segment_list_count(dest));
 

@@ -29,6 +29,7 @@ IFILE* new_ifile(SOURCE* src) {
   ifile->model_group = NULL;
   ifile->codeseg = NULL;
   ifile->dataseg = NULL;
+  ifile->udataseg = NULL;
 
   return ifile;
 }
@@ -145,11 +146,10 @@ int create_segment(IFILE* ifile, const char* name) {
   int seg = ifile->nseg++;
   ASM_SEGMENT* p = &ifile->segments[seg];
   p->name = estrdup(name);
-  p->public = FALSE;
-  p->stack = FALSE;
+  p->attr = 0;
   p->group = NO_GROUP;
-  p->pc = 0;
   p->p2align = 4;
+  p->pc = 0;
   return seg;
 }
 
@@ -197,13 +197,13 @@ void set_segment_group(IFILE* ifile, unsigned seg, GROUPNO group) {
 BOOL segment_public(const IFILE* ifile, unsigned seg) {
   assert(ifile != NULL);
   assert(seg < ifile->nseg);
-  return ifile->segments[seg].public;
+  return (ifile->segments[seg].attr & ATTR_PUBLIC) != 0;
 }
 
 void set_segment_public(IFILE* ifile, unsigned seg) {
   assert(ifile != NULL);
   assert(seg < ifile->nseg);
-  ifile->segments[seg].public = TRUE;
+  ifile->segments[seg].attr |= ATTR_PUBLIC;
 }
 
 BOOL relocatable_relative(const IFILE* ifile, const SYMBOL* sym) {
@@ -214,7 +214,7 @@ BOOL relocatable_relative(const IFILE* ifile, const SYMBOL* sym) {
     SEGNO segno = sym_seg(sym);
     if (segno >= 0 && segno < (SEGNO)ifile->nseg) {
       const ASM_SEGMENT* seg = &ifile->segments[segno];
-      if (seg->public || seg->group != NO_GROUP)
+      if ((seg->attr & ATTR_PUBLIC) || seg->group != NO_GROUP)
         return TRUE;
     }
   }
@@ -224,19 +224,43 @@ BOOL relocatable_relative(const IFILE* ifile, const SYMBOL* sym) {
 BOOL segment_stack(const IFILE* ifile, unsigned seg) {
   assert(ifile != NULL);
   assert(seg < ifile->nseg);
-  return ifile->segments[seg].stack;
+  return (ifile->segments[seg].attr & ATTR_STACK) != 0;
 }
 
 void set_segment_stack(IFILE* ifile, unsigned seg) {
   assert(ifile != NULL);
   assert(seg < ifile->nseg);
-  ifile->segments[seg].stack = TRUE;
+  ifile->segments[seg].attr |= ATTR_STACK;
+}
+
+BOOL segment_uninit(const IFILE* ifile, unsigned seg) {
+  assert(ifile != NULL);
+  assert(seg < ifile->nseg);
+  return (ifile->segments[seg].attr & ATTR_UNINIT) != 0;
+}
+
+void set_segment_uninit(IFILE* ifile, unsigned seg) {
+  assert(ifile != NULL);
+  assert(seg < ifile->nseg);
+  ifile->segments[seg].attr |= ATTR_UNINIT;
+}
+
+unsigned segment_attributes(const IFILE* ifile, unsigned seg) {
+  assert(ifile != NULL);
+  assert(seg < ifile->nseg);
+  return ifile->segments[seg].attr;
+}
+
+void set_segment_attributes(IFILE* ifile, unsigned seg, unsigned attr) {
+  assert(ifile != NULL);
+  assert(seg < ifile->nseg);
+  ifile->segments[seg].attr = attr;
 }
 
 void reset_pc(IFILE* ifile) {
   assert(ifile != NULL);
-  for (unsigned i = 0; i < ifile->nseg; i++)
-    ifile->segments[i].pc = 0;
+  for (ASM_SEGMENT* seg = ifile->segments; seg < ifile->segments + ifile->nseg; seg++)
+    seg->pc = 0;
 }
 
 void set_segment_p2align(IFILE* ifile, unsigned seg, unsigned align) {
@@ -274,6 +298,7 @@ static void test_new_ifile(CuTest* tc) {
   CuAssertTrue(tc, ifile->model_group == NULL);
   CuAssertTrue(tc, ifile->codeseg == NULL);
   CuAssertTrue(tc, ifile->dataseg == NULL);
+  CuAssertTrue(tc, ifile->udataseg == NULL);
   CuAssertIntEquals(tc, 0, irec_count(ifile));
 
   delete_ifile(ifile);
@@ -335,17 +360,22 @@ static void test_segments(CuTest* tc) {
   CuAssertIntEquals(tc, 0, seg0);
   CuAssertIntEquals(tc, 1, segment_count(ifile));
   CuAssertStrEquals(tc, "CODE", segment_name(ifile, seg0));
+  CuAssertIntEquals(tc, 0, segment_attributes(ifile, seg0));
   CuAssertIntEquals(tc, FALSE, segment_public(ifile, seg0));
   CuAssertIntEquals(tc, FALSE, segment_stack(ifile, seg0));
+  CuAssertIntEquals(tc, FALSE, segment_uninit(ifile, seg0));
   set_segment_public(ifile, seg0);
   CuAssertIntEquals(tc, TRUE, segment_public(ifile, seg0));
-  CuAssertIntEquals(tc, 0, segment_pc(ifile, seg0));
-  set_segment_pc(ifile, seg0, 0x213);
-  CuAssertIntEquals(tc, 0x213, segment_pc(ifile, seg0));
-  inc_segment_pc(ifile, seg0, 0x531);
-  CuAssertIntEquals(tc, 0x744, segment_pc(ifile, seg0));
+  CuAssertIntEquals(tc, ATTR_PUBLIC, segment_attributes(ifile, seg0));
   CuAssertIntEquals(tc, NO_GROUP, segment_group(ifile, seg0));
   CuAssertIntEquals(tc, 4, segment_p2align(ifile, seg0));
+  CuAssertIntEquals(tc, 0, segment_pc(ifile, seg0));
+
+  set_segment_pc(ifile, seg0, 0x213);
+  CuAssertIntEquals(tc, 0x213, segment_pc(ifile, seg0));
+
+  inc_segment_pc(ifile, seg0, 0x531);
+  CuAssertIntEquals(tc, 0x744, segment_pc(ifile, seg0));
 
   int group0 = create_group(ifile, "DGROUP");
   CuAssertIntEquals(tc, 0, group0);
@@ -365,6 +395,7 @@ static void test_segments(CuTest* tc) {
   CuAssertIntEquals(tc, 0, segment_pc(ifile, seg1)); 
   set_segment_stack(ifile, seg1);
   CuAssertIntEquals(tc, TRUE, segment_stack(ifile, seg1));
+  CuAssertIntEquals(tc, ATTR_STACK, segment_attributes(ifile, seg1));
 
   delete_ifile(ifile);
 }

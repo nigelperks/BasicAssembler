@@ -58,3 +58,15 @@ void perform_dataseg(STATE* state, IFILE* ifile, LEX* lex) {
   else
     error2(state, lex, "no memory model");
 }
+
+void perform_udataseg(STATE* state, IFILE* ifile, LEX* lex) {
+  if (ifile->model_group) {
+    state->assume_sym[SR_CS] = ifile->model_group;
+    state->assume_sym[SR_DS] = ifile->model_group;
+    state->assume_sym[SR_ES] = ifile->model_group;
+    state->assume_sym[SR_SS] = ifile->model_group;
+    state->curseg = sym_section_ordinal(ifile->udataseg);
+  }
+  else
+    error2(state, lex, "no memory model");
+}

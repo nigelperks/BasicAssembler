@@ -210,8 +210,7 @@ int lex_next(LEX* lex) {
     return lex->token = TOK_STR;
   }
 
-
-  if (strchr(":+-*/,()[]", c)) {
+  if (strchr(":+-*/,()[]?", c)) {
     lex->pos++;
     return lex->token = c;
   }

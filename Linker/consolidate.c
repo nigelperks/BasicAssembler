@@ -6,7 +6,8 @@
 #include <assert.h>
 #include "consolidate.h"
 
-static void build_group(SEGMENTED*, SEGNO first_segment, int verbose);
+static void build_group(SEGMENTED* prog, SEGNO first_segment, SEGMENT* first_seg, int verbose);
+static void set_stack(SEGMENTED* prog, SEGNO, const SEGMENT*, int verbose);
 
 void consolidate_groups_and_stack(SEGMENTED* prog, int verbose) {
   assert(prog != NULL);
@@ -18,31 +19,39 @@ void consolidate_groups_and_stack(SEGMENTED* prog, int verbose) {
   for (SEGNO i = 0; i < segment_list_count(prog->segs); i++) {
     SEGMENT* seg = get_segment(prog->segs, i);
 
-    if (seg != NULL && seg_stack(seg)) {
-      if (prog->stack.segno != NO_SEG)
-        fatal("multiple stack segments\n");
-      if (seg_hi(seg) > (WORD)(-1))
-        fatal("stack segment too big\n");
-      prog->stack.segno = i;
-      prog->stack.offset = 0;
-      prog->stack.size = (WORD) seg_hi(seg);
-      if (verbose >= 2)
-        printf("Set image stack segment: program segment %d: %s; offset 0x%04x, size 0x%04x\n",
-            (int)prog->stack.segno, segment_name(prog->segs, prog->stack.segno), (unsigned)prog->stack.offset, (unsigned)prog->stack.size);
+    if (seg != NULL) {
+      if (seg_stack(seg))
+        set_stack(prog, i, seg, verbose);
+      if (seg_group(seg) != NO_GROUP)
+        build_group(prog, i, seg, verbose);
     }
-
-    if (seg != NULL && seg_group(seg) != NO_GROUP)
-        build_group(prog, i, verbose);
   }
 }
 
-static void join_segments(SEGMENTED*, SEGNO dest, SEGNO source, int verbose);
+static void set_stack(SEGMENTED* prog, SEGNO segno, const SEGMENT* seg, int verbose) {
+  assert(seg != NULL && seg_stack(seg));
 
-static void build_group(SEGMENTED* prog, SEGNO first_segno, int verbose) {
+  if (prog->stack.segno != NO_SEG)
+    fatal("multiple stack segments\n");
+
+  const DWORD size = (seg_hi(seg) ? seg_hi(seg) : seg_space(seg));
+  if (size > (WORD)(-1))  // TODO: allow 64K
+    fatal("stack segment too big\n");
+
+  prog->stack.segno = segno;
+  prog->stack.offset = 0;
+  prog->stack.size = (WORD)size;
+
+  if (verbose >= 2)
+    printf("Set image stack segment: program segment %d: %s; offset 0x%04x, size 0x%04x\n",
+           (int)prog->stack.segno, segment_name(prog->segs, prog->stack.segno), (unsigned)prog->stack.offset, (unsigned)prog->stack.size);
+}
+
+static void join_segments(SEGMENTED*, SEGNO destno, SEGMENT* dest, SEGNO sourceno, SEGMENT* source, int verbose);
+
+static void build_group(SEGMENTED* prog, SEGNO first_segno, SEGMENT* first_seg, int verbose) {
   assert(prog != NULL);
   assert(first_segno < segment_list_count(prog->segs));
-
-  SEGMENT* first_seg = get_segment(prog->segs, first_segno);
   assert(first_seg != NULL);
 
   const GROUPNO groupno = seg_group(first_seg);
@@ -58,8 +67,10 @@ static void build_group(SEGMENTED* prog, SEGNO first_segno, int verbose) {
 
   for (SEGNO i = first_segno + 1; i < segment_list_count(prog->segs); i++) {
     SEGMENT* seg = get_segment(prog->segs, i);
-    if (seg != NULL && segment_has_data(seg) && seg_group(seg) == groupno)
-      join_segments(prog, first_segno, i, verbose);
+    if (seg != NULL && seg_group(seg) == groupno) {
+      if (segment_has_data(seg) || seg_space(seg))
+        join_segments(prog, first_segno, first_seg, i, seg, verbose);
+    }
   }
 }
 
@@ -68,72 +79,73 @@ static void update_fixups(SEGMENTED* prog, SEGNO source, SEGNO dest, DWORD base,
 static void update_symbol_definitions_for_new_segment_number_and_base(
     SYMTAB* st, SEGNO source_segno, SEGNO dest_segno, DWORD base);
 
+static void update_start(START*, SEGNO new_segno, const SEGMENT* new_seg, int verbose);
+static void update_stack(STACK*, SEGNO new_segno, const SEGMENT* new_seg, int verbose);
+
 // Make two segments in the same segment list into one segment, appending source
 // to destination. Update offsets into the source, to be into the destination,
 // across all segments. Remove the source segment.
-/*
-  SEGMENT_LIST* segs;           // data, group membership
-  GROUP_LIST* groups;           // group names
-  GLOBAL_OFFSET_INFO* offsets;  // (holding_seg, holding_offset, holding_len, addressed_seg)
-  SYMTAB* st;                   // (name, segno, offset, defined) -- IN FLUX!
-  EXTERNALS* ext;               // (holding_seg, holding_offset, holding_len, id, jump-flag)
-*/
-static void join_segments(SEGMENTED* prog, SEGNO dest_segno, SEGNO source_segno, int verbose) {
+static void join_segments(SEGMENTED* prog, SEGNO dest_segno, SEGMENT* dest_seg, SEGNO source_segno, SEGMENT* source_seg, int verbose) {
   assert(prog != NULL);
-  assert(source_segno < segment_list_count(prog->segs));
   assert(dest_segno < segment_list_count(prog->segs));
-
-  SEGMENT* dest_seg = get_segment(prog->segs, dest_segno);
-  SEGMENT* source_seg = get_segment(prog->segs, source_segno);
-
   assert(dest_seg != NULL);
+  assert(source_segno < segment_list_count(prog->segs));
   assert(source_seg != NULL);
-  assert(segment_has_data(source_seg));
+  assert(segment_has_data(source_seg) || seg_space(source_seg) > 0);
 
   if (verbose)
     printf("Consolidate into group: segment %d: %s\n", (int)source_segno, seg_name(source_seg));
 
-  pad_segment(dest_seg, seg_p2align(source_seg));
-  DWORD base = seg_hi(dest_seg);
+  if (segment_has_data(source_seg)) {
+    if (seg_space(dest_seg))
+      fatal("cannot group initialized data in '%s' on top of uninitialized space in '%s'\n",
+            seg_name(source_seg), seg_name(dest_seg));
 
-  //assert(MAX_SEGMENT_SIZE <= (WORD)(-1));
-  //assert(base <= MAX_SEGMENT_SIZE);
-  if ((WORD)(-1) - base < seg_hi(source_seg))
-      fatal("segments too large to join\n"); // TODO: more detailed message
+    if (seg_space(source_seg))
+      fatal("segment '%s' has both data and space\n", seg_name(source_seg));
 
-  if (seg_hi(dest_seg) >= 0x10000UL)
-    fatal("destination group segment %d: %s is already %lu bytes in size\n",
-        (int) dest_segno, seg_name(dest_seg), (unsigned long) seg_hi(dest_seg));
-
-  if (0x10000UL - seg_hi(dest_seg) < seg_hi(source_seg))
-    fatal("destination group segment %d: %s has %lu bytes free; cannot append segment %d: %s of size %lu\n",
-        (int) dest_segno, seg_name(dest_seg), (unsigned long) (0x10000UL - seg_hi(dest_seg)),
-        (int) source_segno, seg_name(source_seg), (unsigned long) seg_hi(source_seg));
-
-  if (prog->start.segno == source_segno) {
-    prog->start.segno = dest_segno;
-    prog->start.offset += base;
-    if (verbose >= 2)
-      printf("Redefine start address: program segment %d: %s; offset 0x%04x\n",
-          (int)prog->start.segno, segment_name(prog->segs, prog->start.segno), (unsigned)prog->start.offset);
+    align_segment_hi(dest_seg, seg_p2align(source_seg));
+  }
+  else {
+    assert(seg_space(source_seg) > 0);
+    assert(source_seg->hi == 0);
+    space_out(dest_seg, seg_p2align(source_seg));
   }
 
-  if (prog->stack.segno == source_segno) {
-    prog->stack.segno = dest_segno;
-    prog->stack.offset += base;
-    if (verbose >= 2)
-      printf("Redefine stack location: program segment %d: %s; offset 0x%04x\n",
-          (int)prog->stack.segno, segment_name(prog->segs, prog->stack.segno), (unsigned)prog->stack.offset);
-  }
+  if (prog->start.segno == source_segno)
+    update_start(&prog->start, dest_segno, dest_seg, verbose);
 
-  update_fixups(prog, source_segno, dest_segno, base, verbose);
+  if (prog->stack.segno == source_segno)
+    update_stack(&prog->stack, dest_segno, dest_seg, verbose);
+
+  update_fixups(prog, source_segno, dest_segno, segment_end(dest_seg), verbose);
 
   update_symbol_definitions_for_new_segment_number_and_base(
-      prog->st, source_segno, dest_segno, base);
+      prog->st, source_segno, dest_segno, segment_end(dest_seg));
 
-  append_segment_data(dest_seg, source_seg);
+  append_segment(dest_seg, source_seg);
+
+  const unsigned long size = segment_end(dest_seg);
+  if (size > 0x10000UL)
+    fatal("consolidated segment '%s' is too big: %lu = %0xh bytes\n", seg_name(dest_seg), size, size);
 
   remove_segment(prog->segs, source_segno);
+}
+
+static void update_start(START* start, SEGNO new_segno, const SEGMENT* new_seg, int verbose) {
+  start->segno = new_segno;
+  start->offset += segment_end(new_seg);
+  if (verbose >= 2)
+    printf("Redefine start address: program segment %d: %s; offset 0x%04x\n",
+           (int)new_segno, seg_name(new_seg), (unsigned)start->offset);
+}
+
+static void update_stack(STACK* stack, SEGNO new_segno, const SEGMENT* new_seg, int verbose) {
+  stack->segno = new_segno;
+  stack->offset += segment_end(new_seg);
+  if (verbose >= 2)
+    printf("Redefine stack location: program segment %d: %s; offset 0x%04x\n",
+           (int)new_segno, seg_name(new_seg), (unsigned)stack->offset);
 }
 
 static void update_fixups(SEGMENTED* prog, SEGNO source_segno, SEGNO dest_segno, DWORD base, int verbose) {
@@ -263,15 +275,13 @@ static void test_update_offsets(CuTest* tc) {
   SEGMENT* seg0 = get_segment(prog->segs, s0);
   static const BYTE DATA0[] = { 0x31, 0x42, 0x53, 0x64, 0x75, 0x86, 0x97, 0xa8, 0xb9, 0xca, 0xdb, 0xec, 0xfd };
   static WORD LO0 = 0x20;
-  seg0->pc = LO0;
-  emit_segment_data(seg0, DATA0, sizeof DATA0);
+  write_segment(seg0, LO0, DATA0, sizeof DATA0);
 
   SEGNO s1 = add_segment(prog->segs, "BBB", FALSE, FALSE, 0);
   SEGMENT* seg1 = get_segment(prog->segs, s1);
   static const BYTE DATA1[] = { 0x8F, 0x8E, 0x8D, 0x8C, 0x8B, 0x8A, 0x89, 0x88, 0x87, 0x86 };
   static WORD LO1 = 0x40;
-  seg1->pc = LO1;
-  emit_segment_data(seg1, DATA1, sizeof DATA1);
+  write_segment(seg1, LO1, DATA1, sizeof DATA1);
 
   // add_offset_fixup(info, holding_seg, holding_offset, addressed_seg)
 
@@ -324,15 +334,13 @@ static void test_update_externals(CuTest* tc) {
   SEGMENT* seg0 = get_segment(prog->segs, s0);
   static const BYTE DATA0[] = { 0x31, 0x42, 0x53, 0x00, 0x00, 0x86, 0x97, 0xa8, 0x00, 0x00, 0xdb, 0xec, 0xfd };
   static WORD LO0 = 0x20;
-  seg0->pc = LO0;
-  emit_segment_data(seg0, DATA0, sizeof DATA0);
+  write_segment(seg0, LO0, DATA0, sizeof DATA0);
 
   SEGNO s1 = add_segment(prog->segs, "BBB", FALSE, FALSE, 0);
   SEGMENT* seg1 = get_segment(prog->segs, s1);
   static const BYTE DATA1[] = { 0x8F, 0x8E, 0x8D, 0x8C, 0x00, 0x00, 0x00, 0x00, 0x87, 0x86 };
   static WORD LO1 = 0x40;
-  seg1->pc = LO1;
-  emit_segment_data(seg1, DATA1, sizeof DATA1);
+  write_segment(seg1, LO1, DATA1, sizeof DATA1);
 
   // add_external_fixup(fixups, segno, offset_pos, offset_len, id, jump)
 

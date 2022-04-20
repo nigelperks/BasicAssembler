@@ -22,6 +22,8 @@ SEGMENT* new_segment(const char* name, BOOL public, BOOL stack, GROUPNO group) {
   seg->lo = 0;
   seg->hi = 0;
 
+  seg->space = 0;
+
   return seg;
 }
 
@@ -36,12 +38,6 @@ void delete_segment(SEGMENT* seg) {
 const char* seg_name(const SEGMENT* seg) {
   assert(seg != NULL);
   return seg->name;
-}
-
-DWORD seg_pc(const SEGMENT* seg) {
-  assert(seg != NULL);
-
-  return seg->pc;
 }
 
 DWORD seg_lo(const SEGMENT* seg) {
@@ -66,6 +62,11 @@ BOOL segment_has_data(const SEGMENT* seg) {
   assert(seg != NULL);
 
   return seg->hi > seg->lo;
+}
+
+DWORD seg_space(const SEGMENT* seg) {
+  assert(seg != NULL);
+  return seg->space;
 }
 
 int seg_group(const SEGMENT* seg) {
@@ -93,7 +94,7 @@ unsigned seg_p2align(const SEGMENT* seg) {
 
 #define ALLOCATION_UNIT (0x4000)
 
-static void ensure_space(SEGMENT* seg, DWORD offset, unsigned size) {
+static void ensure_writeable(SEGMENT* seg, DWORD offset, unsigned size) {
   assert(seg != NULL);
 
   if (size == 0)
@@ -132,8 +133,11 @@ static void ensure_space(SEGMENT* seg, DWORD offset, unsigned size) {
   }
 }
 
-static void write_segment(SEGMENT* seg, DWORD offset, const BYTE* buf, unsigned size) {
-  ensure_space(seg, offset, size);
+void write_segment(SEGMENT* seg, DWORD offset, const BYTE* buf, unsigned size) {
+  if (size == 0)
+    return;
+
+  ensure_writeable(seg, offset, size);
 
   assert(seg->data != NULL);
   assert(seg->allocated > offset);
@@ -142,47 +146,74 @@ static void write_segment(SEGMENT* seg, DWORD offset, const BYTE* buf, unsigned 
   memcpy(seg->data + offset, buf, size);
 }
 
-void emit_segment_data(SEGMENT* seg, const BYTE* buf, unsigned size) {
+void load_segment_data(SEGMENT* seg, const BYTE* buf, unsigned size) {
   write_segment(seg, seg->pc, buf, size);
   seg->pc += size;
 }
 
-void append_segment_data(SEGMENT* dest, const SEGMENT* src) {
+void load_segment_space(SEGMENT* seg, unsigned size) {
+  assert(seg != NULL);
+  if (seg->space + size < seg->space)
+    fatal("uninitialized space too large: %s\n", seg->name);
+  seg->space += size;
+}
+
+// Alignment must be done already by caller.
+void append_segment(SEGMENT* dest, const SEGMENT* src) {
   assert(dest != NULL);
+  assert(dest->lo <= dest->hi);
   assert(src != NULL);
   assert(src->lo <= src->hi);
 
-  write_segment(dest, dest->hi + src->lo, src->data + src->lo, src->hi - src->lo);
-  dest->pc = dest->hi;
+  if (src->hi > src->lo) {
+    if (dest->space > 0)
+      fatal("cannot append initialized data in '%s' to uninitialized space in '%s'\n",
+            src->name, dest->name);
+    write_segment(dest, dest->hi + src->lo, src->data + src->lo, src->hi - src->lo);
+  }
+
+  dest->space += src->space;
 }
 
-void pad_segment(SEGMENT* seg, unsigned p2align) {
+DWORD segment_end(const SEGMENT* seg) {
+  return seg->hi + seg->space;
+}
+
+DWORD segment_end_p2aligned(const SEGMENT* seg, unsigned p2align) {
+  return p2aligned(seg->hi + seg->space, p2align);
+}
+
+void align_segment_hi(SEGMENT* seg, unsigned p2align) {
   assert(seg != NULL);
   unsigned align = 1 << p2align;
   if (seg->hi % align) {
-    ensure_space(seg, seg->hi, align - seg->hi % align);
+    ensure_writeable(seg, seg->hi, align - seg->hi % align);
     assert(seg->hi % align == 0);
   }
-  seg->pc = seg->hi;
 }
 
-DWORD padded_length(const SEGMENT* seg, unsigned p2align) {
+void space_out(SEGMENT* seg, unsigned p2align) {
   assert(seg != NULL);
-  DWORD len = seg->hi;
-  unsigned align = 1 << p2align;
-  if (len % align)
-    len += (align - len % align);
-  return len;
+  seg->space += p2gap(seg->hi + seg->space, p2align);
 }
+
 
 #ifdef UNIT_TEST
 
 #include "CuTest.h"
 
+static BOOL zero(const BYTE* p, size_t len) {
+  while (len--)
+    if (*p++ != 0)
+      return FALSE;
+  return TRUE;
+}
+
 static void test_new_segment(CuTest* tc) {
   SEGMENT* p;
 
   p = new_segment(NULL, TRUE, FALSE, 3);
+
   CuAssertPtrNotNull(tc, p);
   CuAssertPtrEquals(tc, NULL, p->name);
   CuAssertIntEquals(tc, TRUE, p->public);
@@ -194,16 +225,19 @@ static void test_new_segment(CuTest* tc) {
   CuAssertIntEquals(tc, 0, p->allocated);
   CuAssertIntEquals(tc, 0, p->lo);
   CuAssertIntEquals(tc, 0, p->hi);
+  CuAssertIntEquals(tc, 0, p->space);
 
   CuAssertTrue(tc, seg_name(p) == NULL);
-  CuAssertIntEquals(tc, 0, seg_pc(p));
-  CuAssertIntEquals(tc, 0, seg_lo(p));
-  CuAssertIntEquals(tc, 0, seg_hi(p));
-  CuAssertIntEquals(tc, FALSE, segment_has_data(p));
-  CuAssertPtrEquals(tc, NULL, seg_data(p));
-  CuAssertIntEquals(tc, 3, seg_group(p));
   CuAssertIntEquals(tc, TRUE, seg_public(p));
   CuAssertIntEquals(tc, FALSE, seg_stack(p));
+  CuAssertIntEquals(tc, 3, seg_group(p));
+  CuAssertIntEquals(tc, 4, seg_p2align(p));
+  CuAssertIntEquals(tc, FALSE, segment_has_data(p));
+  CuAssertPtrEquals(tc, NULL, seg_data(p));
+  CuAssertIntEquals(tc, 0, seg_lo(p));
+  CuAssertIntEquals(tc, 0, seg_hi(p));
+  CuAssertIntEquals(tc, 0, seg_space(p));
+
   delete_segment(p);
 
   p = new_segment("charlie", FALSE, TRUE, NO_GROUP);
@@ -216,82 +250,82 @@ static void test_new_segment(CuTest* tc) {
   CuAssertIntEquals(tc, 4, p->p2align);
 
   CuAssertStrEquals(tc, "charlie", seg_name(p));
-  CuAssertIntEquals(tc, NO_GROUP, seg_group(p));
   CuAssertIntEquals(tc, FALSE, seg_public(p));
   CuAssertIntEquals(tc, TRUE, seg_stack(p));
+  CuAssertIntEquals(tc, NO_GROUP, seg_group(p));
+
   delete_segment(p);
 }
 
-static void test_padded_length(CuTest* tc) {
-  SEGMENT* seg = new_segment(NULL, FALSE, FALSE, NO_GROUP);
+static void test_ensure_writeable(CuTest* tc) {
+  SEGMENT* seg = new_segment("TEST", FALSE, FALSE, NO_GROUP);
+  const DWORD PC = 0xFACE;
 
-  CuAssertIntEquals(tc, 0, padded_length(seg, 4));
+  seg->pc = PC;
 
-  seg->hi = 1;
-  CuAssertIntEquals(tc, 16, padded_length(seg, 4));
-
-  seg->hi = 15;
-  CuAssertIntEquals(tc, 16, padded_length(seg, 4));
-
-  seg->hi = 16;
-  CuAssertIntEquals(tc, 16, padded_length(seg, 4));
-
-  seg->hi = 17;
-  CuAssertIntEquals(tc, 32, padded_length(seg, 4));
-
-  CuAssertIntEquals(tc, 17, padded_length(seg, 0));
-  CuAssertIntEquals(tc, 18, padded_length(seg, 1));
-  CuAssertIntEquals(tc, 20, padded_length(seg, 2));
-  CuAssertIntEquals(tc, 24, padded_length(seg, 3));
-  CuAssertIntEquals(tc, 256, padded_length(seg, 8));
-
-  delete_segment(seg);
-}
-
-static void test_pad_segment(CuTest* tc) {
-  SEGMENT* seg = new_segment(NULL, FALSE, FALSE, NO_GROUP);
-
-  pad_segment(seg, 4);
-  CuAssertIntEquals(tc, 0, seg->hi);
+  ensure_writeable(seg, 0, 0);
   CuAssertPtrEquals(tc, NULL, seg->data);
-
-  seg->allocated = 128;
-  seg->data = emalloc(seg->allocated);
-
-  pad_segment(seg, 4);
+  CuAssertIntEquals(tc, 0, seg->allocated);
+  CuAssertIntEquals(tc, 0, seg->lo);
   CuAssertIntEquals(tc, 0, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertIntEquals(tc, PC, seg->pc);
 
-  seg->hi = 1;
-  pad_segment(seg, 4);
-  CuAssertIntEquals(tc, 16, seg->hi);
-  CuAssertIntEquals(tc, 16, seg->pc);
+  ensure_writeable(seg, 100, 0);
+  CuAssertPtrEquals(tc, NULL, seg->data);
+  CuAssertIntEquals(tc, 0, seg->allocated);
+  CuAssertIntEquals(tc, 0, seg->lo);
+  CuAssertIntEquals(tc, 0, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertIntEquals(tc, PC, seg->pc);
 
-  seg->hi = 16;
-  pad_segment(seg, 4);
-  CuAssertIntEquals(tc, 16, seg->hi);
-  CuAssertIntEquals(tc, 16, seg->pc);
+  ensure_writeable(seg, 40, 20);
+  CuAssertPtrNotNull(tc, seg->data);
+  CuAssertIntEquals(tc, ALLOCATION_UNIT, seg->allocated);
+  CuAssertIntEquals(tc, 40, seg->lo);
+  CuAssertIntEquals(tc, 60, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertTrue(tc, zero(seg->data, 60));
+  CuAssertIntEquals(tc, PC, seg->pc);
 
-  seg->hi = 129;
-  pad_segment(seg, 4);
-  CuAssertIntEquals(tc, 144, seg->hi);
-  CuAssertIntEquals(tc, 144, seg->pc);
-  CuAssertTrue(tc, seg->allocated >= 144);
+  ensure_writeable(seg, 44, 16);
+  CuAssertPtrNotNull(tc, seg->data);
+  CuAssertIntEquals(tc, ALLOCATION_UNIT, seg->allocated);
+  CuAssertIntEquals(tc, 40, seg->lo);
+  CuAssertIntEquals(tc, 60, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertTrue(tc, zero(seg->data, 60));
+  CuAssertIntEquals(tc, PC, seg->pc);
 
-  seg->hi = 145;
-  pad_segment(seg, 0);
-  CuAssertIntEquals(tc, 145, seg->hi);
-  CuAssertIntEquals(tc, 145, seg->pc);
-  CuAssertTrue(tc, seg->allocated >= 145);
+  static const char PATTERN[] = "****!!!!****!!!!";
+  memcpy(seg->data + 40, PATTERN, sizeof PATTERN);
 
-  pad_segment(seg, 1);
-  CuAssertIntEquals(tc, 146, seg->hi);
-  CuAssertIntEquals(tc, 146, seg->pc);
-  CuAssertTrue(tc, seg->allocated >= 146);
+  ensure_writeable(seg, 44, 16);
+  CuAssertPtrNotNull(tc, seg->data);
+  CuAssertIntEquals(tc, ALLOCATION_UNIT, seg->allocated);
+  CuAssertIntEquals(tc, 40, seg->lo);
+  CuAssertIntEquals(tc, 60, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertTrue(tc, memcmp(seg->data + 40, PATTERN, sizeof PATTERN) == 0);
+  CuAssertIntEquals(tc, PC, seg->pc);
 
-  pad_segment(seg, 7);
-  CuAssertIntEquals(tc, 256, seg->hi);
-  CuAssertIntEquals(tc, 256, seg->pc);
-  CuAssertTrue(tc, seg->allocated >= 256);
+  ensure_writeable(seg, 20, 30);
+  CuAssertPtrNotNull(tc, seg->data);
+  CuAssertIntEquals(tc, ALLOCATION_UNIT, seg->allocated);
+  CuAssertIntEquals(tc, 20, seg->lo);
+  CuAssertIntEquals(tc, 60, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertTrue(tc, memcmp(seg->data + 40, PATTERN, sizeof PATTERN) == 0);
+  CuAssertIntEquals(tc, PC, seg->pc);
+
+  ensure_writeable(seg, ALLOCATION_UNIT / 2, ALLOCATION_UNIT);
+  CuAssertPtrNotNull(tc, seg->data);
+  CuAssertIntEquals(tc, ALLOCATION_UNIT * 2, seg->allocated);
+  CuAssertIntEquals(tc, 20, seg->lo);
+  CuAssertIntEquals(tc, 3 * ALLOCATION_UNIT / 2, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertTrue(tc, memcmp(seg->data + 40, PATTERN, sizeof PATTERN) == 0);
+  CuAssertIntEquals(tc, PC, seg->pc);
 
   delete_segment(seg);
 }
@@ -299,37 +333,50 @@ static void test_pad_segment(CuTest* tc) {
 static void test_write_segment(CuTest* tc) {
   const size_t BUF_SIZE = ALLOCATION_UNIT + 123;
   BYTE* buf = emalloc(BUF_SIZE);
+  memset(buf, '*', BUF_SIZE);
+
   SEGMENT* seg = new_segment(NULL, FALSE, FALSE, NO_GROUP);
 
-  memset(buf, '*', BUF_SIZE);
-  write_segment(seg, ALLOCATION_UNIT / 2, buf, BUF_SIZE);
+  const DWORD PC = 0xDEADBEEF;
+  seg->pc = PC;
 
+  write_segment(seg, 0, buf, 0);
+  CuAssertPtrEquals(tc, NULL, seg->data);
+  CuAssertIntEquals(tc, 0, seg->allocated);
+  CuAssertIntEquals(tc, 0, seg->lo);
+  CuAssertIntEquals(tc, 0, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertIntEquals(tc, PC, seg->pc);
+
+  write_segment(seg, 100, buf, 0);
+  CuAssertPtrEquals(tc, NULL, seg->data);
+  CuAssertIntEquals(tc, 0, seg->allocated);
+  CuAssertIntEquals(tc, 0, seg->lo);
+  CuAssertIntEquals(tc, 0, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertIntEquals(tc, PC, seg->pc);
+
+  write_segment(seg, ALLOCATION_UNIT / 2, buf, BUF_SIZE);
+  CuAssertPtrNotNull(tc, seg->data);
   CuAssertIntEquals(tc, ALLOCATION_UNIT * 2, seg->allocated);
   CuAssertIntEquals(tc, ALLOCATION_UNIT / 2, seg->lo);
   CuAssertIntEquals(tc, ALLOCATION_UNIT / 2 + BUF_SIZE, seg->hi);
-  CuAssertPtrNotNull(tc, seg->data);
   CuAssertTrue(tc, memcmp(seg->data + ALLOCATION_UNIT/2, buf, BUF_SIZE) == 0);
-  CuAssertIntEquals(tc, 0, seg->pc);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertIntEquals(tc, PC, seg->pc);
 
   delete_segment(seg);
   efree(buf);
 }
 
-static BOOL zero(const BYTE* p, size_t len) {
-  while (len--)
-    if (*p++ != 0)
-      return FALSE;
-  return TRUE;
-}
-
-static void test_emit_segment(CuTest* tc) {
+static void test_load_segment_data(CuTest* tc) {
   SEGMENT* seg = new_segment(NULL, FALSE, FALSE, NO_GROUP);
   BYTE buf[37];
 
   memset(buf, '*', sizeof buf);
 
   seg->pc = 0x100;
-  emit_segment_data(seg, buf, sizeof buf);
+  load_segment_data(seg, buf, sizeof buf);
   CuAssertIntEquals(tc, ALLOCATION_UNIT, seg->allocated);
   CuAssertIntEquals(tc, 0x100, seg->lo);
   CuAssertIntEquals(tc, 0x100 + sizeof buf, seg->hi);
@@ -338,9 +385,10 @@ static void test_emit_segment(CuTest* tc) {
   CuAssertTrue(tc, memcmp(seg->data + 0x100, buf, sizeof buf) == 0);
   CuAssertTrue(tc, zero(seg->data + seg->hi, seg->allocated - seg->hi));
   CuAssertIntEquals(tc, 0x100 + sizeof buf, seg->pc);
+  CuAssertIntEquals(tc, 0, seg->space);
 
   seg->pc = 43;
-  emit_segment_data(seg, buf, 12);
+  load_segment_data(seg, buf, 12);
   CuAssertIntEquals(tc, ALLOCATION_UNIT, seg->allocated);
   CuAssertIntEquals(tc, 43, seg->lo);
   CuAssertIntEquals(tc, 0x100 + sizeof buf, seg->hi);
@@ -351,6 +399,24 @@ static void test_emit_segment(CuTest* tc) {
   CuAssertTrue(tc, memcmp(seg->data + 0x100, buf, sizeof buf) == 0);
   CuAssertTrue(tc, zero(seg->data + seg->hi, seg->allocated - seg->hi));
   CuAssertIntEquals(tc, 55, seg->pc);
+  CuAssertIntEquals(tc, 0, seg->space);
+
+  delete_segment(seg);
+}
+
+static void test_load_segment_space(CuTest* tc) {
+  SEGMENT* seg = new_segment("TEST", FALSE, FALSE, 2);
+
+  const DWORD PC = 0xFF11;
+  seg->pc = PC;
+
+  load_segment_space(seg, 0x1234);
+  CuAssertIntEquals(tc, 0x1234, seg->space);
+  CuAssertIntEquals(tc, PC, seg->pc);
+
+  load_segment_space(seg, 0x44);
+  CuAssertIntEquals(tc, 0x1278, seg->space);
+  CuAssertIntEquals(tc, PC, seg->pc);
 
   delete_segment(seg);
 }
@@ -369,15 +435,15 @@ static void test_append_segment(CuTest* tc) {
   write_segment(src, 100, buf1, SIZE1);
   // 0..99 (100): blank
   // 100..163 (64): buf1
+  src->space = 0x234;
 
   write_segment(dest, 50, buf2, SIZE2);
   // 0..49 (50): blank
   // 50..50+AU-1 (AU): buf2
 
-  append_segment_data(dest, src);
+  append_segment(dest, src);
 
   CuAssertIntEquals(tc, ALLOCATION_UNIT * 2, dest->allocated);
-  CuAssertPtrNotNull(tc, dest->data);
   CuAssertTrue(tc, zero(dest->data, 50));
   CuAssertIntEquals(tc, 50, dest->lo);
   CuAssertTrue(tc, memcmp(dest->data + 50, buf2, SIZE2) == 0);
@@ -385,23 +451,70 @@ static void test_append_segment(CuTest* tc) {
   CuAssertTrue(tc, memcmp(dest->data + 50 + SIZE2 + 100, buf1, SIZE1) == 0);
   CuAssertIntEquals(tc, 50 + SIZE2 + 100 + SIZE1, dest->hi);
   CuAssertTrue(tc, zero(dest->data + dest->hi, dest->allocated - dest->hi));
+  CuAssertIntEquals(tc, 0x234, dest->space);
 
-  CuAssertIntEquals(tc, dest->hi, dest->pc);
-  
+  // Append space only
+  src->lo = src->hi = 0;
+  src->space = 0x432;
+  append_segment(dest, src);
+  CuAssertIntEquals(tc, 0x666, dest->space);
+
   delete_segment(src);
   delete_segment(dest);
   efree(buf1);
   efree(buf2);
 }
 
+static void test_aligning(CuTest* tc) {
+  SEGMENT* seg = new_segment("TEST", TRUE, FALSE, 1);
+
+  // No data or space allocated
+  CuAssertIntEquals(tc, 0, segment_end(seg));
+  CuAssertIntEquals(tc, 0, segment_end_p2aligned(seg, 3));
+
+  align_segment_hi(seg, 3);
+  CuAssertIntEquals(tc, 0, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+
+  space_out(seg, 3);
+  CuAssertIntEquals(tc, 0, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+
+  // Data allocated
+  ensure_writeable(seg, 0, 13);
+  CuAssertIntEquals(tc, 13, seg->hi);
+  CuAssertIntEquals(tc, 0, seg->space);
+  CuAssertIntEquals(tc, 13, segment_end(seg));
+  CuAssertIntEquals(tc, 13, segment_end_p2aligned(seg, 0));
+  CuAssertIntEquals(tc, 14, segment_end_p2aligned(seg, 1));
+  CuAssertIntEquals(tc, 16, segment_end_p2aligned(seg, 2));
+  CuAssertIntEquals(tc, 32, segment_end_p2aligned(seg, 5));
+  align_segment_hi(seg, 3);
+  CuAssertIntEquals(tc, 16, seg->hi);
+  CuAssertIntEquals(tc, 16, segment_end(seg));
+
+  // Space allocated
+  seg->space = 200;
+  CuAssertIntEquals(tc, 216, segment_end(seg));
+  CuAssertIntEquals(tc, 216, segment_end_p2aligned(seg, 3));
+  CuAssertIntEquals(tc, 224, segment_end_p2aligned(seg, 5));
+  space_out(seg, 5);
+  CuAssertIntEquals(tc, 16, seg->hi);
+  CuAssertIntEquals(tc, 208, seg->space);
+  CuAssertIntEquals(tc, 224, segment_end(seg));
+
+  delete_segment(seg);
+}
+
 CuSuite* segment_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_new_segment);
-  SUITE_ADD_TEST(suite, test_padded_length);
-  SUITE_ADD_TEST(suite, test_pad_segment);
+  SUITE_ADD_TEST(suite, test_ensure_writeable);
   SUITE_ADD_TEST(suite, test_write_segment);
-  SUITE_ADD_TEST(suite, test_emit_segment);
+  SUITE_ADD_TEST(suite, test_load_segment_data);
+  SUITE_ADD_TEST(suite, test_load_segment_space);
   SUITE_ADD_TEST(suite, test_append_segment);
+  SUITE_ADD_TEST(suite, test_aligning);
   return suite;
 }
 

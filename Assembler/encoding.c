@@ -27,6 +27,7 @@ static void emit_externals(SYMTAB*, OFILE*);
 static void emit_publics(SYMTAB*, OFILE*);
 static void process_irec(STATE*, IFILE*, LEX*, OFILE*);
 static void emit_start(IFILE*, OFILE*);
+static void emit_uninit_segments(STATE*, IFILE*, OFILE*);
 
 OFILE* encoding_pass(IFILE* ifile, const Options* options) {
   if (options->quiet == FALSE)
@@ -50,6 +51,8 @@ OFILE* encoding_pass(IFILE* ifile, const Options* options) {
   if (ifile->start_label != NULL)
     emit_start(ifile, ofile);
 
+  emit_uninit_segments(&state, ifile, ofile);
+
   delete_lex(lex);
 
   if (state.errors > 0) {
@@ -58,6 +61,21 @@ OFILE* encoding_pass(IFILE* ifile, const Options* options) {
   }
 
   return ofile;
+}
+
+static void emit_uninit_segments(STATE* state, IFILE* ifile, OFILE* ofile) {
+  for (SEGNO segno = 0; segno < segment_count(ifile); segno++) {
+    if (segment_uninit(ifile, segno)) {
+      DWORD size = segment_pc(ifile, segno);
+      if (size > (WORD)(-1))
+        error(state, ifile, "uninitialized segment is too large: %s", segment_name(ifile, segno));
+      else {
+        emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) segno);
+        emit_object_word(ofile, OBJ_SPACE, (WORD) size);
+        emit_object_byte(ofile, OBJ_CLOSE_SEGMENT, (BYTE) segno);
+      }
+    }
+  }
 }
 
 static void emit_segno(OFILE* ofile, SEGNO segno) {
@@ -239,6 +257,7 @@ static void do_extrn(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void do_org(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void do_public(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void do_segment(STATE*, IFILE*, IREC*, LEX*, OFILE*);
+static void do_udataseg(STATE*, IFILE*, LEX*, OFILE*);
 
 static void define_bytes(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void define_words(STATE*, IFILE*, IREC*, LEX*, OFILE*);
@@ -268,6 +287,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     case TOK_ORG: do_org(state, ifile, irec, lex, ofile); break;
     case TOK_PUBLIC: do_public(state, ifile, irec, lex, ofile); break;
     case TOK_SEGMENT: do_segment(state, ifile, irec, lex, ofile); break;
+    case TOK_UDATASEG: do_udataseg(state, ifile, lex, ofile); break;
     default:
       error(state, ifile, "directive not implemented: %s", token_name(irec->op));
   }
@@ -336,18 +356,20 @@ static void do_segment(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* 
   assert(state->curseg >= 0);
   if (state->curseg > 0xff)
     fatal("cannot emit segment number > 255\n");
-  emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) state->curseg);
+  if (!segment_uninit(ifile, state->curseg))
+    emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) state->curseg);
 
   int attr = lex_next(lex);
-  if (attr == TOK_PRIVATE || attr == TOK_PUBLIC || attr == TOK_STACK)
-    lex_next(lex);
+  while (attr == TOK_PRIVATE || attr == TOK_PUBLIC || attr == TOK_STACK || attr == TOK_UNINIT)
+    attr = lex_next(lex);
 }
 
 static void do_ends(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
   assert(state != NULL);
   assert(state->curseg >= 0 && state->curseg < 0x100);
 
-  emit_object_byte(ofile, OBJ_CLOSE_SEGMENT, (BYTE) state->curseg);
+  if (!segment_uninit(ifile, state->curseg))
+    emit_object_byte(ofile, OBJ_CLOSE_SEGMENT, (BYTE) state->curseg);
   perform_ends(state, ifile, lex);
 }
 
@@ -447,7 +469,18 @@ static void do_dataseg(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
   emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) state->curseg);
 }
 
-enum db_node_type { DB_VALUE, DB_STR, DB_DUP };
+static void do_udataseg(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
+  if (state->curseg != NO_SEG) {
+    assert(state->curseg >= 0 && state->curseg < 0x100);
+    emit_object_byte(ofile, OBJ_CLOSE_SEGMENT, (BYTE) state->curseg);
+    state->curseg = NO_SEG;
+  }
+  perform_udataseg(state, ifile, lex);
+  assert(state->curseg >= 0 && state->curseg < 0x100);
+  emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) state->curseg);
+}
+
+enum db_node_type { DB_UNDEF, DB_VALUE, DB_STR, DB_DUP };
 
 struct db_node {
   int type;
@@ -552,6 +585,9 @@ static struct db_node * parse_byte_datum(STATE* state, IFILE* ifile, LEX* lex) {
         node->u.val = (const BYTE) val.n;
       }
       break;
+    case ET_UNDEF:
+      node = new_db_node(DB_UNDEF);
+      break;
     case ET_REL:
       error2(state, lex, "invalid expression for byte data");
       break;
@@ -593,6 +629,10 @@ static DWORD generate_byte_data(STATE* state, IFILE* ifile, OFILE* ofile, const 
     struct db_node * next = node->next;
 
     switch (node->type) {
+      case DB_UNDEF:
+        inc_segment_pc(ifile, state->curseg, 1);
+        size++;
+        break;
       case DB_VALUE:
         emit_object_byte(ofile, OBJ_DB, node->u.val);
         inc_segment_pc(ifile, state->curseg, 1);
@@ -609,6 +649,8 @@ static DWORD generate_byte_data(STATE* state, IFILE* ifile, OFILE* ofile, const 
         for (unsigned i = 0; i < node->u.dup.count; i++)
           size += generate_byte_data(state, ifile, ofile, node->u.dup.data);
         break;
+      default:
+        assert(0 && "unknown DB node type");
     }
 
     node = next;
@@ -656,6 +698,9 @@ static size_t word_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
   int type = expr(state, ifile, lex, &val);
   switch (type) {
     case ET_ERR:
+      break;
+    case ET_UNDEF:
+      size = 2;
       break;
     case ET_ABS:
       emit_object_word(ofile, OBJ_DW, (WORD) val.n); // TODO: is this conversion always desired?
@@ -759,7 +804,9 @@ static size_t dword_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
 
   union value val;
   int type = expr(state, ifile, lex, &val);
-  if (make_absolute(type, &val)) {
+  if (type == ET_UNDEF)
+    size = 4;
+  else if (make_absolute(type, &val)) {
     emit_object_dword(ofile, OBJ_DD, (DWORD) val.n);
     size = 4;
   }
@@ -807,7 +854,9 @@ static size_t qword_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
 
   union value val;
   int type = expr(state, ifile, lex, &val);
-  if (make_absolute(type, &val)) {
+  if (type == ET_UNDEF)
+    size = 8;
+  else if (make_absolute(type, &val)) {
     emit_object_qword(ofile, OBJ_DQ, val.n);
     size = 8;
   }
@@ -855,7 +904,9 @@ static size_t tbyte_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
 
   union value val;
   int type = expr(state, ifile, lex, &val);
-  if (make_absolute(type, &val)) {
+  if (type == ET_UNDEF)
+    size = 10;
+  else if (make_absolute(type, &val)) {
     emit_object_qword(ofile, OBJ_DT, val.n);
     size = 10;
   }
@@ -1019,6 +1070,7 @@ static void process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
   const SYMBOL* cs_assume_sym = state->assume_sym[SR_CS];
   if (cs_assume_sym == NULL) {
     error2(state, lex, "CS has no ASSUME");
+    lex_discard_line(lex);
     return;
   }
   assert(sym_type(cs_assume_sym) == SYM_SECTION);

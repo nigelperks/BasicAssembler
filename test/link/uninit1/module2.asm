@@ -1,0 +1,9 @@
+	IDEAL
+
+	SEGMENT	UDATA UNINIT PUBLIC
+_bill	DW	?
+	ENDS	UDATA
+
+	PUBLIC	_bill
+
+	END

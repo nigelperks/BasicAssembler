@@ -16,6 +16,7 @@ IMAGE* new_image(void) {
   p->hi = 0;
   p->start.set = FALSE;
   p->stack.set = FALSE;
+  p->space = 0;
   return p;
 }
 
@@ -104,50 +105,48 @@ static void set_start(IMAGE* image, const START* prog_start, const SEGMENT* star
   image->start.set = TRUE;
 }
 
-// set_stack:
-// called when adding to the image the program segment containing the stack:
 // initial SP = stack size
 //            = prog_stack->size
 // initial SS = physical segment address (paragraph) of base of stack
 //            = paragraph number of top of image before adding the segment
 //                  plus offset of stack within the segment
 //            = (image->hi + prog_stack->offset) / 16
-// So this function does not use prog_stack->segno.
-// That is a program segment number, not a physical segment for the image initial CS.
-// That segment number is used when deciding to call this function, not for writing the image.
-static void set_stack(IMAGE* image, const STACK* prog_stack, const SEGMENT* seg) {
-  assert(prog_stack->offset < seg_hi(seg));
-  assert(seg_hi(seg) - prog_stack->offset <= prog_stack->size);
-  assert(image->hi % 16 == 0);
-  assert(prog_stack->offset % 16 == 0);
-
-  if (image->hi >= ADDRESS_SPACE)
-    fatal("image stack address is out of range\n");
-  if (ADDRESS_SPACE - image->hi < seg_hi(seg))
-    fatal("image becomes too big for stack\n");
-  image->stack.seg = (WORD) ((image->hi + prog_stack->offset) / 16);
-  image->stack.size = prog_stack->size;
-  image->stack.set = TRUE;
+static void set_stack(IMAGE_STACK* image_stack, DWORD image_address, const STACK* prog_stack) {
+  if (prog_stack->offset % 16)
+    fatal("stack offset is not paragraph-aligned\n");
+  image_stack->seg = (WORD) ((image_address + prog_stack->offset) / 16);
+  image_stack->size = prog_stack->size;
+  image_stack->set = TRUE;
 }
 
-static void add_image_segment(IMAGE* image, SEGMENTED* prog, SEGNO segno, VECTOR* bases, int verbose) {
+static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, VECTOR* bases, int verbose) {
   SEGMENT* seg = get_segment(prog->segs, segno);
 
   if (verbose)
     printf("Add segment/group to image: %s\n", seg_name(seg));
 
   if (segment_has_data(seg)) {
-    pad_image_to_paragraph(image);
+    if (image->space)
+      fatal("cannot place initialized segment/group after uninitialized space\n");
+
+    pad_image_to_paragraph(image); // TODO: use segment alignment?
 
     if (prog->start.segno == segno)
       set_start(image, &prog->start, seg);
 
     if (prog->stack.segno == segno)
-      set_stack(image, &prog->stack, seg);
+      set_stack(&image->stack, image->hi, &prog->stack);
 
     bases->val[segno] = image->hi;
 
     append_segment_to_image(image, seg);
+  }
+
+  if (seg_space(seg)) { // TODO: allow for both data and space
+    if (prog->stack.segno == segno)
+      set_stack(&image->stack, p2aligned(image->hi, 4), &prog->stack);
+    image->space = p2aligned(image->space, seg_p2align(seg));
+    image->space += seg_space(seg);
   }
 }
 
@@ -225,7 +224,9 @@ static void resolve_segment_fixups(IMAGE* image, FIXUPS* fixups, VECTOR* bases, 
   }
 }
 
-IMAGE* build_image(SEGMENTED* prog, int verbose) {
+static void check_start(const SEGMENTED* prog);
+
+IMAGE* build_image(const SEGMENTED* prog, int verbose) {
   if (verbose)
     puts("Build image");
 
@@ -235,8 +236,7 @@ IMAGE* build_image(SEGMENTED* prog, int verbose) {
   if (segno == NO_SEG)
     fatal("no segments\n");
 
-  if (prog->start.segno == NO_SEG)
-    fatal("no start address\n");
+  check_start(prog);
 
   IMAGE* image = new_image();
 
@@ -255,6 +255,15 @@ IMAGE* build_image(SEGMENTED* prog, int verbose) {
   return image;
 }
 
+static void check_start(const SEGMENTED* prog) {
+  if (prog->start.segno == NO_SEG)
+    fatal("no start address\n");
+
+  const SEGMENT* seg = get_segment(prog->segs, prog->start.segno);
+  if (seg == NULL || prog->start.offset >= seg_hi(seg))
+    fatal("the start offset is outside the start segment\n");
+}
+
 #ifdef UNIT_TEST
 
 #include "CuTest.h"
@@ -266,6 +275,7 @@ static void test_new_image(CuTest* tc) {
   CuAssertIntEquals(tc, 0, image->allocated);
   CuAssertIntEquals(tc, 0, image->lo);
   CuAssertIntEquals(tc, 0, image->hi);
+  CuAssertIntEquals(tc, 0, image->space);
 
   delete_image(image);
 
@@ -328,8 +338,7 @@ static void test_append_segment(CuTest* tc) {
   SEGMENT* seg = new_segment("MYSEG", FALSE, FALSE, NO_GROUP);
   BYTE buf[56];
 
-  seg->pc = 0x80;
-  emit_segment_data(seg, buf, sizeof buf);
+  write_segment(seg, 0x80, buf, sizeof buf);
 
   append_segment_to_image(image, seg);
 

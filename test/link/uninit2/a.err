@@ -1,0 +1,1 @@
+blink: fatal: cannot combine uninitialized space in 'UDATA' in 'module2.obj' with initialized data in 'UDATA'

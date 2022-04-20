@@ -242,12 +242,15 @@ static void process_segment_fragment(STATE* state, const OFILE* ofile, SEGMENTED
       case OBJ_CLOSE_SEGMENT:
         if (objbyte(rec) != state->segno)
           fatal("open/close segment number mismatch\n");
+        if (seg_hi(state->seg) && seg_space(state->seg))
+          fatal("segment has both initialized and uninitialized data: %u %s\n",
+                (unsigned)state->segno, seg_name(state->seg));
         state->segno = NO_SEG;
         state->seg = NULL;
         return;
       case OBJ_CODE:
       case OBJ_DS:
-        emit_segment_data(state->seg, rec->u.data.buf, rec->u.data.size);
+        load_segment_data(state->seg, rec->u.data.buf, rec->u.data.size);
         break;
       case OBJ_DB:
         emit_num(state->seg, objbyte(rec), 1);
@@ -263,6 +266,9 @@ static void process_segment_fragment(STATE* state, const OFILE* ofile, SEGMENTED
         break;
       case OBJ_DT:
         emit_num(state->seg, objqword(rec), 10);
+        break;
+      case OBJ_SPACE:
+        load_segment_space(state->seg, objword(rec));
         break;
       case OBJ_ORG:
         state->seg->pc = objword(rec);
@@ -299,7 +305,7 @@ static void emit_num(SEGMENT* seg, QWORD val, unsigned size) {
     buf[i++] = val & 0xff;
     val >>= 8;
   }
-  emit_segment_data(seg, buf, i);
+  load_segment_data(seg, buf, i);
 }
 
 static void process_offset_info(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {

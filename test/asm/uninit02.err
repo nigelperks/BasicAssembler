@@ -1,0 +1,37 @@
+Error: uninit02.asm: 9: instruction in UNINIT segment:
+    int 20h
+    ^
+Error: uninit02.asm: 11: initialized data in UNINIT segment:
+    db  0FAh,0CEh
+                 ^
+Error: uninit02.asm: 12: initialized data in UNINIT segment:
+_count  dw  1234h
+                 ^
+Error: uninit02.asm: 13: initialized data in UNINIT segment:
+    dd  0DEADFACEh
+                  ^
+Error: uninit02.asm: 14: initialized data in UNINIT segment:
+    dq  1234567812345678h
+                         ^
+Error: uninit02.asm: 15: initialized data in UNINIT segment:
+    dt  0
+         ^
+Error: uninit02.asm: 17: instruction in UNINIT segment:
+    jmp start
+    ^
+Error: uninit02.asm: 27: uninitialized data in non-UNINIT segment:
+    db  2 dup (?)
+                 ^
+Error: uninit02.asm: 28: uninitialized data in non-UNINIT segment:
+    dw  ?
+         ^
+Error: uninit02.asm: 29: uninitialized data in non-UNINIT segment:
+    dd  ?
+         ^
+Error: uninit02.asm: 30: uninitialized data in non-UNINIT segment:
+    dq  ?
+         ^
+Error: uninit02.asm: 31: uninitialized data in non-UNINIT segment:
+    dt  ?
+         ^
+Errors: 12

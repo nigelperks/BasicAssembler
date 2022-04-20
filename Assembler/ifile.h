@@ -30,13 +30,21 @@ typedef struct {
 #define MAX_GROUP (8)
 #define MAX_SEGMENT (8)
 
+enum asm_segment_attribute {
+  ATTR_PRIVATE = 0x01,
+  ATTR_PUBLIC = 0x02,
+  ATTR_STACK = 0x04,
+  ATTR_UNINIT = 0x08,
+};
+
+enum { UNINIT = FALSE, INIT = TRUE };
+
 typedef struct {
   char* name;
-  BOOL public;
-  BOOL stack;
+  unsigned attr;
   GROUPNO group;
-  DWORD pc;
   BYTE p2align;
+  DWORD pc;
 } ASM_SEGMENT;
 
 typedef struct {
@@ -55,6 +63,7 @@ typedef struct {
   const SYMBOL* model_group;
   const SYMBOL* codeseg;
   const SYMBOL* dataseg;
+  const SYMBOL* udataseg;
 } IFILE;
 
 IFILE* new_ifile(SOURCE*);
@@ -75,10 +84,16 @@ void set_segment_pc(IFILE*, unsigned seg, DWORD pc);
 void inc_segment_pc(IFILE*, unsigned seg, DWORD size);
 GROUPNO segment_group(const IFILE*, unsigned seg);
 void set_segment_group(IFILE*, unsigned seg, GROUPNO);
+
+unsigned segment_attributes(const IFILE*, unsigned seg);
+void set_segment_attributes(IFILE*, unsigned seg, unsigned attr);
 BOOL segment_public(const IFILE*, unsigned seg);
 void set_segment_public(IFILE*, unsigned seg);
 BOOL segment_stack(const IFILE*, unsigned seg);
 void set_segment_stack(IFILE*, unsigned seg);
+BOOL segment_uninit(const IFILE*, unsigned seg);
+void set_segment_uninit(IFILE*, unsigned seg);
+
 unsigned segment_p2align(IFILE*, unsigned seg);
 void set_segment_p2align(IFILE*, unsigned seg, unsigned align);
 

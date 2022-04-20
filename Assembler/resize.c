@@ -117,6 +117,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
     case TOK_ENDS: do_ends(state, ifile, irec, lex); break;
     case TOK_ORG: do_org(state, ifile, irec, lex); break;
     case TOK_SEGMENT: do_segment(state, ifile, irec, lex); break;
+    case TOK_UDATASEG: perform_udataseg(state, ifile, lex); break;
     // data: just increment PC
     case TOK_DB:
     case TOK_DW:
@@ -294,6 +295,7 @@ static BOOL process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
   const SYMBOL* cs_assume_sym = state->assume_sym[SR_CS];
   if (cs_assume_sym == NULL) {
     error2(state, lex, "CS has no ASSUME");
+    lex_discard_line(lex);
     return FALSE;
   }
   assert(sym_type(cs_assume_sym) == SYM_SECTION);

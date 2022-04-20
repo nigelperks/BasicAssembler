@@ -157,6 +157,17 @@ void delete_vector(VECTOR* vec) {
   efree(vec);
 }
 
+// Round up n so it has the given alignment, for p2 < 32.
+unsigned long p2aligned(unsigned long n, unsigned p2) {
+  return n + p2gap(n, p2);
+}
+
+unsigned long p2gap(unsigned long n, unsigned p2) {
+  unsigned long align = 1 << p2;
+  unsigned long mask = align - 1;
+  unsigned long mod = n & mask;
+  return (mod == 0) ? 0 : align - mod;
+}
 
 #ifdef UNIT_TEST
 
@@ -199,11 +210,32 @@ static void test_endian(CuTest* tc) {
   CuAssertIntEquals(tc, VAL, read_word_le(buf + 4));  
 } 
 
+static void test_p2aligned(CuTest* tc) {
+  CuAssertLongLongEquals(tc, 0, p2aligned(0, 0));
+  CuAssertLongLongEquals(tc, 0, p2aligned(0, 31));
+
+  CuAssertLongLongEquals(tc, 1, p2aligned(1, 0));
+  CuAssertLongLongEquals(tc, 2, p2aligned(1, 1));
+  CuAssertLongLongEquals(tc, 4, p2aligned(1, 2));
+  CuAssertLongLongEquals(tc, 1UL << 31, p2aligned(1, 31));
+
+  CuAssertLongLongEquals(tc, 2, p2aligned(2, 0));
+  CuAssertLongLongEquals(tc, 2, p2aligned(2, 1));
+  CuAssertLongLongEquals(tc, 4, p2aligned(2, 2));
+  CuAssertLongLongEquals(tc, 8, p2aligned(2, 3));
+
+  CuAssertLongLongEquals(tc, 1025, p2aligned(1025, 0));
+  CuAssertLongLongEquals(tc, 1026, p2aligned(1025, 1));
+  CuAssertLongLongEquals(tc, 1028, p2aligned(1025, 2));
+  CuAssertLongLongEquals(tc, 2048, p2aligned(1025, 10));
+}
+
 CuSuite* utils_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_sizes);
   SUITE_ADD_TEST(suite, test_estrdup);
   SUITE_ADD_TEST(suite, test_endian);
+  SUITE_ADD_TEST(suite, test_p2aligned);
   return suite;
 }
 
