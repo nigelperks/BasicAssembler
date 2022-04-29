@@ -45,6 +45,8 @@ where ..\Debug holds the builds to be tested.
 
 ## 3. How to use
 -------------
+No user documentation yet.
+
 Executables in x64\Debug.
 
 ### Basic Assembler
@@ -116,6 +118,7 @@ is intended to match Turbo Assembler for now.
 
 Directives:
 
+- ALIGN    -- align following item on 1,2,4,... bytes
 - ASSUME   -- assume segment registers address specified segments or groups
 - CODESEG  -- open the code segment of the current memory model
 - DATASEG  -- open the data segment of the current memory model
@@ -180,6 +183,7 @@ and Loaders_.
 - Intel _iAPX 86/88, 186/188 User's Manual: Programmer's Reference_, 1983
 - Kusswurm, Daniel _Modern X86 Assembly Language Programming_, 2014
 - Levine, John R. _Linkers & Loaders_, 2000
+- Microsoft _MASM Programmer's Guide_, version 6.1, 1996
 - Microsoft _MS-DOS Programmer's Reference_, version 6.0, 1993
 - Salomon, David _Assemblers and Loaders_
 

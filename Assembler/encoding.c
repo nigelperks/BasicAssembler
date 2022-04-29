@@ -248,6 +248,7 @@ static void process_irec(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
     error2(state, lex, "extra on line: %s", token_name(lex_token(lex)));
 }
 
+static void do_align(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void do_assume(STATE*, IFILE*, IREC*, LEX*);
 static void do_codeseg(STATE*, IFILE*, LEX*, OFILE*);
 static void do_dataseg(STATE*, IFILE*, LEX*, OFILE*);
@@ -270,6 +271,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
 
   switch (irec->op) {
     case TOK_IDEAL: break;
+    case TOK_ALIGN: do_align(state, ifile, irec, lex, ofile); break;
     case TOK_ASSUME: do_assume(state, ifile, irec, lex); break;
     case TOK_CODESEG: do_codeseg(state, ifile, lex, ofile); break;
     case TOK_DATASEG: do_dataseg(state, ifile, lex, ofile); break;
@@ -678,6 +680,28 @@ static DWORD generate_byte_data(STATE* state, IFILE* ifile, OFILE* ofile, const 
   }
 
   return size;
+}
+
+static void do_align(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
+  assert(state != NULL);
+  assert(ifile != NULL);
+  assert(irec != NULL);
+  assert(irec->op == TOK_ALIGN);
+  assert(lex != NULL);
+  assert(ofile != NULL);
+
+  unsigned p2 = 0;
+  if (parse_alignment(state, lex, &p2)) {
+    DWORD pc = segment_pc(ifile, state->curseg);
+    DWORD new_pc = p2aligned(pc, p2);
+    if (irec->size != new_pc - pc)
+      error2(state, lex, "internal error: alignment size discrepancy: sized %u, encoding %u",
+             (unsigned) irec->size, (unsigned) (new_pc - pc));
+    set_segment_pc(ifile, state->curseg, new_pc);
+    if (p2 >= 0x100)
+      error2(state, lex, "alignment too big");
+    emit_object_byte(ofile, OBJ_P2ALIGN, p2);
+  }
 }
 
 static size_t word_data(STATE*, IFILE*, LEX*, OFILE*);

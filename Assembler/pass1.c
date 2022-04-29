@@ -162,6 +162,7 @@ static void check_symbols_defined(IFILE* ifile) {
   }
 }
 
+static void do_align(STATE*, IFILE*, LEX*);
 static void do_assume(STATE*, IFILE*, LEX*);
 static void do_codeseg(STATE*, IFILE*, LEX*);
 static void do_dataseg(STATE*, IFILE*, LEX*);
@@ -191,6 +192,7 @@ static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
 
   switch (irec->op) {
     case TOK_IDEAL: lex_next(lex); break;
+    case TOK_ALIGN: do_align(state, ifile, lex); break;
     case TOK_ASSUME: do_assume(state, ifile, lex); break;
     case TOK_CODESEG: do_codeseg(state, ifile, lex); break;
     case TOK_DATASEG: do_dataseg(state, ifile, lex); break;
@@ -725,6 +727,31 @@ static void define_bytes(STATE* state, IFILE* ifile, LEX* lex) {
   irec->size += byte_data(state, ifile, lex, &init);
   check_initialization_consistent(state, ifile, lex, init);
   inc_segment_pc(ifile, state->curseg, irec->size);
+}
+
+static void do_align(STATE* state, IFILE* ifile, LEX* lex) {
+  assert(state != NULL);
+  assert(ifile != NULL);
+  assert(lex != NULL);
+  assert(lex_token(lex) == TOK_ALIGN);
+
+  if (state->curseg == NO_SEG) {
+    error2(state, lex, "data outside segment");
+    lex_discard_line(lex);
+    return;
+  }
+
+  IREC* irec = get_irec(ifile, ifile->pos);
+  assert(irec->size == 0);
+
+  lex_next(lex);
+  unsigned p2 = 0;
+  if (parse_alignment(state, lex, &p2)) {
+    DWORD pc = segment_pc(ifile, state->curseg);
+    DWORD new_pc = p2aligned(pc, p2);
+    irec->size = new_pc - pc;
+    set_segment_pc(ifile, state->curseg, new_pc);
+  }
 }
 
 static void define_words(STATE* state, IFILE* ifile, LEX* lex) {

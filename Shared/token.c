@@ -7,7 +7,7 @@
 #include "token.h"
 
 BOOL token_is_directive(int tok) {
-  return tok >= TOK_ASSUME && tok <= TOK_UDATASEG;
+  return tok >= TOK_ALIGN && tok <= TOK_UDATASEG;
 }
 
 BOOL token_is_opcode(int tok) {
@@ -24,6 +24,7 @@ static const struct keyword {
   const char* name;
 } keywords[] = {
   // directives
+  { TOK_ALIGN,    "ALIGN" },
   { TOK_ASSUME,   "ASSUME" },
   { TOK_CODESEG,  "CODESEG" },
   { TOK_DATASEG,  "DATASEG" },

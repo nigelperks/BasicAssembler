@@ -1,0 +1,16 @@
+	IDEAL
+
+	SEGMENT	ALL PUBLIC
+_aa	DW	1234h
+	ALIGN	4
+_bb	DW	5678h
+	ALIGN	8
+_cc	DD	0DEADFACEh
+	ALIGN	16
+_dd	DB	1,2,3,4,5,6,7,8,9
+fini:
+	ENDS	ALL
+
+	PUBLIC	_aa,_bb,_cc,_dd,fini
+
+	END

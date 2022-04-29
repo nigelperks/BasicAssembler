@@ -100,6 +100,7 @@ static void define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   }
 }
 
+static void do_align(STATE*, IFILE*, IREC*, LEX*);
 static void do_assume(STATE*, IFILE*, IREC*, LEX*);
 static void do_ends(STATE*, IFILE*, IREC*, LEX*);
 static void do_org(STATE*, IFILE*, IREC*, LEX*);
@@ -111,6 +112,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
   assert(token_is_directive(irec->op));
 
   switch (irec->op) {
+    case TOK_ALIGN: do_align(state, ifile, irec, lex); break;
     case TOK_ASSUME: do_assume(state, ifile, irec, lex); break;
     case TOK_CODESEG: perform_codeseg(state, ifile, lex); break;
     case TOK_DATASEG: perform_dataseg(state, ifile, lex); break;
@@ -218,6 +220,27 @@ static void do_org(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   set_segment_pc(ifile, state->curseg, lex_val(lex));
 
   assert(lex_next(lex) == TOK_EOL);
+}
+
+static void do_align(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
+  assert(state != NULL);
+  assert(ifile != NULL);
+  assert(irec != NULL);
+  assert(irec->op == TOK_ALIGN);
+  assert(lex != NULL);
+
+  if (state->curseg == NO_SEG) {
+    error(state, ifile, "ALIGN outside segment");
+    return;
+  }
+
+  unsigned p2 = 0;
+  if (parse_alignment(state, lex, &p2)) {
+    DWORD pc = segment_pc(ifile, state->curseg);
+    DWORD new_pc = p2aligned(pc, p2);
+    irec->size = new_pc - pc;
+    set_segment_pc(ifile, state->curseg, new_pc);
+  }
 }
 
 static void assume(STATE*, IFILE*, LEX*);

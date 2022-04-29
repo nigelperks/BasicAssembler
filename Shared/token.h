@@ -31,6 +31,7 @@ enum {
   TOK_REG8,
   TOK_REG16,
   // directives
+  TOK_ALIGN,
   TOK_ASSUME,
   TOK_CODESEG,
   TOK_DATASEG,

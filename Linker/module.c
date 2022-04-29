@@ -273,6 +273,12 @@ static void process_segment_fragment(STATE* state, const OFILE* ofile, SEGMENTED
       case OBJ_ORG:
         state->seg->pc = objword(rec);
         break;
+      case OBJ_P2ALIGN:
+        if (objbyte(rec) > seg_p2align(state->seg))
+          fatal("cannot align data to 2^%u in segment '%s' of alignment 2^%u\n",
+                (unsigned) objbyte(rec), seg_name(state->seg), (unsigned) seg_p2align(state->seg));
+        state->seg->pc = p2aligned(state->seg->pc, objbyte(rec));
+        break;
       case OBJ_BEGIN_OFFSET:
         process_offset_info(state, ofile, segs, verbose);
         break;

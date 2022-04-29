@@ -5,6 +5,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <stdbool.h>
 #include "parse.h"
 
 enum { NOT_ADDRESSABLE, ADDRESSABLE, MAYBE_ADDRESSABLE };
@@ -16,5 +17,7 @@ BOOL string_instruction(const INSDEF*);
 void perform_codeseg(STATE*, IFILE*, LEX*);
 void perform_dataseg(STATE*, IFILE*, LEX*);
 void perform_udataseg(STATE*, IFILE*, LEX*);
+
+bool parse_alignment(STATE*, LEX*, unsigned *p2);
 
 #endif // COMMON_H

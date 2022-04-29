@@ -70,3 +70,28 @@ void perform_udataseg(STATE* state, IFILE* ifile, LEX* lex) {
   else
     error2(state, lex, "no memory model");
 }
+
+bool parse_alignment(STATE* state, LEX* lex, unsigned *p2) {
+  assert(state != NULL);
+  assert(lex != NULL);
+  assert(p2 != NULL);
+
+  if (lex_token(lex) != TOK_NUM) {
+    error2(state, lex, "alignment number expected");
+    return false;
+  }
+
+  unsigned long val = lex_val(lex);
+  lex_next(lex);
+  *p2 = 0;
+  while ((val & 1) == 0) {
+    val >>= 1;
+    ++*p2;
+  }
+  if (val != 1) {
+    error2(state, lex, "alignment must be a power of 2");
+    return false;
+  }
+
+  return true;
+}
