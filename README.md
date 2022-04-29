@@ -148,11 +148,15 @@ MODEL TINY
 
 (2) Explicit segments:
 
-SEGMENT name [PUBLIC|STACK|UNINIT]
+Uninitialized data must go in UNINIT segments.
+
+SEGMENT name [PUBLIC|STACK|UNINIT] [BYTE|WORD|DWORD|PARA|PAGE]
 ...
 ENDS [name]
 
-ASSUME DS:_DATA,...
+ASSUME DS:_DATA,ES:_group,...
+
+GROUP group_name  segment1, segment2, ...
 
 
 ## 6. Design choices

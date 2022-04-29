@@ -1,0 +1,27 @@
+; Align segments in image
+
+	IDEAL
+
+	SEGMENT	MAIN
+	ASSUME	CS:MAIN
+	ORG	100h
+start:
+	mov	si, OFFSET _a
+	mov	di, OFFSET _b
+	mov	bx, OFFSET _c
+	int	20h
+	ENDS	MAIN
+
+	SEGMENT	SEG1 PAGE
+_a	DD	12345678h
+	ENDS	SEG1
+
+	SEGMENT	SEG2
+_b	DD	0DEADFACEh
+	ENDS	SEG2
+
+	SEGMENT	SEG3 PAGE
+_c	DD	0DEADBEEFh
+	ENDS	SEG3
+
+	END	start

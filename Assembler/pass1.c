@@ -274,7 +274,7 @@ static void do_end(STATE* state, IFILE* ifile, LEX* lex) {
   }
 }
 
-static unsigned get_segment_attributes(LEX*);
+static unsigned get_segment_attributes(STATE*, LEX*, unsigned *p2align);
 static bool segment_attributes_inconsistent(unsigned attr);
 static bool segment_attributes_clash(unsigned attr1, unsigned attr2);
 
@@ -328,7 +328,8 @@ static void do_segment(STATE* state, IFILE* ifile, LEX* lex) {
 
   assert(seg != NO_SEG);
 
-  unsigned attr = get_segment_attributes(lex);
+  int p2align = DEFAULT_SEGMENT_P2ALIGN;
+  unsigned attr = get_segment_attributes(state, lex, &p2align);
 
   if (segment_attributes_inconsistent(attr)) {
     error2(state, lex, "segment attributes are inconsistent");
@@ -340,25 +341,66 @@ static void do_segment(STATE* state, IFILE* ifile, LEX* lex) {
       error2(state, lex, "segment attributes clash with previous definition");
       return;
     }
+    if (p2align != segment_p2align(ifile, seg)) {
+      error2(state, lex, "segment alignment clashes with previous definition");
+      return;
+    }
   }
   else {
     if (attr == 0)
       attr = ATTR_PRIVATE;
     set_segment_attributes(ifile, seg, attr);
+    set_segment_p2align(ifile, seg, p2align);
   }
 }
 
-static unsigned get_segment_attributes(LEX* lex) {
+static void set_alignment(STATE*, LEX*, int *align_token);
+
+static unsigned get_segment_attributes(STATE* state, LEX* lex, unsigned *p2align) {
   unsigned attr = 0;
-  for (;;) {
-    switch (lex_next(lex)) {
-      case TOK_PRIVATE: attr |= ATTR_PRIVATE; break;
-      case TOK_PUBLIC: attr |= ATTR_PUBLIC; break;
-      case TOK_STACK: attr |= ATTR_STACK; break;
-      case TOK_UNINIT: attr |= ATTR_UNINIT; break;
-      default: return attr;
+  int align_token = TOK_NONE;
+  bool done = false;
+  for (int tok = lex_next(lex); !done; tok = lex_next(lex)) {
+    switch (tok) {
+      default:
+        done = true;
+        break;
+      // segment type
+      case TOK_PRIVATE:
+        attr |= ATTR_PRIVATE;
+        break;
+      case TOK_PUBLIC:
+        attr |= ATTR_PUBLIC;
+        break;
+      case TOK_STACK:
+        attr |= ATTR_STACK;
+        break;
+      case TOK_UNINIT:
+        attr |= ATTR_UNINIT;
+        break;
+      // segment alignment
+      case TOK_BYTE:
+      case TOK_WORD:
+      case TOK_DWORD:
+      case TOK_PAGE:
+      case TOK_PARA:
+        if (align_token != TOK_NONE && align_token != tok)
+          error2(state, lex, "conflicting segment alignments");
+        else
+          align_token = tok;
+        break;
     }
   }
+
+  switch (align_token) {
+    case TOK_BYTE: *p2align = 0; break;
+    case TOK_WORD: *p2align = 1; break;
+    case TOK_DWORD: *p2align = 2; break;
+    case TOK_PARA: *p2align = 4; break;
+    case TOK_PAGE: *p2align = 8; break;
+  }
+
+  return attr;
 }
 
 static bool segment_attributes_inconsistent(unsigned attr) {

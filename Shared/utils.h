@@ -6,6 +6,7 @@
 #define UTILS_H
 
 #include <stdio.h>
+#include <stdbool.h>
 
 extern const char* progname;
 
@@ -49,5 +50,9 @@ void delete_vector(VECTOR*);
 
 unsigned long p2aligned(unsigned long value, unsigned p2);
 unsigned long p2gap(unsigned long value, unsigned p2);
+
+#ifdef UNIT_TEST
+bool zero(const BYTE*, size_t len);
+#endif
 
 #endif // UTILS_H

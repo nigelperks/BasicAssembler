@@ -170,6 +170,15 @@ unsigned long p2gap(unsigned long n, unsigned p2) {
 }
 
 #ifdef UNIT_TEST
+bool zero(const BYTE* p, size_t len) {
+  while (len--)
+    if (*p++ != 0)
+      return false;
+  return true;
+}
+#endif
+
+#ifdef UNIT_TEST
 
 #include "CuTest.h"
 

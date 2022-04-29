@@ -148,7 +148,7 @@ int create_segment(IFILE* ifile, const char* name) {
   p->name = estrdup(name);
   p->attr = 0;
   p->group = NO_GROUP;
-  p->p2align = 4;
+  p->p2align = DEFAULT_SEGMENT_P2ALIGN;
   p->pc = 0;
   return seg;
 }

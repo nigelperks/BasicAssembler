@@ -92,6 +92,12 @@ unsigned seg_p2align(const SEGMENT* seg) {
   return seg->p2align;
 }
 
+void inc_p2align(SEGMENT* dest, const SEGMENT* src) {
+  assert(dest != NULL && src != NULL && dest->p2align < src->p2align);
+  if (dest->p2align < src->p2align)
+    dest->p2align = src->p2align;
+}
+
 #define ALLOCATION_UNIT (0x4000)
 
 static void ensure_writeable(SEGMENT* seg, DWORD offset, unsigned size) {
@@ -201,13 +207,6 @@ void space_out(SEGMENT* seg, unsigned p2align) {
 #ifdef UNIT_TEST
 
 #include "CuTest.h"
-
-static BOOL zero(const BYTE* p, size_t len) {
-  while (len--)
-    if (*p++ != 0)
-      return FALSE;
-  return TRUE;
-}
 
 static void test_new_segment(CuTest* tc) {
   SEGMENT* p;

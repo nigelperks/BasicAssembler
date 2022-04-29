@@ -54,6 +54,8 @@ static const struct keyword {
   { TOK_FAR,     "FAR" },
   { TOK_NEAR,    "NEAR" },
   { TOK_OFFSET,  "OFFSET" },
+  { TOK_PAGE,    "PAGE" },
+  { TOK_PARA,    "PARA" },
   { TOK_PTR,     "PTR" },
   { TOK_QWORD,   "QWORD" },
   { TOK_SEG,     "SEG" },

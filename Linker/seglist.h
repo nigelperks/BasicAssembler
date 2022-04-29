@@ -30,6 +30,7 @@ SEGNO add_segment(SEGMENT_LIST*, const char* name, BOOL public, BOOL stack, GROU
 SEGNO reserve_segment(SEGMENT_LIST*);
 void remove_segment(SEGMENT_LIST*, SEGNO);
 
+unsigned segment_p2align(const SEGMENT_LIST*, SEGNO);
 void set_segment_p2align(SEGMENT_LIST*, SEGNO, unsigned p2align);
 
 SEGNO find_public_segment(const SEGMENT_LIST*, const char* name);

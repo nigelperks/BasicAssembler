@@ -156,6 +156,12 @@ void set_segment_p2align(SEGMENT_LIST* list, SEGNO i, unsigned p2align) {
   list->seg[i]->p2align = (p2align > MAX_SEGMENT_P2ALIGN) ? MAX_SEGMENT_P2ALIGN : p2align;
 }
 
+unsigned segment_p2align(const SEGMENT_LIST* list, SEGNO i) {
+  assert(list != NULL);
+  assert(i < list->used);
+  return list->seg[i]->p2align;
+}
+
 SEGNO first_proper_segment(SEGMENT_LIST* list) {
   assert(list != NULL);
   return next_proper_segment(list, -1);

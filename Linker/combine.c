@@ -31,7 +31,7 @@ static void delete_segment_map(SEGMENT_MAP* map) {
 
 static VECTOR* add_module_groups_to_program(GROUP_LIST* program_groups, GROUP_LIST* module_groups, int verbose);
 
-static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, SEGMENT_LIST* module_segs, VECTOR* module_to_program_group_map, const GROUP_LIST* program_groups, int verbose);
+static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, SEGMENT_LIST* module_segs, VECTOR* module_to_program_group_map, const GROUP_LIST* program_groups, const char* module_name, int verbose);
 
 static VECTOR* add_module_symbols_to_program(SYMTAB* prog_st, const SYMTAB* module_st,
     SEGMENT_LIST* prog_segs, SEGMENT_MAP* module_to_program_seg_map, int verbose);
@@ -54,7 +54,7 @@ void incorporate_module(SEGMENTED* prog, SEGMENTED* module, int verbose) {
       prog->groups, module->groups, verbose);
 
   SEGMENT_MAP* module_to_program_seg_map = add_module_segments_to_program(
-      prog->segs, module->segs, module_to_program_group_map, prog->groups, verbose);
+      prog->segs, module->segs, module_to_program_group_map, prog->groups, module->name, verbose);
 
   define_start(&prog->start, &module->start, module_to_program_seg_map, prog->segs, verbose);
 
@@ -119,12 +119,13 @@ static void add_module_segment_to_program(SEGMENT_LIST* program_segs,
                                           const VECTOR* module_to_program_group_map,
                                           const GROUP_LIST* program_groups,
                                           SEGMENT_MAP* module_to_program_segment_map,
+                                          const char* module_name,
                                           int verbose);
 
 // Add module segments to program where necessary,
 // combining public segments of matching name.
 // Produce a map from module segment number to program segment.
-static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, SEGMENT_LIST* module_segs, VECTOR* module_to_program_group_map, const GROUP_LIST* program_groups, int verbose) {
+static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, SEGMENT_LIST* module_segs, VECTOR* module_to_program_group_map, const GROUP_LIST* program_groups, const char* module_name, int verbose) {
   assert(program_segs != NULL);
   assert(module_segs != NULL);
   assert(module_to_program_group_map != NULL);
@@ -134,7 +135,7 @@ static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, S
   SEGMENT_MAP* map = new_segment_map(segment_list_count(module_segs));
 
   for (SEGNO i = 0; i < segment_list_count(module_segs); i++)
-    add_module_segment_to_program(program_segs, module_segs, i, module_to_program_group_map, program_groups, map, verbose);
+    add_module_segment_to_program(program_segs, module_segs, i, module_to_program_group_map, program_groups, map, module_name, verbose);
 
   return map;
 }
@@ -143,12 +144,15 @@ static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT*, GROUPNO,
 static SEGNO add_public_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, int verbose);
 static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, int verbose);
 
+static void check_alignment(const SEGMENT* module_seg, const SEGMENT* program_seg, const char* module_name);
+
 static void add_module_segment_to_program(SEGMENT_LIST* program_segs,
                                           const SEGMENT_LIST* module_segs,
                                           SEGNO module_segno,
                                           const VECTOR* module_to_program_group_map,
                                           const GROUP_LIST* program_groups,
                                           SEGMENT_MAP* segment_map,
+                                          const char* module_name,
                                           int verbose) {
   const SEGMENT* module_seg = get_segment_const(module_segs, module_segno);
   GROUPNO module_group = seg_group(module_seg);
@@ -162,6 +166,7 @@ static void add_module_segment_to_program(SEGMENT_LIST* program_segs,
     psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
   assert(psegno != NO_SEG);
   const SEGMENT* program_seg = get_segment(program_segs, psegno);
+  check_alignment(module_seg, program_seg, module_name);
   segment_map->map[module_segno].segno = psegno;
   segment_map->map[module_segno].base = segment_end_p2aligned(program_seg, seg_p2align(module_seg));
 }
@@ -211,6 +216,12 @@ static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT* seg, GROU
   if (verbose >= 2)
     printf("Add %s segment %d: %s\n", type, (int)psegno, segment_name(program, psegno));
   return psegno;
+}
+
+static void check_alignment(const SEGMENT* module_seg, const SEGMENT* program_seg, const char* module_name) {
+  if (seg_p2align(module_seg) > seg_p2align(program_seg))
+      fatal("module '%s' segment '%s' with alignment 2^%u cannot be combined with public segment '%s' with alignment 2^%u\n",
+            module_name, seg_name(module_seg), seg_p2align(module_seg), seg_name(program_seg), seg_p2align(program_seg));
 }
 
 static SYMBOL_ID add_module_symbol_to_program(SYMTAB* prog_st, const SYMTAB* module_st, SYMBOL_ID module_id,
@@ -534,7 +545,7 @@ static void test_add_segments_empty(CuTest* tc) {
   SEGMENT_LIST* prog = new_segment_list(CASE_INSENSITIVE);
   SEGMENT_LIST* module = new_segment_list(CASE_INSENSITIVE);
 
-  SEGMENT_MAP* map = add_module_segments_to_program(prog, module, group_map, groups, 0);
+  SEGMENT_MAP* map = add_module_segments_to_program(prog, module, group_map, groups, "file.obj", 0);
 
   CuAssertPtrNotNull(tc, map);
   CuAssertIntEquals(tc, 0, map->size);
@@ -565,7 +576,7 @@ static void test_add_segments_no_groups(CuTest* tc) {
   add_segment(module, "DATA", TRUE, FALSE, NO_GROUP);    // -> 4
   add_segment(module, "SHARED", TRUE, FALSE, NO_GROUP);  // -> 2
 
-  SEGMENT_MAP* map = add_module_segments_to_program(program, module, group_map, groups, 0);
+  SEGMENT_MAP* map = add_module_segments_to_program(program, module, group_map, groups, "file.obj", 0);
 
   CuAssertPtrNotNull(tc, map);
   CuAssertIntEquals(tc, 3, map->size);
@@ -630,7 +641,7 @@ static void test_add_segments_with_groups(CuTest* tc) {
   add_segment(module, "DATA", TRUE, FALSE, NO_GROUP);    // -> 4
   add_segment(module, "SHARED", TRUE, FALSE, 1);         // -> 2
 
-  SEGMENT_MAP* map = add_module_segments_to_program(program, module, group_map, groups, 0);
+  SEGMENT_MAP* map = add_module_segments_to_program(program, module, group_map, groups, "file.obj", 0);
 
   CuAssertPtrNotNull(tc, map);
   CuAssertIntEquals(tc, 3, map->size);

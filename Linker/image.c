@@ -30,37 +30,48 @@ void delete_image(IMAGE* image) {
 #define MAX_IMAGE (640 * 1024UL) // should be enough for anyone
 #define IMAGE_ALLOCATION_UNIT (16 * 1024)
 
-static void write_image(IMAGE* image, size_t pos, const BYTE* data, size_t size) {
+static void ensure_allocated(IMAGE* image, size_t size) {
   assert(image != NULL);
   assert(image->lo <= image->hi);
   assert(image->hi <= MAX_IMAGE);
-  assert(data != NULL);
-  assert(size > 0);
 
-  if (pos > MAX_IMAGE || MAX_IMAGE - pos < size)
+  if (size > MAX_IMAGE)
     fatal("exceeding maximum image size\n");
 
-  if (image->data == NULL || pos < image->lo)
-    image->lo = pos;
-
-  if (pos + size > image->allocated) {
-    size_t allocate = pos + size;
-    if (allocate % IMAGE_ALLOCATION_UNIT)
-      allocate += (IMAGE_ALLOCATION_UNIT - allocate % IMAGE_ALLOCATION_UNIT);
-    assert(allocate % IMAGE_ALLOCATION_UNIT == 0);
-    assert(allocate >= pos + size);
-    BYTE* data = ecalloc(allocate, 1);
+  if (size > image->allocated) {
+    if (size % IMAGE_ALLOCATION_UNIT)
+      size += (IMAGE_ALLOCATION_UNIT - size % IMAGE_ALLOCATION_UNIT);
+    assert(size % IMAGE_ALLOCATION_UNIT == 0);
+    BYTE* data = ecalloc(size, 1);
     if (image->data) {
       memcpy(data, image->data, image->hi);
       efree(image->data);
     }
     image->data = data;
-    image->allocated = allocate;
+    image->allocated = size;
   }
+}
 
+static void write_image(IMAGE* image, size_t pos, const BYTE* data, size_t size) {
+  assert(image != NULL);
+  assert(image->lo <= image->hi);
+  assert(image->hi <= MAX_IMAGE);
+
+  if (pos > MAX_IMAGE || MAX_IMAGE - pos < size)
+    fatal("exceeding maximum image size\n");
+
+  if (size == 0)
+    return;
+
+  ensure_allocated(image, pos + size);
   assert(image->data != NULL);
   memcpy(image->data + pos, data, size);
-  image->hi = pos + size;
+
+  if (image->hi == 0 || pos < image->lo)
+    image->lo = pos;
+
+  if (pos + size > image->hi)
+    image->hi = pos + size;
 }
 
 static void append_segment_to_image(IMAGE* image, const SEGMENT* seg) {
@@ -72,13 +83,16 @@ static void append_segment_to_image(IMAGE* image, const SEGMENT* seg) {
   write_image(image, image->hi + seg->lo, seg->data + seg->lo, seg->hi - seg->lo);
 }
 
-static void pad_image_to_paragraph(IMAGE* image) {
+static void pad_image(IMAGE* image, unsigned p2align) {
   assert(image != NULL);
 
-  if (image->hi % 16) {
-    BYTE buf[16];
-    memset(buf, 0, sizeof buf);
-    write_image(image, image->hi, buf, 16 - image->hi % 16);
+  DWORD new_hi = p2aligned(image->hi, p2align);
+  ensure_allocated(image, new_hi);
+  assert(new_hi >= image->hi);
+  if (new_hi) {
+    assert(image->data != NULL);
+    memset(image->data + image->hi, 0, new_hi - image->hi);
+    image->hi = new_hi;
   }
 }
 
@@ -125,11 +139,16 @@ static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, 
   if (verbose)
     printf("Add segment/group to image: %s\n", seg_name(seg));
 
+  // In my opinion a segment placed in image begins at offset 0.
+  // So it must be paragraph-aligned. A segment address is a paragraph address.
+  if (image->hi > 0 && seg_p2align(seg) < 4)
+    fatal("cannot place segment in image: not paragraph-aligned: %s\n", seg_name(seg));
+
   if (segment_has_data(seg)) {
     if (image->space)
       fatal("cannot place initialized segment/group after uninitialized space\n");
 
-    pad_image_to_paragraph(image); // TODO: use segment alignment?
+    pad_image(image, seg_p2align(seg));
 
     if (prog->start.segno == segno)
       set_start(image, &prog->start, seg);
@@ -282,6 +301,31 @@ static void test_new_image(CuTest* tc) {
   delete_image(NULL);
 }
 
+static void test_ensure_allocated(CuTest* tc) {
+  IMAGE* image = new_image();
+
+  ensure_allocated(image, 0);
+  CuAssertIntEquals(tc, 0, image->allocated);
+  CuAssertPtrEquals(tc, NULL, image->data);
+
+  ensure_allocated(image, 10000);
+  CuAssertIntEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
+  CuAssertPtrNotNull(tc, image->data);
+  CuAssertTrue(tc, zero(image->data, image->allocated));
+
+  ensure_allocated(image, 8000);
+  CuAssertIntEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
+  CuAssertPtrNotNull(tc, image->data);
+  CuAssertTrue(tc, zero(image->data, image->allocated));
+
+  ensure_allocated(image, 50000);
+  CuAssertIntEquals(tc, 4 * IMAGE_ALLOCATION_UNIT, image->allocated);
+  CuAssertPtrNotNull(tc, image->data);
+  CuAssertTrue(tc, zero(image->data, image->allocated));
+
+  delete_image(image);
+}
+
 static void test_write_image(CuTest* tc) {
   IMAGE* image = new_image();
   BYTE* buf1 = emalloc(32);
@@ -319,16 +363,24 @@ static void test_pad_image(CuTest* tc) {
   IMAGE* image = new_image();
   BYTE buf[16];
 
-  pad_image_to_paragraph(image);
+  pad_image(image, 4);
   CuAssertIntEquals(tc, 0, image->hi);
 
   write_image(image, 7, buf, 15);
   CuAssertIntEquals(tc, 22, image->hi);
-  pad_image_to_paragraph(image);
+  pad_image(image, 4);
   CuAssertIntEquals(tc, 32, image->hi);
 
-  pad_image_to_paragraph(image);
+  pad_image(image, 4);
   CuAssertIntEquals(tc, 32, image->hi);
+
+  image->hi = 33;
+  pad_image(image, 5);
+  CuAssertIntEquals(tc, 64, image->hi);
+
+  image->hi = 65;
+  pad_image(image, 3);
+  CuAssertIntEquals(tc, 72, image->hi);
 
   delete_image(image);
 }
@@ -354,6 +406,7 @@ static void test_append_segment(CuTest* tc) {
 CuSuite* image_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_new_image);
+  SUITE_ADD_TEST(suite, test_ensure_allocated);
   SUITE_ADD_TEST(suite, test_write_image);
   SUITE_ADD_TEST(suite, test_pad_image);
   SUITE_ADD_TEST(suite, test_append_segment);

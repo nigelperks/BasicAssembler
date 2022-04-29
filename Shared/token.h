@@ -61,6 +61,8 @@ enum {
   TOK_FAR,
   TOK_NEAR,
   TOK_OFFSET,
+  TOK_PAGE,
+  TOK_PARA,
   TOK_PTR,
   TOK_QWORD,
   TOK_SEG,

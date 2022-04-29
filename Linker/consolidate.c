@@ -68,8 +68,11 @@ static void build_group(SEGMENTED* prog, SEGNO first_segno, SEGMENT* first_seg, 
   for (SEGNO i = first_segno + 1; i < segment_list_count(prog->segs); i++) {
     SEGMENT* seg = get_segment(prog->segs, i);
     if (seg != NULL && seg_group(seg) == groupno) {
+      if (verbose)
+        printf("Consolidate into group: segment %d: %s\n", (int)i, seg_name(seg));
       if (segment_has_data(seg) || seg_space(seg))
         join_segments(prog, first_segno, first_seg, i, seg, verbose);
+      remove_segment(prog->segs, i);
     }
   }
 }
@@ -82,6 +85,8 @@ static void update_symbol_definitions_for_new_segment_number_and_base(
 static void update_start(START*, SEGNO new_segno, const SEGMENT* new_seg, int verbose);
 static void update_stack(STACK*, SEGNO new_segno, const SEGMENT* new_seg, int verbose);
 
+static void check_alignment(const SEGMENT* dest_seg, const SEGMENT* source_seg);
+
 // Make two segments in the same segment list into one segment, appending source
 // to destination. Update offsets into the source, to be into the destination,
 // across all segments. Remove the source segment.
@@ -92,9 +97,6 @@ static void join_segments(SEGMENTED* prog, SEGNO dest_segno, SEGMENT* dest_seg, 
   assert(source_segno < segment_list_count(prog->segs));
   assert(source_seg != NULL);
   assert(segment_has_data(source_seg) || seg_space(source_seg) > 0);
-
-  if (verbose)
-    printf("Consolidate into group: segment %d: %s\n", (int)source_segno, seg_name(source_seg));
 
   if (segment_has_data(source_seg)) {
     if (seg_space(dest_seg))
@@ -112,6 +114,9 @@ static void join_segments(SEGMENTED* prog, SEGNO dest_segno, SEGMENT* dest_seg, 
     space_out(dest_seg, seg_p2align(source_seg));
   }
 
+  if (seg_p2align(source_seg) > seg_p2align(dest_seg))
+    inc_p2align(dest_seg, source_seg);
+
   if (prog->start.segno == source_segno)
     update_start(&prog->start, dest_segno, dest_seg, verbose);
 
@@ -128,8 +133,6 @@ static void join_segments(SEGMENTED* prog, SEGNO dest_segno, SEGMENT* dest_seg, 
   const unsigned long size = segment_end(dest_seg);
   if (size > 0x10000UL)
     fatal("consolidated segment '%s' is too big: %lu = %0xh bytes\n", seg_name(dest_seg), size, size);
-
-  remove_segment(prog->segs, source_segno);
 }
 
 static void update_start(START* start, SEGNO new_segno, const SEGMENT* new_seg, int verbose) {

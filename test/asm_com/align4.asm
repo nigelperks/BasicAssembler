@@ -1,0 +1,30 @@
+; Align segments in group
+
+	IDEAL
+
+	SEGMENT	MAIN
+	ASSUME	CS:ALL,DS:ALL
+	ORG	100h
+start:
+	mov	si, OFFSET _a
+	mov	di, OFFSET _b
+	mov	bx, OFFSET _c
+	mov	ax, [WORD PTR _b]
+	int	20h
+	ENDS	MAIN
+
+	SEGMENT	SEG1 PAGE
+_a	DD	12345678h
+	ENDS	SEG1
+
+	SEGMENT	SEG2
+_b	DD	0DEADFACEh
+	ENDS	SEG2
+
+	SEGMENT	SEG3 PAGE
+_c	DD	0DEADBEEFh
+	ENDS	SEG3
+
+	GROUP	ALL MAIN,SEG1,SEG2,SEG3
+
+	END	start

@@ -39,6 +39,8 @@ enum asm_segment_attribute {
 
 enum { UNINIT = FALSE, INIT = TRUE };
 
+#define DEFAULT_SEGMENT_P2ALIGN (4)
+
 typedef struct {
   char* name;
   unsigned attr;

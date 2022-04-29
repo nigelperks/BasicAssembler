@@ -194,7 +194,7 @@ def test_link_error(tools, sources):
   compare_err(LINKING_ERROR_REFERENCE, test_err)
 
 def test(tools, config, sources, force_ref, keepDosBox):
-  if len(sources) == 1:
+  if not config_on(config, "link"):
     error_file = bare_name(sources[0]) + ".err"
     if os.path.isfile(error_file):
       test_asm_error(tools, sources[0], error_file)

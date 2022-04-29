@@ -331,6 +331,8 @@ static void do_end(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofil
     lex_next(lex);
 }
 
+static void skip_segment_attributes(LEX*);
+
 static void do_segment(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
   assert(state != NULL);
   assert(ifile != NULL);
@@ -359,9 +361,28 @@ static void do_segment(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* 
   if (!segment_uninit(ifile, state->curseg))
     emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) state->curseg);
 
-  int attr = lex_next(lex);
-  while (attr == TOK_PRIVATE || attr == TOK_PUBLIC || attr == TOK_STACK || attr == TOK_UNINIT)
-    attr = lex_next(lex);
+  skip_segment_attributes(lex);
+}
+
+static void skip_segment_attributes(LEX* lex) {
+  for (;;) {
+    switch (lex_next(lex)) {
+      default:
+        return;
+      // segment type
+      case TOK_PRIVATE:
+      case TOK_PUBLIC:
+      case TOK_STACK:
+      case TOK_UNINIT:
+      // segment alignment
+      case TOK_BYTE:
+      case TOK_WORD:
+      case TOK_DWORD:
+      case TOK_PAGE:
+      case TOK_PARA:
+        break;
+    }
+  }
 }
 
 static void do_ends(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {

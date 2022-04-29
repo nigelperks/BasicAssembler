@@ -37,6 +37,8 @@ BOOL seg_stack(const SEGMENT*);
 int seg_group(const SEGMENT*);
 unsigned seg_p2align(const SEGMENT*);
 
+void inc_p2align(SEGMENT*, const SEGMENT*);
+
 DWORD seg_lo(const SEGMENT*);
 DWORD seg_hi(const SEGMENT*);
 BOOL segment_has_data(const SEGMENT*);

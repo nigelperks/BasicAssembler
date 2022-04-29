@@ -1,0 +1,1 @@
+blink: fatal: module 'module2.obj' segment 'DATA' with alignment 2^8 cannot be combined with public segment 'DATA' with alignment 2^1
