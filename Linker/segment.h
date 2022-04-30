@@ -11,6 +11,20 @@
 #define DEFAULT_SEGMENT_P2ALIGN (4)
 #define MAX_SEGMENT_P2ALIGN (12)
 
+struct layout_entry {
+  char* segment_name;
+  char* module_name;
+  DWORD addr;
+  DWORD size;
+};
+
+#define MAX_SEGMENT_MAP (64) // TODO: extendable
+
+struct segment_layout {
+  struct layout_entry entries[MAX_SEGMENT_MAP];
+  unsigned count;
+};
+
 typedef struct {
   char* name;
   BOOL public;
@@ -25,6 +39,8 @@ typedef struct {
   DWORD hi;
 
   DWORD space; // including space after hi to align the uninitialised data
+
+  struct segment_layout layout;
 } SEGMENT;
 
 SEGMENT* new_segment(const char* name, BOOL public, BOOL stack, GROUPNO);
@@ -58,5 +74,8 @@ void load_segment_data(SEGMENT*, const BYTE*, unsigned size);
 void load_segment_space(SEGMENT*, unsigned size);
 
 void append_segment(SEGMENT* dest, const SEGMENT* src);
+
+void init_segment_layout(SEGMENT*, const char* module_name);
+void fprint_segment_layout(FILE*, const SEGMENT*, const DWORD base, const unsigned indent);
 
 #endif // SEGMENT_H

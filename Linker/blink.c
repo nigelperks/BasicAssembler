@@ -32,6 +32,7 @@ int main(int argc, char* argv[]) {
   int verbose = 0;
   int format = COM_FORMAT;
   bool report_mem = false;
+  const char* mapfile = NULL;
 
   progname = "blink";
 
@@ -65,6 +66,12 @@ int main(int argc, char* argv[]) {
           output_name = argv[i];
         else
           fatal("output file name missing\n");
+      }
+      else if (strcmp(arg, "-p") == 0) {
+        if (++i < argc)
+          mapfile = argv[i];
+        else
+          fatal("map file name missing\n");
       }
       else {
         for (int j = 1; arg[j]; j++) {
@@ -109,7 +116,7 @@ int main(int argc, char* argv[]) {
 
   resolve_fixups(segmented_program, verbose);
 
-  IMAGE* image = build_image(segmented_program, verbose);
+  IMAGE* image = build_image(segmented_program, mapfile, verbose);
 
   if (verbose)
     printf("Output %s file: %s\n", format_name(format), output_name);
@@ -145,6 +152,7 @@ static void help(void) {
   puts("  -h          help");
   puts("  -m          report memory usage");
   puts("  -o FILE     output file");
+  puts("  -p FILE     map file");
 #ifdef UNIT_TEST
   puts("  -unittest   run unit tests");
 #endif

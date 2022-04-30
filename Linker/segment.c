@@ -7,6 +7,26 @@
 #include <assert.h>
 #include "segment.h"
 
+static void add_entry(struct segment_layout * layout, const char* segment_name, const char* module_name, DWORD addr, DWORD size) {
+  assert(layout != NULL);
+  if (layout->count >= MAX_SEGMENT_MAP)
+    fatal("internal error: segment map full\n");
+  struct layout_entry * e = layout->entries + layout->count++;
+  e->segment_name = estrdup(segment_name);
+  e->module_name = estrdup(module_name);
+  e->addr = addr;
+  e->size = size;
+}
+
+static void clear_layout(struct segment_layout * layout) {
+  assert(layout != NULL);
+  for (unsigned i = 0; i < layout->count; i++) {
+    efree(layout->entries[i].segment_name);
+    efree(layout->entries[i].module_name);
+  }
+  layout->count = 0;
+}
+
 SEGMENT* new_segment(const char* name, BOOL public, BOOL stack, GROUPNO group) {
   SEGMENT* seg = emalloc(sizeof *seg);
 
@@ -24,6 +44,8 @@ SEGMENT* new_segment(const char* name, BOOL public, BOOL stack, GROUPNO group) {
 
   seg->space = 0;
 
+  seg->layout.count = 0;
+
   return seg;
 }
 
@@ -31,6 +53,7 @@ void delete_segment(SEGMENT* seg) {
   if (seg) {
     efree(seg->name);
     efree(seg->data);
+    clear_layout(&seg->layout);
     efree(seg);
   }
 }
@@ -164,12 +187,16 @@ void load_segment_space(SEGMENT* seg, unsigned size) {
   seg->space += size;
 }
 
+static void append_layout(struct segment_layout * dest, const struct segment_layout * src, const DWORD base);
+
 // Alignment must be done already by caller.
 void append_segment(SEGMENT* dest, const SEGMENT* src) {
   assert(dest != NULL);
   assert(dest->lo <= dest->hi);
   assert(src != NULL);
   assert(src->lo <= src->hi);
+
+  append_layout(&dest->layout, &src->layout, dest->hi + dest->space);
 
   if (src->hi > src->lo) {
     if (dest->space > 0)
@@ -203,6 +230,38 @@ void space_out(SEGMENT* seg, unsigned p2align) {
   seg->space += p2gap(seg->hi + seg->space, p2align);
 }
 
+void init_segment_layout(SEGMENT* seg, const char* module_name) {
+  assert(seg != NULL);
+  assert(module_name);
+  if (seg->layout.count > 0)
+    fatal("internal error: init_segment_layout: already initialised: %s\n", module_name);
+  struct layout_entry * e = seg->layout.entries;
+  e->segment_name = estrdup(seg->name);
+  e->module_name = estrdup(module_name);
+  e->addr = 0;
+  e->size = seg->hi + seg->space;
+  seg->layout.count = 1;
+}
+
+void fprint_segment_layout(FILE* fp, const SEGMENT* seg, const DWORD base, const unsigned indent) {
+  assert(fp != NULL);
+  assert(seg != NULL);
+  for (const struct layout_entry * e = seg->layout.entries; e < seg->layout.entries + seg->layout.count; e++) {
+    const DWORD size = (e->segment_name == NULL) ? seg->hi + seg->space : e->size;
+    const char* s_name = e->segment_name ? e->segment_name : seg->name;
+    const char* m_name = e->module_name ? e->module_name : "";
+    for (unsigned j = 0; j < indent; j++)
+      putc(' ', fp);
+    fprintf(fp, "%06x %06x %s %s\n", base + e->addr, size, s_name, m_name);
+  }
+}
+
+static void append_layout(struct segment_layout * dest, const struct segment_layout * src, const DWORD base) {
+  for (const struct layout_entry * e = src->entries; e < src->entries + src->count; e++) {
+    const char* m_name = e->module_name ? e->module_name : "";
+    add_entry(dest, e->segment_name, m_name, base + e->addr, e->size);
+  }
+}
 
 #ifdef UNIT_TEST
 

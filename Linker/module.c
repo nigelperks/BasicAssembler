@@ -26,7 +26,7 @@ static void init_state(STATE* state, const char* module_name) {
 static void process_root_record(STATE*, const OFILE*, SEGMENTED*, int verbose);
 
 SEGMENTED* build_module_segments(const OFILE* ofile, int case_sensitivity, int verbose, const char* module_name) {
-  SEGMENTED* segs = new_segmented(module_name, case_sensitivity);
+  SEGMENTED* module = new_segmented(module_name, case_sensitivity);
   STATE state;
 
   init_state(&state, module_name);
@@ -35,9 +35,14 @@ SEGMENTED* build_module_segments(const OFILE* ofile, int case_sensitivity, int v
     puts("Build segments");
 
   for (state.pos = 0; state.pos < ofile->used; state.pos++)
-    process_root_record(&state, ofile, segs, verbose);
+    process_root_record(&state, ofile, module, verbose);
 
-  return segs;
+  for (SEGNO i = 0; i < module->segs->used; i++) {
+    if (module->segs->seg[i])
+      init_segment_layout(module->segs->seg[i], module_name);
+  }
+
+  return module;
 }
 
 static void define_group(STATE*, const OFILE*, SEGMENTED*, int verbose);

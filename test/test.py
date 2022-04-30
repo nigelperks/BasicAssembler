@@ -118,11 +118,23 @@ def compare_com(refName, outputName):
     fatal("Mismatch: " + refName + " " + os.path.abspath(outputName))
   print("Match: " + refName + " " + os.path.abspath(outputName))
 
+def compare_map(refName, outputName):
+  if not os.path.isfile(refName):
+    fatal("Reference not found: " + refName)
+  if not os.path.isfile(outputName):
+    fatal("Output map file not found: " + outputName)
+  if not filecmp.cmp(refName, outputName):
+    fatal("Mismatch: " + refName + " " + os.path.abspath(outputName))
+  print("Match: " + refName + " " + os.path.abspath(outputName))
+
 def test_com(tools, config, sources, force_ref, keepDosBox):
   announce(sources, "COM")
   objects = assemble(tools, sources)
   test_com = "test.com"
-  r = run("%s -fcom %s -o %s" % (tools["blink"], " ".join(objects), test_com))
+  cmd = "%s -fcom %s -o %s" % (tools["blink"], " ".join(objects), test_com)
+  if config_on(config, "mapfile"):
+    cmd += " -p test.map"
+  r = run(cmd)
   if r != 0:
     fatal("COM linking error: %d" % r)
   refName = "a.co_" if len(sources) > 1 else bare_name(sources[0]) + ".co_"
@@ -135,6 +147,8 @@ def test_com(tools, config, sources, force_ref, keepDosBox):
     refCOM = os.path.join(config["DosBoxMount"], config["DosBoxTestDir"], comName)
     shutil.copy2(refCOM, refName)
   compare_com(refName, test_com)
+  if config_on(config, "mapfile"):
+    compare_map("a.map", "test.map")
 
 def match_exe(tools, name1, name2):
   return run("%s -c %s %s" % (tools["exetool"], name1, name2)) == 0

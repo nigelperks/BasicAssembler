@@ -67,6 +67,7 @@ Executables in x64\Debug.
       -fcom         -- COM format output (default)
       -fexe         -- 16-bit EXE format output
       -o name       -- output to file name (A.COM by default)
+      -p name       -- map file showing segment layout in image
       -unittest     -- run unit tests (using CuTest) and quit
       -vvvv         -- 1-4 verbosity levels for debugging the linker
 

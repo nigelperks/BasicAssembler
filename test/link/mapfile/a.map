@@ -1,0 +1,16 @@
+000000 000107 MAIN (SEGMENT)
+
+              000000 000102 MAIN map1.obj
+              000102 000005 MAIN map2.obj
+
+000110 00000e _DATA (GROUP)
+
+              000110 000002 SEG1 map1.obj
+              000114 000002 SEG2 map1.obj
+              000118 000002 SEG2 map2.obj
+              00011a 000004 SEG3 map1.obj
+
+000120 000020 SPACE (SEGMENT)
+
+              000120 000020 SPACE map1.obj
+

@@ -140,9 +140,9 @@ static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, S
   return map;
 }
 
-static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT*, GROUPNO, int verbose);
-static SEGNO add_public_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, int verbose);
-static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, int verbose);
+static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT*, GROUPNO, const char* module_name, int verbose);
+static SEGNO add_public_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, const char* module_name, int verbose);
+static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, const char* module_name, int verbose);
 
 static void check_alignment(const SEGMENT* module_seg, const SEGMENT* program_seg, const char* module_name);
 
@@ -159,11 +159,11 @@ static void add_module_segment_to_program(SEGMENT_LIST* program_segs,
   GROUPNO program_group = (module_group == NO_GROUP) ? NO_GROUP : (GROUPNO) module_to_program_group_map->val[module_group];
   SEGNO psegno = NO_SEG;
   if (seg_public(module_seg))
-    psegno = add_public_segment(program_segs, module_seg, program_groups, program_group, verbose);
+    psegno = add_public_segment(program_segs, module_seg, program_groups, program_group, module_name, verbose);
   else if (seg_stack(module_seg))
-    psegno = add_stack_segment(program_segs, module_seg, program_groups, program_group, verbose);
+    psegno = add_stack_segment(program_segs, module_seg, program_groups, program_group, module_name, verbose);
   else
-    psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
+    psegno = add_program_segment(program_segs, module_seg, program_group, module_name, verbose);
   assert(psegno != NO_SEG);
   const SEGMENT* program_seg = get_segment(program_segs, psegno);
   check_alignment(module_seg, program_seg, module_name);
@@ -171,10 +171,10 @@ static void add_module_segment_to_program(SEGMENT_LIST* program_segs,
   segment_map->map[module_segno].base = segment_end_p2aligned(program_seg, seg_p2align(module_seg));
 }
 
-static SEGNO add_public_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, int verbose) {
+static SEGNO add_public_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, const char* module_name, int verbose) {
   SEGNO psegno = find_public_segment(program_segs, seg_name(module_seg));
   if (psegno == NO_SEG)
-    psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
+    psegno = add_program_segment(program_segs, module_seg, program_group, module_name, verbose);
   else {
     if (verbose >= 2)
       printf("Found public segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
@@ -189,10 +189,10 @@ static SEGNO add_public_segment(SEGMENT_LIST* program_segs, const SEGMENT* modul
   return psegno;
 }
 
-static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, int verbose) {
+static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, const char* module_name, int verbose) {
   SEGNO psegno = find_stack_segment(program_segs, seg_name(module_seg));
   if (psegno == NO_SEG)
-    psegno = add_program_segment(program_segs, module_seg, program_group, verbose);
+    psegno = add_program_segment(program_segs, module_seg, program_group, module_name, verbose);
   else {
     if (verbose >= 2)
       printf("Found stack segment %d: %s\n", (int)psegno, segment_name(program_segs, psegno));
@@ -207,7 +207,7 @@ static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module
   return psegno;
 }
 
-static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT* seg, GROUPNO group, int verbose) {
+static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT* seg, GROUPNO group, const char* module_name, int verbose) {
   if (seg_public(seg) && seg_stack(seg))
     fatal("segment is both PUBLIC and STACK: %s\n", seg_name(seg));
   SEGNO psegno = add_segment(program, seg_name(seg), seg_public(seg), seg_stack(seg), group);

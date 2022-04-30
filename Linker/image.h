@@ -33,6 +33,6 @@ typedef struct {
 IMAGE* new_image(void);
 void delete_image(IMAGE*);
 
-IMAGE* build_image(const SEGMENTED*, int verbose);
+IMAGE* build_image(const SEGMENTED*, const char* mapfile, int verbose);
 
 #endif // IMAGE_H

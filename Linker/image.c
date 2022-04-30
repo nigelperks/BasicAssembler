@@ -139,7 +139,30 @@ static void set_stack(IMAGE_STACK* image_stack, DWORD image_address, const STACK
   image_stack->set = TRUE;
 }
 
-static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, VECTOR* bases, int verbose) {
+static void fprint_map(FILE* fp, const SEGMENTED* prog, DWORD addr, const SEGMENT* seg) {
+  assert(fp != NULL);
+  assert(seg != NULL);
+  const DWORD size = segment_end(seg);
+  const char* name;
+  const char* type;
+
+  if (seg_group(seg) == NO_GROUP) {
+    name = seg_name(seg);
+    type = "SEGMENT";
+  }
+  else {
+    name = group_name(prog->groups, seg_group(seg));
+    type = "GROUP";
+  }
+
+  fprintf(fp, "%06x %06x %s (%s)\n", addr, size, name, type);
+
+  putc('\n', fp);
+  fprint_segment_layout(fp, seg, addr, 14);
+  putc('\n', fp);
+}
+
+static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, VECTOR* bases, FILE* mapfile, int verbose) {
   SEGMENT* seg = get_segment(prog->segs, segno);
 
   if (verbose)
@@ -168,6 +191,9 @@ static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, 
 
     bases->val[segno] = image->hi;
 
+    if (mapfile)
+      fprint_map(mapfile, prog, image->hi, seg);
+
     append_segment_data_to_image(image, seg);
 
     if (seg_space(seg)) {
@@ -188,6 +214,9 @@ static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, 
       set_stack(&image->stack, base, &prog->stack);
 
     bases->val[segno] = base;
+
+    if (mapfile)
+      fprint_map(mapfile, prog, base, seg);
 
     image->space += seg_space(seg);
   }
@@ -269,7 +298,7 @@ static void resolve_segment_fixups(IMAGE* image, FIXUPS* fixups, VECTOR* bases, 
 
 static void check_start(const SEGMENTED* prog);
 
-IMAGE* build_image(const SEGMENTED* prog, int verbose) {
+IMAGE* build_image(const SEGMENTED* prog, const char* mapfile, int verbose) {
   if (verbose)
     puts("Build image");
 
@@ -283,10 +312,15 @@ IMAGE* build_image(const SEGMENTED* prog, int verbose) {
 
   IMAGE* image = new_image();
 
-  add_image_segment(image, prog, segno, bases, verbose);
+  FILE* mfp = mapfile ? efopen(mapfile, "w", "map file writing") : NULL;
+
+  add_image_segment(image, prog, segno, bases, mfp, verbose);
 
   while ((segno = next_proper_segment(prog->segs, segno)) != NO_SEG)
-    add_image_segment(image, prog, segno, bases, verbose);
+    add_image_segment(image, prog, segno, bases, mfp, verbose);
+
+  if (mfp)
+    fclose(mfp);
 
   if (image->start.set == FALSE)
     fatal("no start address in program image\n");
