@@ -27,7 +27,7 @@ typedef struct {
   DWORD hi;
   IMAGE_START start;
   IMAGE_STACK stack;
-  DWORD space;
+  DWORD space; // bytes of uninitialised space on top of hi, including padding between hi and uninitialised data
 } IMAGE;
 
 IMAGE* new_image(void);

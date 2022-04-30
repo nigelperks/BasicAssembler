@@ -7,7 +7,6 @@
 #include <assert.h>
 #include "image.h"
 
-
 IMAGE* new_image(void) {
   IMAGE* p = emalloc(sizeof *p);
   p->data = NULL;
@@ -34,6 +33,9 @@ static void ensure_allocated(IMAGE* image, size_t size) {
   assert(image != NULL);
   assert(image->lo <= image->hi);
   assert(image->hi <= MAX_IMAGE);
+
+  if (image->space)
+    fatal("internal error: allocating image data: image has uninitialized space\n");
 
   if (size > MAX_IMAGE)
     fatal("exceeding maximum image size\n");
@@ -74,7 +76,8 @@ static void write_image(IMAGE* image, size_t pos, const BYTE* data, size_t size)
     image->hi = pos + size;
 }
 
-static void append_segment_to_image(IMAGE* image, const SEGMENT* seg) {
+// append initialized data area (hi), not unintialized space
+static void append_segment_data_to_image(IMAGE* image, const SEGMENT* seg) {
   assert(image != NULL);
   assert(seg != NULL);
   assert(seg->data != NULL);
@@ -83,7 +86,8 @@ static void append_segment_to_image(IMAGE* image, const SEGMENT* seg) {
   write_image(image, image->hi + seg->lo, seg->data + seg->lo, seg->hi - seg->lo);
 }
 
-static void pad_image(IMAGE* image, unsigned p2align) {
+// pad initialized data area (hi), not unintialized space
+static void pad_image_data(IMAGE* image, unsigned p2align) {
   assert(image != NULL);
 
   DWORD new_hi = p2aligned(image->hi, p2align);
@@ -96,7 +100,7 @@ static void pad_image(IMAGE* image, unsigned p2align) {
   }
 }
 
-#define ADDRESS_SPACE (16ul * (WORD)(-1))
+#define ADDRESS_SPACE (1024ul * 1024)
 
 // set_start:
 // called when adding to the image the program segment containing the start address:
@@ -126,6 +130,8 @@ static void set_start(IMAGE* image, const START* prog_start, const SEGMENT* star
 //                  plus offset of stack within the segment
 //            = (image->hi + prog_stack->offset) / 16
 static void set_stack(IMAGE_STACK* image_stack, DWORD image_address, const STACK* prog_stack) {
+  if (image_address % 16)
+    fatal("stack image address is not paragraph-aligned\n");
   if (prog_stack->offset % 16)
     fatal("stack offset is not paragraph-aligned\n");
   image_stack->seg = (WORD) ((image_address + prog_stack->offset) / 16);
@@ -148,7 +154,11 @@ static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, 
     if (image->space)
       fatal("cannot place initialized segment/group after uninitialized space\n");
 
-    pad_image(image, seg_p2align(seg));
+    if (verbose >= 3)
+      printf("Segment '%s' has initialized data: pad image data to p2align %u\n", seg_name(seg), (unsigned) seg_p2align(seg));
+    pad_image_data(image, seg_p2align(seg));
+    if (verbose >= 3)
+      printf("Segment '%s' hi==0x%04x\n", seg_name(seg), (unsigned) seg_hi(seg));
 
     if (prog->start.segno == segno)
       set_start(image, &prog->start, seg);
@@ -158,13 +168,27 @@ static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, 
 
     bases->val[segno] = image->hi;
 
-    append_segment_to_image(image, seg);
-  }
+    append_segment_data_to_image(image, seg);
 
-  if (seg_space(seg)) { // TODO: allow for both data and space
+    if (seg_space(seg)) {
+      assert(image->space == 0);
+      image->space = seg_space(seg); // already includes padding space on top of segment hi
+    }
+  }
+  else if (seg_space(seg)) {
+    const DWORD top = image->hi + image->space;
+    const DWORD base = p2aligned(top, seg_p2align(seg));
+    image->space += (base - top);
+    assert(image->hi + image->space == base);
+
+    if (prog->start.segno == segno)
+      fatal("start segment is uninitialized data\n");
+
     if (prog->stack.segno == segno)
-      set_stack(&image->stack, p2aligned(image->hi, 4), &prog->stack);
-    image->space = p2aligned(image->space, seg_p2align(seg));
+      set_stack(&image->stack, base, &prog->stack);
+
+    bases->val[segno] = base;
+
     image->space += seg_space(seg);
   }
 }
@@ -359,27 +383,27 @@ static void test_write_image(CuTest* tc) {
   delete_image(image);
 }
 
-static void test_pad_image(CuTest* tc) {
+static void test_pad_image_data(CuTest* tc) {
   IMAGE* image = new_image();
   BYTE buf[16];
 
-  pad_image(image, 4);
+  pad_image_data(image, 4);
   CuAssertIntEquals(tc, 0, image->hi);
 
   write_image(image, 7, buf, 15);
   CuAssertIntEquals(tc, 22, image->hi);
-  pad_image(image, 4);
+  pad_image_data(image, 4);
   CuAssertIntEquals(tc, 32, image->hi);
 
-  pad_image(image, 4);
+  pad_image_data(image, 4);
   CuAssertIntEquals(tc, 32, image->hi);
 
   image->hi = 33;
-  pad_image(image, 5);
+  pad_image_data(image, 5);
   CuAssertIntEquals(tc, 64, image->hi);
 
   image->hi = 65;
-  pad_image(image, 3);
+  pad_image_data(image, 3);
   CuAssertIntEquals(tc, 72, image->hi);
 
   delete_image(image);
@@ -392,7 +416,7 @@ static void test_append_segment(CuTest* tc) {
 
   write_segment(seg, 0x80, buf, sizeof buf);
 
-  append_segment_to_image(image, seg);
+  append_segment_data_to_image(image, seg);
 
   CuAssertPtrNotNull(tc, image->data);
   CuAssertIntEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
@@ -408,7 +432,7 @@ CuSuite* image_test_suite(void) {
   SUITE_ADD_TEST(suite, test_new_image);
   SUITE_ADD_TEST(suite, test_ensure_allocated);
   SUITE_ADD_TEST(suite, test_write_image);
-  SUITE_ADD_TEST(suite, test_pad_image);
+  SUITE_ADD_TEST(suite, test_pad_image_data);
   SUITE_ADD_TEST(suite, test_append_segment);
   return suite;
 }
