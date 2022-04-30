@@ -1,6 +1,6 @@
 	IDEAL
 
-; initialized data in UNINIT segment
+; initialised data in UNINIT segment
 
 	SEGMENT	SEG1 UNINIT
 
@@ -18,7 +18,7 @@ _count	dw	1234h
 
 	ENDS	SEG1
 
-; uninitialized data in non-UNINIT segment
+; uninitialised data in non-UNINIT segment
 
 	SEGMENT SEG2
 

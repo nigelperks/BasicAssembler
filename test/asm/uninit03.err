@@ -1,4 +1,4 @@
-Error: uninit03.asm: 14: uninitialized data in non-UNINIT segment:
+Error: uninit03.asm: 14: uninitialised data in non-UNINIT segment:
 _bill   dw  ?
              ^
 Errors: 1

@@ -1,1 +1,1 @@
-blink: fatal: cannot place initialized segment/group after uninitialized space
+blink: fatal: cannot place initialised segment/group after uninitialised space

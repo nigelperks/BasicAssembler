@@ -1,1 +1,1 @@
-blink: fatal: cannot combine initialized data in 'UDATA' in 'module2.obj' on top of uninitialized space in 'UDATA'
+blink: fatal: cannot combine initialised data in 'UDATA' in 'module2.obj' on top of uninitialised space in 'UDATA'

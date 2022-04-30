@@ -432,11 +432,11 @@ static void combine(SEGMENT* dest, SEGMENT* source, const char* module_name, int
 
   if (segment_has_data(source)) {
     if (seg_space(dest))
-      fatal("cannot combine initialized data in '%s' in '%s' on top of uninitialized space in '%s'\n",
+      fatal("cannot combine initialised data in '%s' in '%s' on top of uninitialised space in '%s'\n",
             seg_name(source), module_name, seg_name(dest));
 
     if (seg_space(source))
-      fatal("segment '%s' has both initialized and uninitialized data\n", seg_name(source));
+      fatal("segment '%s' has both initialised and uninitialised data\n", seg_name(source));
 
     align_segment_hi(dest, seg_p2align(source));
     append_segment(dest, source);
@@ -444,7 +444,7 @@ static void combine(SEGMENT* dest, SEGMENT* source, const char* module_name, int
 
   if (seg_space(source)) {
     if (segment_has_data(dest))
-      fatal("cannot combine uninitialized space in '%s' in '%s' with initialized data in '%s'\n",
+      fatal("cannot combine uninitialised space in '%s' in '%s' with initialised data in '%s'\n",
             seg_name(source), module_name, seg_name(dest));
 
     space_out(dest, seg_p2align(source));

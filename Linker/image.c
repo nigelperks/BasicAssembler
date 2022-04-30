@@ -35,7 +35,7 @@ static void ensure_allocated(IMAGE* image, size_t size) {
   assert(image->hi <= MAX_IMAGE);
 
   if (image->space)
-    fatal("internal error: allocating image data: image has uninitialized space\n");
+    fatal("internal error: allocating image data: image has uninitialised space\n");
 
   if (size > MAX_IMAGE)
     fatal("exceeding maximum image size\n");
@@ -76,7 +76,7 @@ static void write_image(IMAGE* image, size_t pos, const BYTE* data, size_t size)
     image->hi = pos + size;
 }
 
-// append initialized data area (hi), not unintialized space
+// append initialised data area (hi), not unintialised space
 static void append_segment_data_to_image(IMAGE* image, const SEGMENT* seg) {
   assert(image != NULL);
   assert(seg != NULL);
@@ -86,7 +86,7 @@ static void append_segment_data_to_image(IMAGE* image, const SEGMENT* seg) {
   write_image(image, image->hi + seg->lo, seg->data + seg->lo, seg->hi - seg->lo);
 }
 
-// pad initialized data area (hi), not unintialized space
+// pad initialised data area (hi), not unintialised space
 static void pad_image_data(IMAGE* image, unsigned p2align) {
   assert(image != NULL);
 
@@ -152,10 +152,10 @@ static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, 
 
   if (segment_has_data(seg)) {
     if (image->space)
-      fatal("cannot place initialized segment/group after uninitialized space\n");
+      fatal("cannot place initialised segment/group after uninitialised space\n");
 
     if (verbose >= 3)
-      printf("Segment '%s' has initialized data: pad image data to p2align %u\n", seg_name(seg), (unsigned) seg_p2align(seg));
+      printf("Segment '%s' has initialised data: pad image data to p2align %u\n", seg_name(seg), (unsigned) seg_p2align(seg));
     pad_image_data(image, seg_p2align(seg));
     if (verbose >= 3)
       printf("Segment '%s' hi==0x%04x\n", seg_name(seg), (unsigned) seg_hi(seg));
@@ -182,7 +182,7 @@ static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, 
     assert(image->hi + image->space == base);
 
     if (prog->start.segno == segno)
-      fatal("start segment is uninitialized data\n");
+      fatal("start segment is uninitialised data\n");
 
     if (prog->stack.segno == segno)
       set_stack(&image->stack, base, &prog->stack);

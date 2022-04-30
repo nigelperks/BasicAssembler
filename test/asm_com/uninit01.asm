@@ -1,4 +1,4 @@
-; Simplest uninitialized data
+; Simplest uninitialised data
 
 	IDEAL
 

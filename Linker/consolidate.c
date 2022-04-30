@@ -100,7 +100,7 @@ static void join_segments(SEGMENTED* prog, SEGNO dest_segno, SEGMENT* dest_seg, 
 
   if (segment_has_data(source_seg)) {
     if (seg_space(dest_seg))
-      fatal("cannot group initialized data in '%s' on top of uninitialized space in '%s'\n",
+      fatal("cannot group initialised data in '%s' on top of uninitialised space in '%s'\n",
             seg_name(source_seg), seg_name(dest_seg));
 
     if (seg_space(source_seg))

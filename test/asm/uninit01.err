@@ -1,4 +1,4 @@
-Error: uninit01.asm: 6: ORG is not allowed in uninitialized segments:
+Error: uninit01.asm: 6: ORG is not allowed in uninitialised segments:
     ORG 80h
     ^
 Errors: 1

@@ -1,4 +1,4 @@
-; Uninitialized data: open the same UNINIT segment more than once.
+; Uninitialised data: open the same UNINIT segment more than once.
 
 	IDEAL
 

@@ -160,7 +160,7 @@ void load_segment_data(SEGMENT* seg, const BYTE* buf, unsigned size) {
 void load_segment_space(SEGMENT* seg, unsigned size) {
   assert(seg != NULL);
   if (seg->space + size < seg->space)
-    fatal("uninitialized space too large: %s\n", seg->name);
+    fatal("uninitialised space too large: %s\n", seg->name);
   seg->space += size;
 }
 
@@ -173,7 +173,7 @@ void append_segment(SEGMENT* dest, const SEGMENT* src) {
 
   if (src->hi > src->lo) {
     if (dest->space > 0)
-      fatal("cannot append initialized data in '%s' to uninitialized space in '%s'\n",
+      fatal("cannot append initialised data in '%s' to uninitialised space in '%s'\n",
             src->name, dest->name);
     write_segment(dest, dest->hi + src->lo, src->data + src->lo, src->hi - src->lo);
   }

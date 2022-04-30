@@ -68,7 +68,7 @@ static void emit_uninit_segments(STATE* state, IFILE* ifile, OFILE* ofile) {
     if (segment_uninit(ifile, segno)) {
       DWORD size = segment_pc(ifile, segno);
       if (size > (WORD)(-1))
-        error(state, ifile, "uninitialized segment is too large: %s", segment_name(ifile, segno));
+        error(state, ifile, "uninitialised segment is too large: %s", segment_name(ifile, segno));
       else {
         emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) segno);
         emit_object_word(ofile, OBJ_SPACE, (WORD) size);

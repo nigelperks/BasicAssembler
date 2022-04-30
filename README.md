@@ -146,12 +146,12 @@ Directives:
 MODEL TINY
 - CODESEG: code segment _CODE in group _GROUP
 - DATASEG: data segment _DATA in group _GROUP
-- UDATASEG: uninitialized data segment _BSS in group _GROUP
+- UDATASEG: uninitialised data segment _BSS in group _GROUP
 - all segment registers assumed to address _GROUP
 
 (2) Explicit segments:
 
-Uninitialized data must go in UNINIT segments.
+Uninitialised data must go in UNINIT segments.
 
 SEGMENT name [PUBLIC|STACK|UNINIT] [BYTE|WORD|DWORD|PARA|PAGE]
 ...

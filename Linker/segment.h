@@ -24,7 +24,7 @@ typedef struct {
   DWORD lo;
   DWORD hi;
 
-  DWORD space; // including space after hi to align the uninitialized data
+  DWORD space; // including space after hi to align the uninitialised data
 } SEGMENT;
 
 SEGMENT* new_segment(const char* name, BOOL public, BOOL stack, GROUPNO);

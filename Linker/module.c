@@ -243,7 +243,7 @@ static void process_segment_fragment(STATE* state, const OFILE* ofile, SEGMENTED
         if (objbyte(rec) != state->segno)
           fatal("open/close segment number mismatch\n");
         if (seg_hi(state->seg) && seg_space(state->seg))
-          fatal("segment has both initialized and uninitialized data: %u %s\n",
+          fatal("segment has both initialised and uninitialised data: %u %s\n",
                 (unsigned)state->segno, seg_name(state->seg));
         state->segno = NO_SEG;
         state->seg = NULL;

@@ -668,7 +668,7 @@ static void do_org(STATE* state, IFILE* ifile, LEX* lex) {
   }
 
   if (segment_uninit(ifile, state->curseg)) {
-    error2(state, lex, "ORG is not allowed in uninitialized segments");
+    error2(state, lex, "ORG is not allowed in uninitialised segments");
     lex_discard_line(lex);
     return;
   }
@@ -693,11 +693,11 @@ static void check_initialization_consistent(STATE* state, IFILE* ifile, LEX* lex
 
   if (segment_uninit(ifile, state->curseg)) {
     if (init == INIT)
-      error2(state, lex, "initialized data in UNINIT segment");
+      error2(state, lex, "initialised data in UNINIT segment");
   }
   else {
     if (init == UNINIT)
-      error2(state, lex, "uninitialized data in non-UNINIT segment");
+      error2(state, lex, "uninitialised data in non-UNINIT segment");
   }
 }
 
@@ -865,7 +865,7 @@ static size_t byte_data(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
     BOOL init2;
     size += byte_datum(state, ifile, lex, &init2);
     if (*init != init2 && !reported) {
-      error2(state, lex, "mix of initialized and uninitialized data");
+      error2(state, lex, "mix of initialised and uninitialised data");
       reported = true;
       *init = INIT;
     }
