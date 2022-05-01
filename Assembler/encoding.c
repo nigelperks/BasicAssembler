@@ -290,6 +290,12 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     case TOK_PUBLIC: do_public(state, ifile, irec, lex, ofile); break;
     case TOK_SEGMENT: do_segment(state, ifile, irec, lex, ofile); break;
     case TOK_UDATASEG: do_udataseg(state, ifile, lex, ofile); break;
+    // select processor
+    case TOK_P8086:
+    case TOK_P8087:
+    case TOK_PNO87:
+      select_cpu(state, lex);
+      break;
     default:
       error(state, ifile, "directive not implemented: %s", token_name(irec->op));
   }
@@ -1470,8 +1476,10 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
   BYTE sreg_code;
 
   // The WAIT pre-opcode comes first: it is really a separate instruction.
-  if (irec->def->opcode_prefix)
-    buf[i++] = opcode_prefix_code(irec->def->opcode_prefix);
+  if (irec->def->opcode_prefix) {
+    if (!wait_precedes(ifile))
+      buf[i++] = opcode_prefix_code(irec->def->opcode_prefix);
+  }
 
   if (irec->rep != TOK_NONE)
     buf[i++] = repeat_code(irec->rep);
@@ -1519,24 +1527,38 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
         compute_rm(state, ifile, oper1, &mod, &rm, &disp_len, &disp_code, &rel);
         reg = irec->def->reg;
         break;
-      case SIS:
-      case SIC:
-        mod = 3;
-        reg = irec->def->reg;
-        rm = oper1->val.reg;
-        break;
       case SSI:
         mod = 3;
         reg = irec->def->reg;
         rm = oper2->val.reg;
         break;
-      case SCC:
+      case SIS:
         mod = 3;
         reg = irec->def->reg;
-        rm = irec->def->rm;
+        rm = oper1->val.reg;
+        break;
+      case SSC:
+        mod = 3;
+        reg = irec->def->reg;
+        rm = 0;
+        break;
+      case SIC:
+        mod = 3;
+        reg = irec->def->reg;
+        rm = oper1->val.reg;
+        break;
+      case STC:
+        mod = 3;
+        reg = irec->def->reg;
+        rm = 0;
+        break;
+      case STK:
+        mod = 3;
+        reg = irec->def->reg;
+        rm = 1;
         break;
       default:
-        fatal("internal error: unknown ModR/M type\n");
+        fatal("internal error: unknown ModR/M type: %d\n", (int) irec->def->modrm);
         break;
     }
     buf[i++] = encode_modrm(mod, reg, rm);

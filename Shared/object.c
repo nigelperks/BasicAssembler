@@ -32,7 +32,7 @@ static const struct {
   /* OBJ_DW */                   { "DW",                   OK_WORD },
   /* OBJ_DD */                   { "DD",                   OK_DWORD },
   /* OBJ_DQ */                   { "DQ",                   OK_QWORD },
-  /* OBJ_DT */                   { "DT",                   OK_QWORD }, // TODO: supported TBYTE type
+  /* OBJ_DT */                   { "DT",                   OK_QWORD },
   /* OBJ_ORG */                  { "ORG",                  OK_WORD },
   /* OBJ_BEGIN_SEGMENT */        { "BEGIN_SEGMENT",        OK_SIGNAL },
   /* OBJ_END_SEGMENT */          { "END_SEGMENT",          OK_SIGNAL },

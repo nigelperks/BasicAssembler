@@ -23,6 +23,8 @@ int main(int argc, char* argv[]) {
 
 #define MAX_SEGMENTS (16)  // quick & dirty
 
+static void decode_record(const DECODER*, const OREC*, DWORD pc);
+
 static void dump_file(const char* filename) {
   const DECODER* decoder = build_decoder();
   OFILE* ofile = load_object_file(filename);
@@ -40,11 +42,7 @@ static void dump_file(const char* filename) {
     switch (orec->type) {
       case OBJ_CODE:
         if (segno >= 0 && segno < MAX_SEGMENTS) {
-          DECODED dec;
-          if (decode_instruction(decoder, orec->u.data.buf, orec->u.data.size, &dec) == DECODE_ERR_NONE) {
-            fputs(": ", stdout);
-            print_assembly(pc[segno], &dec);
-          }
+          decode_record(decoder, orec, pc[segno]);
           pc[segno] += orec->u.data.size;
         }
         break;
@@ -86,4 +84,16 @@ static void dump_file(const char* filename) {
     putchar('\n');
   }
   delete_ofile(ofile);
+}
+
+static void decode_record(const DECODER* decoder, const OREC* orec, DWORD pc) {
+  DECODED dec;
+  bool waiting = false;
+  for (unsigned count = 0; count < orec->u.data.size; count += dec.len) {
+    if (decode_instruction(decoder, orec->u.data.buf + count, orec->u.data.size - count, waiting, &dec) != DECODE_ERR_NONE)
+      break;
+    fputs(": ", stdout);
+    print_assembly(pc, &dec);
+    waiting = (dec.def->opcode1 == WAIT_OPCODE);
+  }
 }

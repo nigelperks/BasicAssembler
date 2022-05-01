@@ -70,29 +70,36 @@ static void help(void) {
   exit(EXIT_FAILURE);
 }
 
-static unsigned instruction(const DECODER*, FILE*, DWORD addr, bool print_hex);
+typedef struct {
+  bool waiting;
+} STATE;
+
+static unsigned instruction(STATE*, const DECODER*, FILE*, DWORD addr, bool print_hex);
 
 static void disassemble(const DECODER* dec, const char* filename, bool print_hex) {
   FILE* fp = efopen(filename, "rb", "disassembly");
   DWORD addr = 0x100;
   int c;
 
+  STATE state;
+  state.waiting = false;
+
   while ((c = getc(fp)) != EOF) {
     ungetc(c, fp);
-    addr += instruction(dec, fp, addr, print_hex);
+    addr += instruction(&state, dec, fp, addr, print_hex);
   }
 
   fclose(fp);
 }
 
-static unsigned instruction(const DECODER* decoder, FILE* fp, const DWORD addr, bool print_hex) {
+static unsigned instruction(STATE* state, const DECODER* decoder, FILE* fp, const DWORD addr, bool print_hex) {
   BYTE buf[16];
 
   if (print_hex)
     printf("%04x: ", addr);
 
   unsigned len = 0;
-  int err = fetch_instruction(decoder, fp, print_hex, buf, sizeof buf, &len);
+  int err = fetch_instruction(decoder, fp, state->waiting, print_hex, buf, sizeof buf, &len);
   if (err) {
     putchar('\n');
     fatal("error fetching instruction: %s\n", fetch_error_string(err));
@@ -103,12 +110,13 @@ static unsigned instruction(const DECODER* decoder, FILE* fp, const DWORD addr, 
     fputs("   ", stdout);
 
   DECODED dec;
-  err = decode_instruction(decoder, buf, len, &dec);
+  err = decode_instruction(decoder, buf, len, state->waiting, &dec);
   if (err) {
     putchar('\n');
     fatal("error decoding instruction: %s\n", decoding_error(err));
   }
   print_assembly(addr, &dec);
   putchar('\n');
+  state->waiting = (dec.def->opcode1 == WAIT_OPCODE);
   return dec.len;
 }

@@ -128,6 +128,12 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
     case TOK_DT:
       do_data(state, ifile, irec, lex);
       break;
+    // select processor
+    case TOK_P8086:
+    case TOK_P8087:
+    case TOK_PNO87:
+      select_cpu(state, lex);
+      break;
     // no resize or tracking action required
     case TOK_END:
     case TOK_EQU:
@@ -447,7 +453,13 @@ static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
   irec->def = find_instruc(irec->op, &oper1->opclass, &oper2->opclass);
 
   if (irec->def == NULL) {
-    error(state, ifile, "instruction not supported with given operands: %s", token_name(irec->op));
+    error2(state, lex, "instruction not supported with given operands: %s", token_name(irec->op));
+    lex_discard_line(lex);
+    return;
+  }
+
+  if (!cpu_enabled(state->cpu, irec->def->cpu)) {
+    error2(state, lex, "instruction not supported on selected processor");
     lex_discard_line(lex);
     return;
   }
@@ -459,8 +471,10 @@ static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
 
   irec->size += instruction_segment_override_size(state, ifile, irec, lex, oper1, oper2);
 
-  if (irec->def->opcode_prefix)
-    irec->size += 1;
+  if (irec->def->opcode_prefix) {
+    if (!wait_precedes(ifile))
+      irec->size += 1;
+  }
 
   irec->size += irec->def->opcodes;
 
@@ -476,10 +490,12 @@ static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
       case MMC:
         irec->size += rm_disp_len(state, ifile, oper1);
         break;
-      case SIS:
       case SSI:
-      case SCC:
+      case SIS:
+      case SSC:
       case SIC:
+      case STC:
+      case STK:
         break;
       default:
         fatal("internal: unknown modrm type: %d\n", irec->def->modrm);

@@ -17,6 +17,7 @@ typedef struct {
   unsigned errors;
   unsigned max_errors;
   SEGNO curseg;
+  unsigned cpu;
   const SYMBOL* assume_sym[N_SREG];
 } STATE;
 

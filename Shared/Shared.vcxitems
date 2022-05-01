@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)CuTest.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)decoder.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)disassemble.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)exeheader.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)instable.h" />
@@ -26,6 +27,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)CuTest.c" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)decoder.c" />
     <ClCompile Include="$(MSBuildThisFileDirectory)disassemble.c" />
     <ClCompile Include="$(MSBuildThisFileDirectory)instable.c" />
     <ClCompile Include="$(MSBuildThisFileDirectory)object.c" />

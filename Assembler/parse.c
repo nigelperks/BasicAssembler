@@ -19,6 +19,8 @@ void init_state(STATE* state, unsigned max_errors) {
   state->curseg = NO_SEG;
   for (i = 0; i < N_SREG; i++)
     state->assume_sym[i] = NULL;
+
+  state->cpu = (1 << P86) | (1 << P87);
 }
 
 void error(STATE* state, const IFILE* ifile, const char* fmt, ...) {
@@ -287,12 +289,10 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   if (lex_token(lex) == TOK_ST) {
     op->opclass.type = OT_ST;
     op->val.reg = 0;
-    add_flag(op, OF_ST);
     if (lex_next(lex) == '(') {
       if (lex_next(lex) == TOK_NUM) {
         if (lex_val(lex) == 0)
-          // treat as plain ST
-          ;
+          add_flag(op, OF_STT);
         else if (lex_val(lex) < 8) {
           op->val.reg = lex_val(lex);
           add_flag(op, OF_STI);
@@ -307,6 +307,8 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
       else
         error2(state, lex, "numeric stack index expected");
     }
+    else
+      add_flag(op, OF_STT);
     return TRUE;
   }
 

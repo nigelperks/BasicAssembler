@@ -104,8 +104,7 @@ Enter '?' in interactive mode for help; d = dump, s = disassemble.
 
 ## 4. Language supported
 ---------------------
-All 8086 instructions.
-8087 in progress.
+All 8086 and 8087 instructions.
 
 A line is free format: no fixed column for labels.
 
@@ -136,6 +135,9 @@ Directives:
 - IDEAL    -- no effect, allows Turbo Assembler to process the source unchanged
 - MODEL    -- set memory model
 - ORG      -- set segment origin (use 100h for main segment of COM program)
+- P8086    -- select 8086 instructions including 8087
+- P8087    -- re-enable 8087 instructions after PNO87
+- PNO87    -- disable 8087 instructions
 - PUBLIC   -- make specified symbols public
 - SEGMENT  -- open named segment
 
@@ -182,6 +184,7 @@ and Loaders_.
 - Borland _Turbo Assembler Quick Reference_, version 4.0, 1993
 - Borland _Turbo Assembler User's Guide_, version 4.0, 1993
 - Intel _iAPX 86/88, 186/188 User's Manual: Programmer's Reference_, 1983
+- Intel _80387 Programmer's Reference Manual_, 1987
 - Kusswurm, Daniel _Modern X86 Assembly Language Programming_, 2014
 - Levine, John R. _Linkers & Loaders_, 2000
 - Microsoft _MASM Programmer's Guide_, version 6.1, 1996

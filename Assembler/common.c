@@ -95,3 +95,18 @@ bool parse_alignment(STATE* state, LEX* lex, unsigned *p2) {
 
   return true;
 }
+
+void select_cpu(STATE* state, LEX* lex) {
+  switch (lex_token(lex)) {
+    case TOK_P8086: state->cpu = (1 << P86) | (1 << P87); break;
+    case TOK_P8087: state->cpu |= (1 << P87); break;
+    case TOK_PNO87: state->cpu &= ~(1 << P87); break;
+    default: fatal("internal error: select_cpu: invalid token\n"); break;
+  }
+  lex_next(lex);
+}
+
+bool wait_precedes(const IFILE* ifile) {
+  int op;
+  return ifile->pos > 0 && ((op = ifile->recs[ifile->pos - 1].op) == TOK_WAIT || op == TOK_FWAIT);
+}

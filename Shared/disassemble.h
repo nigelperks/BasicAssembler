@@ -6,7 +6,7 @@
 #define DISASSEMBLE_H
 
 #include <stdbool.h>
-#include "instable.h"
+#include "decoder.h"
 #include "utils.h"
 
 enum {
@@ -14,8 +14,7 @@ enum {
   DECODE_ERR_MULTIPLE_REPEAT_PREFIX,
   DECODE_ERR_MULTIPLE_SREG_PREFIX,
   DECODE_ERR_NO_OPCODE,
-  DECODE_ERR_NO_OPCODE2,
-  DECODE_ERR_NO_MODRM,
+  DECODE_ERR_NO_OPCODE2_OR_MODRM,
   DECODE_ERR_NO_DISP,
   DECODE_ERR_NO_IMMEDIATE,
   DECODE_ERR_NO_MATCHING_INSTRUCTION,
@@ -63,7 +62,7 @@ typedef struct {
   unsigned len;
 } DECODED;
 
-int decode_instruction(const DECODER*, const BYTE* buf, const unsigned len, DECODED*);
+int decode_instruction(const DECODER*, const BYTE* buf, const unsigned len, bool waiting, DECODED*);
 
 void print_assembly(const DWORD addr, const DECODED* dec);
 

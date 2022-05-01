@@ -29,7 +29,7 @@ static bool nobyte(FILE*, const char* descrip, bool print_hex, BYTE *val);
 // Fetch a complete encoded instruction from file into buffer.
 // On exit: *len == number of bytes fetched (decoded).
 // Return FETCH_ error code.
-int fetch_instruction(const DECODER* dec, FILE* fp, bool print_hex, BYTE* buf, size_t bufsz, unsigned *len) {
+int fetch_instruction(const DECODER* dec, FILE* fp, bool waiting, bool print_hex, BYTE* buf, size_t bufsz, unsigned *len) {
     assert(dec != NULL);
     assert(fp != NULL);
     assert(buf != NULL);
@@ -44,114 +44,70 @@ int fetch_instruction(const DECODER* dec, FILE* fp, bool print_hex, BYTE* buf, s
     if (nobyte(fp, "opcode or prefix", false, &first_byte))
       return FETCH_ERR_EOF;
 
-    static const BYTE WAIT_OPCODE = 0x9B;
     const OPCODE_INFO* info = NULL;
     BYTE opcode1;
     unsigned i = 0;
 
-    if (first_byte == WAIT_OPCODE) {
-      buf[i++] = first_byte;
-      PRINT_BYTE(first_byte);
-      long pos_after_wait = ftell(fp);
+    static const char JUMP_DISPLACEMENT[] = "jump displacement";
 
-      int c = getc(fp);
-      if (c == EOF) {
-        // WAIT is the complete instruction
-        *len = 1;
-        return FETCH_OK;
-      }
-      ungetc(c, fp);
+    ungetc(first_byte, fp);
+    unsigned prefix_len = 0;
+    int err = fetch_prefixes(fp, print_hex, buf, 2, &prefix_len, &opcode1); // prints prefixes, not opcode1
+    if (err != FETCH_OK)
+      return err;
+    i += prefix_len;
 
-      unsigned prefix_len = 0;
-      int err = fetch_prefixes(fp, print_hex, buf + i, 2, &prefix_len, &opcode1); // prints prefixes, not opcode1
-      if (err != FETCH_OK)
-        return err;
-      i += prefix_len;
+    buf[i++] = opcode1;
+    PRINT_BYTE(opcode1);
 
-      info = opcode_info(dec, WAIT, opcode1);
-      if (info == NULL) {
-        // WAIT is the complete instruction
-        fseek(fp, pos_after_wait, SEEK_SET);
-        *len = 1;
-        return FETCH_OK;
-      }
-
-      buf[i++] = opcode1;
-      PRINT_BYTE(opcode1);
+    if (opcode1 == SHORT_JMP) {
+      if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i++]))
+        return FETCH_ERR_EOF;
+      *len = i;
+      return FETCH_OK;
     }
-    else {
-      static const char JUMP_DISPLACEMENT[] = "jump displacement";
 
-      ungetc(first_byte, fp);
-      unsigned prefix_len = 0;
-      int err = fetch_prefixes(fp, print_hex, buf, 2, &prefix_len, &opcode1); // prints prefixes, not opcode1
-      if (err != FETCH_OK)
-        return err;
-      i += prefix_len;
-
-      buf[i++] = opcode1;
-      PRINT_BYTE(opcode1);
-
-      if (opcode1 == SHORT_JMP) {
-        if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i++]))
-          return FETCH_ERR_EOF;
-        *len = i;
-        return FETCH_OK;
-      }
-
-      if (opcode1 == NEAR_JMP) {
-        if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i++]))
-          return FETCH_ERR_EOF;
-        if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i++]))
-          return FETCH_ERR_EOF;
-        *len = i;
-        return FETCH_OK;
-      }
-
-      info = opcode_info(dec, NOPR, opcode1);
-      if (info == NULL)
-        return FETCH_ERR_NO_INSTRUCTION;
+    if (opcode1 == NEAR_JMP) {
+      if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i++]))
+        return FETCH_ERR_EOF;
+      if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i++]))
+        return FETCH_ERR_EOF;
+      *len = i;
+      return FETCH_OK;
     }
+    info = opcode_info(dec, opcode1);
+    if (info == NULL)
+      return FETCH_ERR_NO_INSTRUCTION;
 
     assert(info != NULL);
     assert(info->defs != NULL);
 
     const INSDEF* def = NULL;
 
-    switch (info->byte2) {
-      case NO_BYTE2:
-        assert(info->defs->next == NULL);
-        def = info->defs->def;
-        break;
-      case OPCODE_BYTE2: {
-        BYTE opcode2;
-        if (nobyte(fp, "second opcode", print_hex, &opcode2))
-          return FETCH_ERR_EOF;
-        buf[i++] = opcode2;
-        def = find_opcode2(info, opcode2);
-        if (def == NULL)
-          return FETCH_ERR_NO_INSTRUCTION;
-        break;
-      }
-      case MODRM_BYTE2: {
-        BYTE m;
-        if (nobyte(fp, "ModR/M byte", print_hex, &m))
-          return FETCH_ERR_EOF;
-        buf[i++] = m;
+    if (info->opcode2_or_modrm) {
+      BYTE c;
+      if (nobyte(fp, "second opcode or ModR/M byte", print_hex, &c))
+        return FETCH_ERR_EOF;
+
+      buf[i++] = c;
+
+      def = find_opcode2(info, waiting, c);
+      if (def == NULL) {
         MODRM modrm;
-        decode_modrm(m, &modrm);
+        decode_modrm(c, &modrm);
         for (int j = 0; j < modrm.disp_size; j++) {
           if (nobyte(fp, "displacement", print_hex, &buf[i++]))
             return FETCH_ERR_EOF;
         }
 
-        def = find_modrm(info, modrm.mod, modrm.reg, modrm.rm);
+        def = find_modrm(info, waiting, modrm.mod, modrm.reg, modrm.rm);
         if (def == NULL)
           return FETCH_ERR_NO_INSTRUCTION;
-        break;
       }
-      default:
-        assert(0 && "second byte case missing");
+    }
+    else {
+      assert(info->defs->next == NULL);
+      def = info->defs->def;
     }
 
     assert(def != NULL);

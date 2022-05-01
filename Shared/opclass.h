@@ -61,8 +61,8 @@ enum operand_flag {
   OF_JUMP,
   OF_FAR,
   // floating point stack
-  OF_ST,  // ST, ST(i)
   OF_STI, // ST(i)
+  OF_STT, // stack top: ST or ST(0)
 };
 
 const char* operand_flag_name(int);

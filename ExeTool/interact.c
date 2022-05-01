@@ -23,6 +23,7 @@ typedef struct {
   WORD ip;
   int mode;
   unsigned rc; // relocation counter, bytes left in relocation in current dump
+  bool waiting;
 } STATE;
 
 #define PAGE (16)
@@ -39,6 +40,8 @@ void interact(const char* fileName) {
   state.cs = state.exe->header.exInitCS;
   state.ip = state.exe->header.exInitIP;
   state.mode = IDLE;
+  state.rc = 0;
+  state.waiting = false;
 
   print_exe_header(&state.exe->header);
 
@@ -250,7 +253,7 @@ static bool disassemble_one_instruction(STATE* state) {
   }
 
   DECODED dec;
-  int err = decode_instruction(state->decoder, state->exe->image + addr, state->exe->image_size - addr, &dec);
+  int err = decode_instruction(state->decoder, state->exe->image + addr, state->exe->image_size - addr, state->waiting, &dec);
   if (err) {
     putchar('\n');
     puts(decoding_error(err));
@@ -268,6 +271,7 @@ static bool disassemble_one_instruction(STATE* state) {
   print_assembly(addr, &dec);
   putchar('\n');
 
+  state->waiting = (dec.def->opcode1 == WAIT_OPCODE);
   state->ip += dec.len; // TODO: segment transition
   return true;
 }

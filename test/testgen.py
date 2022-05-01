@@ -156,6 +156,7 @@ instructions_without_operands = [
     "F2XM1",
     "FABS",
     "FADD",
+    "FADDP",
     "FCHS",
     "FCLEX",
     "FNCLEX",
@@ -166,6 +167,45 @@ instructions_without_operands = [
     "FDISI",
     "FNDISI",
     "FDIV",
+    "FDIVP",
+    "FDIVR",
+    "FDIVRP",
+    "FENI",
+    "FNENI",
+    "FFREE",
+    "FINCSTP",
+    "FINIT",
+    "FNINIT",
+    "FLD",
+    "FLDLG2",
+    "FLDLN2",
+    "FLDL2E",
+    "FLDL2T",
+    "FLDPI",
+    "FLDZ",
+    "FLD1",
+    "FMUL",
+    "FMULP",
+    "FNOP",
+    "FPATAN",
+    "FPREM",
+    "FPTAN",
+    "FRNDINT",
+    "FSCALE",
+    "FSQRT",
+    "FST",
+    "FSTP",
+    "FSUB",
+    "FSUBP",
+    "FSUBR",
+    "FSUBRP",
+    "FTST",
+    "FXAM",
+    "FXCH",
+    "FXTRACT",
+    "FYL2X",
+    "FYL2XP1",
+    "FWAIT",
 ]
 
 instructions_with_operands = [
@@ -420,16 +460,110 @@ instructions_with_operands = [
     ("FADD",   "stack",   "ST"),
     ("FADD",   "dword",   None),
     ("FADD",   "qword",   None),
+    # FADDP
+    ("FADDP",  "stack",   "ST"),
+    # FBLD
+    ("FBLD",   "tbyte",   None),
+    # FBSTP
+    ("FBSTP",  "tbyte",   None),
     # FCOM
-    ("FCOM",   "ST",      None),
     ("FCOM",   "stack",   None),
     ("FCOM",   "dword",   None),
     ("FCOM",   "qword",   None),
     # FCOMP
-    ("FCOMP",  "ST",      None),
     ("FCOMP",  "stack",   None),
     ("FCOMP",  "dword",   None),
     ("FCOMP",  "qword",   None),
+    # FDIV
+    ("FDIV",   "ST",      "stack"),
+    ("FDIV",   "stack",   "ST"),
+    ("FDIV",   "dword",   None),
+    ("FDIV",   "qword",   None),
+    ("FDIVP",  "stack",   "ST"),
+    # FDIVR
+    ("FDIVR",  "ST",      "stack"),
+    ("FDIVR",  "stack",   "ST"),
+    ("FDIVR",  "dword",   None),
+    ("FDIVR",  "qword",   None),
+    ("FDIVRP", "stack",   "ST"),
+    # FFREE
+    ("FFREE",  "stack",   None),
+    # FIADD
+    ("FIADD",  "word",    None),
+    ("FIADD",  "dword",   None),
+    # FICOM
+    ("FICOM",  "word",    None),
+    ("FICOM",  "dword",   None),
+    # FICOMP
+    ("FICOMP", "word",    None),
+    ("FICOMP", "dword",   None),
+    # FIDIV
+    ("FIDIV",  "word",    None),
+    ("FIDIV",  "dword",   None),
+    # FIDIVR
+    ("FIDIVR", "word",    None),
+    ("FIDIVR", "dword",   None),
+    # FILD
+    ("FILD",   "word",    None),
+    ("FILD",   "dword",   None),
+    ("FILD",   "qword",   None),
+    # FIMUL
+    ("FIMUL",  "word",    None),
+    ("FIMUL",  "dword",   None),
+    # FIST
+    ("FIST",   "word",    None),
+    ("FIST",   "dword",   None),
+    # FISTP
+    ("FISTP",  "word",    None),
+    ("FISTP",  "dword",   None),
+    ("FISTP",  "qword",   None),
+    # FISUB
+    ("FISUB",  "word",    None),
+    ("FISUB",  "dword",   None),
+    # FISUBR
+    ("FISUBR", "word",    None),
+    ("FISUBR", "dword",   None),
+    # FLD
+    ("FLD",    "dword",   None),
+    ("FLD",    "qword",   None),
+    ("FLD",    "tbyte",   None),
+    ("FLD",    "stack",   None),
+    # FLDCW
+    ("FLDCW",  "word",    None),
+    # FMUL
+    ("FMUL",   "dword",   None),
+    ("FMUL",   "qword",   None),
+    ("FMUL",   "ST",      "stack"),
+    ("FMUL",   "stack",   "ST"),
+    ("FMULP",  "stack",   "ST"),
+    # FST
+    ("FST",    "dword",   None),
+    ("FST",    "qword",   None),
+    ("FST",    "stack",   None),
+    ("FSTP",   "dword",   None),
+    ("FSTP",   "qword",   None),
+    ("FSTP",   "tbyte",   None),
+    ("FSTP",   "stack",   None),
+    # FSTCW
+    ("FSTCW",  "word",    None),
+    ("FNSTCW", "word",    None),
+    # FSTSW
+    ("FSTSW",  "word",    None),
+    ("FNSTSW", "word",    None),
+    # FSUB
+    ("FSUB",   "ST",      "stack"),
+    ("FSUB",   "stack",   "ST"),
+    ("FSUB",   "dword",   None),
+    ("FSUB",   "qword",   None),
+    ("FSUBP",  "stack",   "ST"),
+    # FSUBR
+    ("FSUBR",  "ST",      "stack"),
+    ("FSUBR",  "stack",   "ST"),
+    ("FSUBR",  "dword",   None),
+    ("FSUBR",  "qword",   None),
+    ("FSUBRP", "stack",   "ST"),
+    # FXCH
+    ("FXCH",   "stack",   None),
 # end marker
     (None,     None,      None)
 ];
@@ -563,13 +697,19 @@ def generate_operands(spec):
     elif spec == "SregCS":
         result = SREG_CS
     elif spec == "moffs8":
-        result = ["[byte 90a0h]"]
+        result = ["[byte 0FACEh]"]
     elif spec == "moffs16":
-        result = ["[word 90a0h]"]
+        result = ["[word 0FACEh]"]
+    elif spec == "byte":
+        result = ["[byte 0FACEh]"]
+    elif spec == "word":
+        result = ["[word 0FACEh]"]
     elif spec == "dword":
-        result = ["[dword 90a0h]"]
+        result = ["[dword 0FACEh]"]
     elif spec == "qword":
-        result = ["[qword 90a0h]"]
+        result = ["[qword 0FACEh]"]
+    elif spec == "tbyte":
+        result = ["[tbyte 0FACEh]"]
     elif spec == "ST":
         result = ["ST"]
     elif spec == "stack":
@@ -673,19 +813,23 @@ def generate_operands_tests(opcode, n, suffix, operands1, operands2, title, file
 
     files.append(fileName)
 
-def generate_no_operand_instructions(opcodeRequested, files):
+def generate_no_operand_instructions(pattern, files):
     global insCount
 
-    if opcodeRequested is not None:
-        opcodeRequested = opcodeRequested.upper()
+    if pattern is not None:
+        pattern = pattern.upper()
 
     out = open("gen.asm", "w")
     try:
         emit_head(out)
         written = 0
         for opcode in instructions_without_operands:
-            if opcodeRequested is not None and opcode != opcodeRequested:
-                continue
+            if pattern is not None:
+                if pattern[0] == '^':
+                    if not opcode.startswith(pattern[1:]):
+                        continue
+                elif opcode != pattern:
+                    continue
             out.write("    %s\n" % opcode)
             written += 1
             insCount += 1
@@ -730,19 +874,21 @@ def number(s, dflt):
     return int(s)
 
 
-def generate_test_named(name, files):
-    name = name.upper()
+def generate_test_named(pattern, files):
+    pattern = pattern.upper()
 
-    generate_no_operand_instructions(name, files)
+    generate_no_operand_instructions(pattern, files)
 
     n = 0
     for ins in instructions_with_operands:
-        if ins[0] == name:
+        if ins[0] is None:
+            break
+        if ins[0] == pattern or (pattern[0] == '^' and ins[0].startswith(pattern[1:])):
             n += 1
             generate_instruction(ins, n, files)
 
     if files == []:
-        fatal("Found no tests named %s" % name)
+        fatal("Found no tests matching %s" % pattern)
 
 
 
@@ -760,7 +906,7 @@ def produce_tasm_references(config, files, keepDosBox):
   try:
     bat.write("cd %s\n" % config["DosBoxTestDir"])
     for x in files:
-      bat.write("tasm /m10 " + x + "\n")
+      bat.write("tasm /m10 /z " + x + "\n")
       bat.write("if errorlevel 1 goto end\n")
       bat.write("tlink /t " + x + "\n")
       bat.write("if errorlevel 1 goto end\n")
@@ -840,27 +986,35 @@ def test_files(config, tools, files):
 def main(argv):
   global insCount
 
+  executables = None
+  pattern = None
+  keepDosBox = False
+
   argc = len(argv)
-  if argc > 1:
-    if argv[1] in ["list", "-list"]:
-      if argc > 2:
-        list_tests(argv[2])
+  for i, arg in enumerate(argv[1:]):
+    if arg in ["list", "-list"]:
+      if i+1 < argc:
+        list_tests(argv[i+1])
       else:
         list_tests(None)
       sys.exit(0)
-    elif argv[1] in ["clean", "-clean"]:
-      if argc > 2:
-        fatal("unexpected argument to clean: " + argv[2])
+    if arg in ["clean", "-clean"]:
       delete_test_dir(TEMP_DIR)
       sys.exit(0)
+    if arg[0] == '-':
+      if arg == "-k":
+        keepDosBox = True
+      else:
+        fatal("unrecognised option: " + arg)
+    else:
+      if executables is None:
+        executables = arg
+      elif pattern is None:
+        pattern = arg
+      else:
+        fatal("Usage: testgen.py executables-directory [pattern]")
 
-  if argc < 2 or argc > 3:
-    fatal("Usage: testgen.py executables-directory [pattern]")
-
-  executables = argv[1]
-  pattern = argv[2] if argc >= 3 else None
-
-  if not os.path.isdir(executables):
+  if executables is None or not os.path.isdir(executables):
     fatal("Usage: testgen.py executables-directory [pattern]")
 
   tools = find_tools(executables, ["bas","blink","bdis"])
@@ -871,7 +1025,6 @@ def main(argv):
 # needTarget = False
 
   files = []
-  keepDosBox = False
 
   startDir = os.getcwd()
   delete_test_dir(TEMP_DIR)

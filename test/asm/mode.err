@@ -1,0 +1,4 @@
+Error: mode.asm: 15: instruction not supported on selected processor:
+    fadd
+        ^
+Errors: 1

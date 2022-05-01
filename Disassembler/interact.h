@@ -6,7 +6,7 @@
 #define INTERACT_H
 
 #include <stdbool.h>
-#include "instable.h"
+#include "decoder.h"
 
 void interact(const DECODER*, const char* fileName);
 

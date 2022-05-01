@@ -211,6 +211,12 @@ static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
     case TOK_PUBLIC: do_public(state, ifile, lex); break;
     case TOK_SEGMENT: do_segment(state, ifile, lex); break;
     case TOK_UDATASEG: do_udataseg(state, ifile, lex); break;
+    // select processor
+    case TOK_P8086:
+    case TOK_P8087:
+    case TOK_PNO87:
+      select_cpu(state, lex);
+      break;
     default:
       error2(state, lex, "directive not implemented: %s", token_name(irec->op));
       lex_discard_line(lex);
@@ -1213,15 +1219,23 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
   irec->def = find_instruc(irec->op, &oper1.opclass, &oper2.opclass);
 
   if (irec->def == NULL) {
-    error(state, ifile, "instruction not supported with given operands: %s", token_name(irec->op));
+    error2(state, lex, "instruction not supported with given operands: %s", token_name(irec->op));
+    lex_discard_line(lex);
+    return;
+  }
+
+  if (!cpu_enabled(state->cpu, irec->def->cpu)) {
+    error2(state, lex, "instruction not supported on selected processor");
     lex_discard_line(lex);
     return;
   }
 
   compute_instruction_segment_override_size(state, ifile, irec, lex, &oper1, &oper2);
 
-  if (irec->def->opcode_prefix)
-    irec->size += 1;
+  if (irec->def->opcode_prefix) {
+    if (!wait_precedes(ifile))
+      irec->size += 1;
+  }
 
   irec->size += irec->def->opcodes;
 
@@ -1239,10 +1253,12 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
       case MMC:
         irec->size += rm_disp_len(state, ifile, &oper1, &provisional);
         break;
-      case SIS:
       case SSI:
-      case SCC:
+      case SIS:
+      case SSC:
       case SIC:
+      case STC:
+      case STK:
         break;
       default:
         fatal("internal: unknown modrm type: %d\n", irec->def->modrm);

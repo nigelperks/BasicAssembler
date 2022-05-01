@@ -11,13 +11,13 @@
 #include "token.h"
 
 static const INSDEF short_jmp = {
-//  instruc  oper1    oper2    opcodes            +opc R/M reg rm imm cpu
-    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xEB, 0x00, 0, RMN, 0,  0, 1, P86
+//  instruc  oper1    oper2    opcodes            +opc R/M reg imm cpu
+    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xEB, 0x00, 0, RMN, 0,  1, P86
 };
 
 static const INSDEF near_jmp = {
-//  instruc  oper1    oper2    opcodes            +opc R/M reg rm imm cpu
-    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xE9, 0x00, 0, RMN, 0,  0, 2, P86
+//  instruc  oper1    oper2    opcodes            +opc R/M reg imm cpu
+    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xE9, 0x00, 0, RMN, 0,  2, P86
 };
 
 //"some fetched bytes were not decoded"
@@ -27,8 +27,7 @@ const char* decoding_error(int err) {
     case DECODE_ERR_MULTIPLE_REPEAT_PREFIX: return "multiple repeat prefixes";
     case DECODE_ERR_MULTIPLE_SREG_PREFIX: return "multiple segment overrides";
     case DECODE_ERR_NO_OPCODE: return "opcode missing";
-    case DECODE_ERR_NO_OPCODE2: return "second opcode byte missing";
-    case DECODE_ERR_NO_MODRM: return "ModR/M byte missing";
+    case DECODE_ERR_NO_OPCODE2_OR_MODRM: return "ModR/M or second opcode missing";
     case DECODE_ERR_NO_DISP: return "displacement missing or incomplete";
     case DECODE_ERR_NO_IMMEDIATE: return "immediate value missing or incomplete";
     case DECODE_ERR_NO_MATCHING_INSTRUCTION: return "no instruction matches the encoding";
@@ -52,82 +51,53 @@ static void init_decoded(DECODED* dec) {
   dec->len = 0;
 }
 
+static void decode_modrm_operands(int modrm_type, const MODRM*, RM_OPERAND* oper1, RM_OPERAND* oper2);
+
 // Return error code, 0 on success.
-int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned count, DECODED* dec) {
+int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned count, bool waiting, DECODED* dec) {
   init_decoded(dec);
 
   if (count == 0)
     return DECODE_ERR_NO_OPCODE;
 
-  static const BYTE WAIT_OPCODE = 0x9B;
-
   int opcode1;
   const OPCODE_INFO* info = NULL;
   unsigned i = 0;
 
-  if (buf[0] == WAIT_OPCODE) {
-    if (count == 1) {
-      dec->def = find_opcode(decoder, NOPR, WAIT_OPCODE);
-      dec->len = 1;
-      return DECODE_ERR_NONE;
-    }
+  unsigned prefixes = 0;
+  int err = decode_prefixes(buf, count, &dec->rep, &dec->sreg_override, &prefixes);
+  if (err)
+    return err;
+  i += prefixes;
 
-    i++;
+  if (i >= count)
+    return DECODE_ERR_NO_OPCODE;
 
-    unsigned prefixes = 0;
-    int err = decode_prefixes(buf + i, count - i, &dec->rep, &dec->sreg_override, &prefixes);
-    if (err)
-      return err;
-    i += prefixes;
+  opcode1 = buf[i++];
 
-    if (i >= count)
-      return DECODE_ERR_NO_OPCODE;
-
-    opcode1 = buf[i++];
-
-    info = opcode_info(decoder, WAIT, opcode1);
-    if (info == NULL) {
-      dec->def = find_opcode(decoder, NOPR, WAIT_OPCODE);
-      dec->len = 1;
-      return DECODE_ERR_NONE;
-    }
+  if (opcode1 == SHORT_JMP) {
+    if (i + 1 > count)
+      return DECODE_ERR_NO_IMMEDIATE;
+    dec->imm_bytes = 1;
+    dec->imm_value = buf[i++];
+    dec->def = &short_jmp;
+    dec->len = i;
+    return DECODE_ERR_NONE;
   }
-  else {
-    unsigned prefixes = 0;
-    int err = decode_prefixes(buf, count, &dec->rep, &dec->sreg_override, &prefixes);
-    if (err)
-      return err;
-    i += prefixes;
 
-    if (i >= count)
-      return DECODE_ERR_NO_OPCODE;
-
-    opcode1 = buf[i++];
-
-    if (opcode1 == SHORT_JMP) {
-      if (i + 1 > count)
-        return DECODE_ERR_NO_IMMEDIATE;
-      dec->imm_bytes = 1;
-      dec->imm_value = buf[i++];
-      dec->def = &short_jmp;
-      dec->len = i;
-      return DECODE_ERR_NONE;
-    }
-
-    if (opcode1 == NEAR_JMP) {
-      if (i + 2 > count)
-        return DECODE_ERR_NO_IMMEDIATE;
-      dec->imm_bytes = 2;
-      dec->imm_value = buf[i] | (buf[i+1] << 8);
-      dec->def = &near_jmp;
-      dec->len = i+2;
-      return DECODE_ERR_NONE;
-    }
-
-    info = opcode_info(decoder, NOPR, opcode1);
-    if (info == NULL)
-      return DECODE_ERR_NO_MATCHING_INSTRUCTION;
+  if (opcode1 == NEAR_JMP) {
+    if (i + 2 > count)
+      return DECODE_ERR_NO_IMMEDIATE;
+    dec->imm_bytes = 2;
+    dec->imm_value = buf[i] | (buf[i+1] << 8);
+    dec->def = &near_jmp;
+    dec->len = i+2;
+    return DECODE_ERR_NONE;
   }
+
+  info = opcode_info(decoder, opcode1);
+  if (info == NULL)
+    return DECODE_ERR_NO_MATCHING_INSTRUCTION;
 
   switch (info->opcode_inc) {
     case 0:
@@ -148,24 +118,14 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
   if (info->defs == NULL)
     fatal("no instruction definition found: opcode 0x%02x\n", opcode1);
 
-  switch (info->byte2) {
-    case NO_BYTE2:
-      assert(info->defs->next == NULL);
-      dec->def = info->defs->def;
-      break;
-    case OPCODE_BYTE2: {
-      if (i + 1 > count)
-        return DECODE_ERR_NO_OPCODE2;
-      int opcode2 = buf[i++];
-      dec->def = find_opcode2(info, opcode2);
-      if (dec->def == NULL)
-        return DECODE_ERR_NO_MATCHING_INSTRUCTION;
-      break;
-    }
-    case MODRM_BYTE2: {
-      if (i + 1 > count)
-        return DECODE_ERR_NO_MODRM;
-      int c = buf[i++];
+  if (info->opcode2_or_modrm) {
+    if (i + 1 > count)
+      return DECODE_ERR_NO_OPCODE2_OR_MODRM;
+
+    int c = buf[i++];
+
+    dec->def = find_opcode2(info, waiting, c);
+    if (dec->def == NULL) {
       MODRM modrm;
       decode_modrm(c, &modrm);
       if (i + modrm.disp_size > count)
@@ -173,48 +133,18 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
       for (int j = 0; j < modrm.disp_size; j++)
         modrm.disp = (buf[i++] << (j * 8)) | modrm.disp;
 
-      dec->def = find_modrm(info, modrm.mod, modrm.reg, modrm.rm);
+      dec->def = find_modrm(info, waiting, modrm.mod, modrm.reg, modrm.rm);
       if (dec->def == NULL)
         return DECODE_ERR_NO_MATCHING_INSTRUCTION;
 
-      switch (dec->def->modrm) {
-      case RRM:
-        decode_reg(&modrm, &dec->oper1);
-        decode_rm(&modrm, &dec->oper2);
-        break;
-      case RMR:
-        decode_rm(&modrm, &dec->oper1);
-        decode_reg(&modrm, &dec->oper2);
-        break;
-      case RMC:
-      case MMC:
-        decode_rm(&modrm, &dec->oper1);
-        break;
-      case SIS:
-        dec->oper1.type = OT_ST;
-        dec->oper1.val.reg = modrm.rm;
-        dec->oper2.type = OT_ST;
-        dec->oper2.val.reg = 0;
-        break;
-      case SSI:
-        dec->oper1.type = OT_ST;
-        dec->oper1.val.reg = 0;
-        dec->oper2.type = OT_ST;
-        dec->oper2.val.reg = modrm.rm;
-        break;
-      case SCC:
-        dec->oper1.type = OT_ST;
-        dec->oper1.val.reg = modrm.rm;
-        break;
-      case SIC:
-        dec->oper1.type = OT_ST;
-        dec->oper1.val.reg = modrm.rm;
-        break;
-      default:
-        assert(0 && "unknown modrm type");
-        break;
-      }
+      decode_modrm_operands(dec->def->modrm, &modrm, &dec->oper1, &dec->oper2);
     }
+  }
+  else {
+    // no second opcode or ModR/M byte so only one choice
+    // CHECK: what about wait prefix / no prefix?
+    assert(info->defs->next == NULL);
+    dec->def = info->defs->def;
   }
 
   dec->imm_value = 0;
@@ -247,6 +177,51 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
 
   dec->len = i;
   return DECODE_ERR_NONE;
+}
+
+static void decode_modrm_operands(int type, const MODRM* modrm, RM_OPERAND* oper1, RM_OPERAND* oper2) {
+    assert(oper1 != NULL && oper1->type == OT_NONE);
+    assert(oper2 != NULL && oper2->type == OT_NONE);
+
+    switch (type) {
+      case RRM:
+        decode_reg(modrm, oper1);
+        decode_rm(modrm, oper2);
+        break;
+      case RMR:
+        decode_rm(modrm, oper1);
+        decode_reg(modrm, oper2);
+        break;
+      case RMC:
+      case MMC:
+        decode_rm(modrm, oper1);
+        break;
+      case SSI:
+        oper1->type = OT_ST;
+        oper1->val.reg = 0;
+        oper2->type = OT_ST;
+        oper2->val.reg = modrm->rm;
+        break;
+      case SIS:
+        oper1->type = OT_ST;
+        oper1->val.reg = modrm->rm;
+        oper2->type = OT_ST;
+        oper2->val.reg = 0;
+        break;
+      case SIC:
+        oper1->type = OT_ST;
+        oper1->val.reg = modrm->rm;
+        break;
+      case STC:
+        oper1->type = OT_ST;
+        oper1->val.reg = 0;
+        break;
+      case STK:
+        break;
+      default:
+        fatal("internal error: decode_instruction: unknown modrm type: %d\n", type);
+        break;
+    }
 }
 
 bool repeat_prefix(int c) {
@@ -443,8 +418,8 @@ static unsigned operand_flag_size(int flag) {
     { OF_JUMP, 0 },
     { OF_FAR, 0 },
     // floating point stack
-    { OF_ST, 0 },
     { OF_STI, 0 },
+    { OF_STT, 0 },
   };
 
   assert(flag < sizeof flags / sizeof flags[0]);
@@ -557,11 +532,11 @@ static void print_operand(int opno, int flag, unsigned rm_size, int sreg_overrid
   case OF_JUMP:
     print_displaced_addr_word(disp_base_addr, imm_value, imm_bytes);
     break;
-  case OF_ST:
-    fputs("ST", stdout);
-    break;
   case OF_STI:
     printf("ST(%d)", (int) op->val.reg);
+    break;
+  case OF_STT:
+    fputs("ST", stdout);
     break;
   }
 }
