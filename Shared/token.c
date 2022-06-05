@@ -11,7 +11,11 @@ BOOL token_is_directive(int tok) {
 }
 
 BOOL token_is_opcode(int tok) {
-  return tok >= TOK_AAA && tok <= TOK_XOR;
+  return tok >= TOK_AAA && tok <= TOK_JS;
+}
+
+bool token_is_jcc_opcode(int t) {
+  return t >= TOK_JA && t <= TOK_JS;
 }
 
 BOOL token_is_repeat(int tok) {
@@ -39,6 +43,7 @@ static const struct keyword {
   { TOK_EXTRN,    "EXTRN" },
   { TOK_GROUP,    "GROUP" },
   { TOK_IDEAL,    "IDEAL" },
+  { TOK_JUMPS,    "JUMPS" },
   { TOK_MODEL,    "MODEL" },
   { TOK_ORG,      "ORG" },
   { TOK_P8086,    "P8086" },
@@ -190,38 +195,7 @@ static const struct keyword {
   { TOK_INTO,   "INTO" },
   { TOK_IRET,   "IRET" },
   { TOK_IRETW,  "IRETW" },
-  { TOK_JA,     "JA" },
-  { TOK_JAE,    "JAE" },
-  { TOK_JB,     "JB" },
-  { TOK_JBE,    "JBE" },
-  { TOK_JC,     "JC" },
   { TOK_JCXZ,   "JCXZ" },
-  { TOK_JE,     "JE" },
-  { TOK_JZ,     "JZ" },
-  { TOK_JG,     "JG" },
-  { TOK_JGE,    "JGE" },
-  { TOK_JL,     "JL" },
-  { TOK_JLE,    "JLE" },
-  { TOK_JNA,    "JNA" },
-  { TOK_JNAE,   "JNAE" },
-  { TOK_JNB,    "JNB" },
-  { TOK_JNBE,   "JNBE" },
-  { TOK_JNC,    "JNC" },
-  { TOK_JNE,    "JNE" },
-  { TOK_JNG,    "JNG" },
-  { TOK_JNGE,   "JNGE" },
-  { TOK_JNL,    "JNL" },
-  { TOK_JNLE,   "JNLE" },
-  { TOK_JNO,    "JNO" },
-  { TOK_JNP,    "JNP" },
-  { TOK_JNS,    "JNS" },
-  { TOK_JNZ,    "JNZ" },
-  { TOK_JO,     "JO" },
-  { TOK_JP,     "JP" },
-  { TOK_JPE,    "JPE" },
-  { TOK_JPO,    "JPO" },
-  { TOK_JS,     "JS" },
-  { TOK_JZ,     "JZ" },
   { TOK_JMP,    "JMP" },
   { TOK_LAHF,   "LAHF" },
   { TOK_LEA,    "LEA" },
@@ -284,6 +258,38 @@ static const struct keyword {
   { TOK_XLAT,   "XLAT" },
   { TOK_XLATB,  "XLATB" },
   { TOK_XOR,    "XOR" },
+  // consecutive short jump conditionals
+  { TOK_JA,     "JA" },
+  { TOK_JAE,    "JAE" },
+  { TOK_JB,     "JB" },
+  { TOK_JBE,    "JBE" },
+  { TOK_JC,     "JC" },
+  { TOK_JE,     "JE" },
+  { TOK_JZ,     "JZ" },
+  { TOK_JG,     "JG" },
+  { TOK_JGE,    "JGE" },
+  { TOK_JL,     "JL" },
+  { TOK_JLE,    "JLE" },
+  { TOK_JNA,    "JNA" },
+  { TOK_JNAE,   "JNAE" },
+  { TOK_JNB,    "JNB" },
+  { TOK_JNBE,   "JNBE" },
+  { TOK_JNC,    "JNC" },
+  { TOK_JNE,    "JNE" },
+  { TOK_JNG,    "JNG" },
+  { TOK_JNGE,   "JNGE" },
+  { TOK_JNL,    "JNL" },
+  { TOK_JNLE,   "JNLE" },
+  { TOK_JNO,    "JNO" },
+  { TOK_JNP,    "JNP" },
+  { TOK_JNS,    "JNS" },
+  { TOK_JNZ,    "JNZ" },
+  { TOK_JO,     "JO" },
+  { TOK_JP,     "JP" },
+  { TOK_JPE,    "JPE" },
+  { TOK_JPO,    "JPO" },
+  { TOK_JS,     "JS" },
+  { TOK_JZ,     "JZ" },
 
   // end marker
   { TOK_NONE, NULL }

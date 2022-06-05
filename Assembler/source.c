@@ -9,7 +9,7 @@
 #include "source.h"
 #include "utils.h"
 
-static SOURCE* new_source(const char* name) {
+SOURCE* new_source(const char* name) {
   SOURCE* src = NULL;
 
   src = emalloc(sizeof *src);
@@ -21,7 +21,7 @@ static SOURCE* new_source(const char* name) {
   return src;
 }
 
-static void append(SOURCE*, unsigned lineno, const char* line, size_t len);
+static unsigned append(SOURCE*, unsigned lineno, const char* line, size_t len);
 
 SOURCE* load_source_file(const char* filename) {
   SOURCE* src = NULL;
@@ -101,9 +101,14 @@ unsigned source_lineno(SOURCE* src, unsigned index) {
   return src->lines[index].lineno;
 }
 
+unsigned append_source_line(SOURCE* src, unsigned lineno, const char* line) {
+  assert(line != NULL);
+  return append(src, lineno, line, strlen(line));
+}
+
 static char* copy(const char*, size_t len);
 
-static void append(SOURCE* src, unsigned lineno, const char* line, size_t len) {
+static unsigned append(SOURCE* src, unsigned lineno, const char* line, size_t len) {
   assert(src->used <= src->allocated);
   if (src->used == src->allocated) {
     src->allocated = src->allocated ? src->allocated * 2 : 128;
@@ -112,7 +117,7 @@ static void append(SOURCE* src, unsigned lineno, const char* line, size_t len) {
   assert(src->used < src->allocated);
   src->lines[src->used].lineno = lineno;
   src->lines[src->used].text = copy(line, len);
-  src->used++;
+  return src->used++;
 }
 
 static char* copy(const char* line, size_t len) {
@@ -201,8 +206,10 @@ static void test_new_source(CuTest* tc) {
 
 static void test_append(CuTest* tc) {
   SOURCE* src = new_source(NULL);
+  unsigned i;
 
-  append(src, 1, "", 0);
+  i = append(src, 1, "", 0);
+  CuAssertIntEquals(tc, 0, i);
   CuAssertPtrNotNull(tc, src->lines);
   CuAssertIntEquals(tc, 128, src->allocated);
   CuAssertIntEquals(tc, 1, src->used);
@@ -210,7 +217,8 @@ static void test_append(CuTest* tc) {
   CuAssertIntEquals(tc, 1, src->lines[0].lineno);
   CuAssertStrEquals(tc, "", src->lines[0].text);
 
-  append(src, 3, "jam sandwich\n", 12);
+  i = append(src, 3, "jam sandwich\n", 12);
+  CuAssertIntEquals(tc, 1, i);
   CuAssertPtrNotNull(tc, src->lines);
   CuAssertIntEquals(tc, 128, src->allocated);
   CuAssertIntEquals(tc, 2, src->used);

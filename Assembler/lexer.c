@@ -16,13 +16,12 @@
 
 static void lex_fatal(LEX*, const char* fmt, ...);
 
-LEX* new_lex(SOURCE* src) {
+LEX* new_lex(const char* source_name) {
   LEX* lex = emalloc(sizeof *lex);
 
-  assert(src != NULL);
-
-  lex->source = src;
-  lex->line = 0;
+  lex->source_name = source_name;
+  lex->text = NULL;
+  lex->lineno = 0;
   lex->pos = 0;
   lex->token_pos = 0;
   lex->token = TOK_NONE;
@@ -35,25 +34,31 @@ void delete_lex(LEX* lex) {
   efree(lex);
 }
 
+const char* lex_source_name(LEX* lex) {
+  assert(lex != NULL);
+
+  return lex->source_name;
+}
+
 unsigned lex_lineno(LEX* lex) {
   assert(lex != NULL);
 
-  return source_lineno(lex->source, lex->line);
+  return lex->lineno;
 }
 
 const char* lex_text(LEX* lex) {
   assert(lex != NULL);
 
-  return source_text(lex->source, lex->line);
+  return lex->text;
 }
 
-void lex_begin(LEX* lex, unsigned line, unsigned pos) {
+void lex_begin(LEX* lex, const char* text, unsigned lineno, unsigned pos) {
   assert(lex != NULL);
-  assert(lex->source != NULL);
-  assert(line < lex->source->used);
-  assert(pos <= strlen(source_text(lex->source, line)));
+  assert(text != NULL);
+  assert(pos <= strlen(text));
 
-  lex->line = line;
+  lex->text = text;
+  lex->lineno = lineno;
   lex->pos = pos;
   lex->token = lex_next(lex);
 }
@@ -102,29 +107,24 @@ int lex_reg(LEX* lex) {
 
 void lex_discard_line(LEX* lex) {
   assert(lex != NULL);
-  assert(lex->source != NULL);
 
-  lex->pos = strlen(source_text(lex->source, lex->line));
+  if (lex->text)
+    lex->pos = strlen(lex->text);
   lex->token = TOK_EOL;
 }
 
 int lex_next(LEX* lex) {
-  const char* text = NULL;
-  int c;
-
   assert(lex != NULL);
-  assert(lex->source != NULL);
+  assert(lex->text != NULL);
 
-  text = source_text(lex->source, lex->line);
-
-  assert(text != NULL);
+  const char* text = lex->text;
 
   while (text[lex->pos] == ' ' || text[lex->pos] == '\t')
     lex->pos++;
 
   lex->token_pos = lex->pos;
 
-  c = text[lex->pos];
+  int c = text[lex->pos];
   if (c == '\0' || c == '\n' || c == ';')
     return lex->token = TOK_EOL;
 
@@ -253,16 +253,12 @@ BYTE* lex_string_content(LEX* lex, size_t *len) {
 }
 
 static void lex_fatal(LEX* lex, const char* fmt, ...) {
-  unsigned lineno;
-  va_list ap;
-
   assert(lex != NULL);
-  assert(lex->source != NULL);
   assert(fmt != NULL);
 
-  lineno = source_lineno(lex->source, lex->line);
-  fprintf(stderr, "Fatal: %s: %u: ", source_name(lex->source), lineno);
+  fprintf(stderr, "Fatal: %s: %u: ", lex->source_name ? lex->source_name : "-", lex->lineno);
 
+  va_list ap;
   va_start(ap, fmt); 
   vfprintf(stderr, fmt, ap);
   va_end(ap);
@@ -275,52 +271,51 @@ static void lex_fatal(LEX* lex, const char* fmt, ...) {
 #include "CuTest.h"
 
 static void test_new_lex(CuTest* tc) {
-  SOURCE source;
-  LEX* lex;
+  char name[] = "hello.asm";
 
-  lex = new_lex(&source);
+  LEX* lex = new_lex(name);
   CuAssertPtrNotNull(tc, lex);
-  CuAssertPtrEquals(tc, &source, lex->source);
-  CuAssertIntEquals(tc, 0, lex->line);
+  CuAssertTrue(tc, lex->source_name == name);
+  CuAssertIntEquals(tc, 0, lex->lineno);
   CuAssertIntEquals(tc, 0, lex->pos);
   CuAssertIntEquals(tc, TOK_NONE, lex->token);
+  delete_lex(lex);
 
+  lex = new_lex(NULL);
+  CuAssertPtrNotNull(tc, lex);
+  CuAssertTrue(tc, lex->source_name == NULL);
+  CuAssertIntEquals(tc, 0, lex->lineno);
+  CuAssertIntEquals(tc, 0, lex->pos);
+  CuAssertIntEquals(tc, TOK_NONE, lex->token);
   delete_lex(lex);
 }
 
 static void test_lex_begin(CuTest* tc) {
-  SOURCE* src = NULL;
-  LEX* lex = NULL;
-  const char text[] = "crumbly walls";
+  LEX* lex = new_lex(NULL);
 
-  src = load_source_mem(text);
-  lex = new_lex(src);
-
-  lex->line = 3;
+  lex->lineno = 3;
   lex->pos = 23;
   lex->token = '!';
-  lex_begin(lex, 0, 0);
-  CuAssertIntEquals(tc, 0, lex->line);
+
+  const char text[] = "crumbly walls";
+  lex_begin(lex, text, 1, 0);
+
+  CuAssertIntEquals(tc, 1, lex->lineno);
   CuAssertIntEquals(tc, 7, lex->pos);
   CuAssertIntEquals(tc, TOK_LABEL, lex->token);
   CuAssertIntEquals(tc, '\0', lex->lexeme[7]);
   CuAssertStrEquals(tc, "crumbly", lex->lexeme);
 
   delete_lex(lex);
-  delete_source(src);
 }
 
 static void test_discard_line(CuTest* tc) {
-  SOURCE* src = NULL;
-  LEX* lex = NULL;
-
   static const char text[] = "this is a test string";
   const unsigned LEN = strlen(text);
 
-  src = load_source_mem(text);
-  lex = new_lex(src);
+  LEX* lex = new_lex(NULL);
 
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   lex_discard_line(lex);
   CuAssertIntEquals(tc, TOK_EOL, lex->token);
@@ -331,21 +326,16 @@ static void test_discard_line(CuTest* tc) {
   CuAssertIntEquals(tc, LEN, lex->pos);
 
   delete_lex(lex);
-  delete_source(src);
 }
 
 static void test_get_token(CuTest* tc) {
-  SOURCE* src = NULL;
-  LEX* lex = NULL;
-
   static const char text[] =
     "123h123+AB0+0AB0hmov ds'sam smith';comment\n"
     "second line";
 
-  src = load_source_mem(text);
-  lex = new_lex(src);
+  LEX* lex = new_lex(NULL);
 
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   CuAssertIntEquals(tc, TOK_NUM, lex->token);
   CuAssertIntEquals(tc, TOK_NUM, lex_token(lex));
@@ -388,7 +378,6 @@ static void test_get_token(CuTest* tc) {
   CuAssertIntEquals(tc, TOK_EOL, lex->token);
 
   delete_lex(lex);
-  delete_source(src);
 }
 
 static void test_string(CuTest* tc) {

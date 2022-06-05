@@ -30,6 +30,7 @@ IFILE* new_ifile(SOURCE* src) {
   ifile->codeseg = NULL;
   ifile->dataseg = NULL;
   ifile->udataseg = NULL;
+  ifile->injections = new_source("(injections)");
 
   return ifile;
 }
@@ -42,20 +43,13 @@ void delete_ifile(IFILE* ifile) {
       efree(ifile->segments[i].name);
     for (GROUPNO i = 0; i < ifile->ngroup; i++)
       efree(ifile->groups[i]);
+    delete_source(ifile->injections);
     efree(ifile);
   }
 }
 
-IREC* new_irec(IFILE* ifile) {
-  assert(ifile->used <= ifile->allocated);
-  if (ifile->used == ifile->allocated) {
-    ifile->allocated = ifile->allocated ? 2 * ifile->allocated : 128;
-    ifile->recs = erealloc(ifile->recs, (sizeof ifile->recs[0]) * ifile->allocated);
-  }
-
-  assert(ifile->used < ifile->allocated);
-  IREC* irec = &ifile->recs[ifile->used++];
-  irec->source = NO_SOURCE;
+static void init_irec(IREC* irec) {
+  irec->si = 0;
   irec->label = NULL;
   irec->rep = TOK_NONE;
   irec->op = TOK_NONE;
@@ -63,7 +57,40 @@ IREC* new_irec(IFILE* ifile) {
   irec->near_jump_size = 0;
   irec->def = NULL;
   irec->size = 0;
+}
+
+static void ensure_slot(IFILE* ifile) {
+  assert(ifile->used <= ifile->allocated);
+  if (ifile->used == ifile->allocated) {
+    ifile->allocated = ifile->allocated ? 2 * ifile->allocated : 128;
+    ifile->recs = erealloc(ifile->recs, (sizeof ifile->recs[0]) * ifile->allocated);
+  }
+}
+
+static void spread(IFILE* ifile, unsigned i) {
+  assert(ifile != NULL);
+  assert(ifile->used < ifile->allocated);
+  for (unsigned j = ifile->used; j > i; j--)
+    ifile->recs[j] = ifile->recs[j-1];
+  ifile->used++;
+  init_irec(&ifile->recs[i]);
+}
+
+IREC* new_irec(IFILE* ifile) {
+  ensure_slot(ifile);
+  assert(ifile->used < ifile->allocated);
+  IREC* irec = &ifile->recs[ifile->used++];
+  init_irec(irec);
   return irec;
+}
+
+IREC* insert_irec_after(IFILE* ifile, const IREC* p) {
+  ptrdiff_t i = p - ifile->recs;
+  if (i < 0 || (unsigned long)i >= (unsigned long)ifile->used)
+    fatal("internal error: insert_irec_after: position out of range\n");
+  ensure_slot(ifile);
+  spread(ifile, i+1);
+  return &ifile->recs[i+1];
 }
 
 unsigned irec_count(IFILE* ifile) {
@@ -103,9 +130,9 @@ void print_intermediate(const IFILE* ifile, const char* descrip, unsigned option
       printf("%4u: ", (unsigned) irec->size);
     if (options & PRINT_SOURCE_NAME) {
       printf("%s: ", source_name(ifile->source));
-      printf("%4u: ", source_lineno(ifile->source, irec->source));
+      printf("%4u: ", irec_lineno(ifile, irec));
     }
-    printf("%s", source_text(ifile->source, irec->source));
+    printf("%s", irec_text(ifile, irec));
     putchar('\n');
   }
 
@@ -275,6 +302,54 @@ unsigned segment_p2align(IFILE* ifile, unsigned seg) {
   return ifile->segments[seg].p2align;
 }
 
+unsigned inject(IFILE* ifile, unsigned lineno, const char* text) {
+  assert(ifile != NULL);
+  assert(ifile->injections != NULL);
+  return append_source_line(ifile->injections, lineno, text);
+}
+
+unsigned inject_lineno(const IFILE* ifile, unsigned index) {
+  assert(ifile != NULL);
+  assert(ifile->injections != NULL);
+  return source_lineno(ifile->injections, index);
+}
+
+const char* inject_text(const IFILE* ifile, unsigned index) {
+  assert(ifile != NULL);
+  assert(ifile->injections != NULL);
+  return source_text(ifile->injections, index);
+}
+
+unsigned irec_lineno(const IFILE* ifile, const IREC* irec) {
+  assert(irec != NULL);
+  if (irec->si > 0)
+    return source_lineno(ifile->source, irec->si - 1);
+  if (irec->si < 0)
+    return source_lineno(ifile->injections, -irec->si - 1);
+  return 0;
+}
+
+const char* irec_text(const IFILE* ifile, const IREC* irec) {
+  assert(irec != NULL);
+  if (irec->si > 0)
+    return source_text(ifile->source, irec->si - 1);
+  if (irec->si < 0)
+    return source_text(ifile->injections, -irec->si - 1);
+  return "";
+}
+
+void set_source(IREC* irec, unsigned i) {
+  assert(irec != NULL);
+  assert((long)(i+1) > 0);
+  irec->si = i+1;
+}
+
+void set_inject(IREC* irec, unsigned i) {
+  assert(irec != NULL);
+  assert((long)(i+1) > 0);
+  irec->si = -(long)(i+1);
+}
+
 #ifdef UNIT_TEST
 
 #include "CuTest.h"
@@ -300,6 +375,7 @@ static void test_new_ifile(CuTest* tc) {
   CuAssertTrue(tc, ifile->dataseg == NULL);
   CuAssertTrue(tc, ifile->udataseg == NULL);
   CuAssertIntEquals(tc, 0, irec_count(ifile));
+  CuAssertPtrNotNull(tc, ifile->injections);
 
   delete_ifile(ifile);
 }
@@ -312,7 +388,7 @@ static void test_new_irec(CuTest* tc) {
   irec = new_irec(ifile);
 
   CuAssertPtrNotNull(tc, irec);
-  CuAssertIntEquals(tc, NO_SOURCE, irec->source);
+  CuAssertIntEquals(tc, 0, irec->si);
   CuAssertPtrEquals(tc, NULL, irec->label);
   CuAssertIntEquals(tc, TOK_NONE, irec->rep);
   CuAssertIntEquals(tc, TOK_NONE, irec->op);
@@ -329,7 +405,7 @@ static void test_new_irec(CuTest* tc) {
 
   irec = new_irec(ifile);
   CuAssertPtrNotNull(tc, irec);
-  CuAssertIntEquals(tc, NO_SOURCE, irec->source);
+  CuAssertIntEquals(tc, 0, irec->si);
   CuAssertPtrEquals(tc, NULL, irec->label);
   CuAssertIntEquals(tc, 0, irec->size);
   CuAssertPtrNotNull(tc, ifile->recs);
@@ -340,7 +416,7 @@ static void test_new_irec(CuTest* tc) {
   ifile->used = ifile->allocated;
   irec = new_irec(ifile);
   CuAssertPtrNotNull(tc, irec);
-  CuAssertIntEquals(tc, NO_SOURCE, irec->source);
+  CuAssertIntEquals(tc, 0, irec->si);
   CuAssertPtrNotNull(tc, ifile->recs);
   CuAssertIntEquals(tc, 129, ifile->used);
   CuAssertIntEquals(tc, 256, ifile->allocated);
@@ -400,11 +476,32 @@ static void test_segments(CuTest* tc) {
   delete_ifile(ifile);
 }
 
+static void test_injections(CuTest* tc) {
+  SOURCE* src = new_source(NULL);
+  IFILE* ifile = new_ifile(src);
+
+  unsigned i = inject(ifile, 3, "cobblers");
+  CuAssertIntEquals(tc, 0, i);
+  CuAssertIntEquals(tc, 3, inject_lineno(ifile, i));
+  CuAssertStrEquals(tc, "cobblers", inject_text(ifile, i));
+
+  unsigned j = inject(ifile, 7, "lemon zest");
+  CuAssertIntEquals(tc, 1, j);
+  CuAssertIntEquals(tc, 3, inject_lineno(ifile, i));
+  CuAssertStrEquals(tc, "cobblers", inject_text(ifile, i));
+  CuAssertIntEquals(tc, 7, inject_lineno(ifile, j));
+  CuAssertStrEquals(tc, "lemon zest", inject_text(ifile, j));
+
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
 CuSuite* ifile_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_new_ifile);
   SUITE_ADD_TEST(suite, test_new_irec);
   SUITE_ADD_TEST(suite, test_segments);
+  SUITE_ADD_TEST(suite, test_injections);
   return suite;
 }
 

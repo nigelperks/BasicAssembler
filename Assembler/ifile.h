@@ -11,10 +11,8 @@
 #include "instable.h"
 #include "symbol.h"
 
-#define NO_SOURCE (-1)
-
 typedef struct {
-  unsigned long source;
+  long si; // source index: zero => none, positive => source line, negative => injection
   SYMBOL* label;
   int rep;
   int op;
@@ -66,12 +64,15 @@ typedef struct {
   const SYMBOL* codeseg;
   const SYMBOL* dataseg;
   const SYMBOL* udataseg;
+  SOURCE* injections;
 } IFILE;
 
 IFILE* new_ifile(SOURCE*);
 void delete_ifile(IFILE*);
 
 IREC* new_irec(IFILE*);
+IREC* insert_irec_after(IFILE*, const IREC*);
+
 unsigned irec_count(IFILE*);
 IREC* get_irec(IFILE*, unsigned);
 const IREC* get_irec_const(const IFILE*, unsigned);
@@ -112,5 +113,15 @@ enum {
 };
 
 void print_intermediate(const IFILE*, const char* descrip, unsigned options);
+
+unsigned inject(IFILE*, unsigned lineno, const char*);
+unsigned inject_lineno(const IFILE*, unsigned index);
+const char* inject_text(const IFILE*, unsigned index);
+
+unsigned irec_lineno(const IFILE*, const IREC*);
+const char* irec_text(const IFILE*, const IREC*);
+
+void set_source(IREC*, unsigned source_index);
+void set_inject(IREC*, unsigned inject_index);
 
 #endif // IFILE_H

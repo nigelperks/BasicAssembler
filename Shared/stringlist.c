@@ -36,7 +36,7 @@ const char* stringlist_item(STRINGLIST* list, unsigned i) {
   return list->strings[i];
 }
 
-void append_string(STRINGLIST* list, const char* s) {
+unsigned append_string(STRINGLIST* list, const char* s) {
   assert(list != NULL);
   assert(list->used <= list->allocated);
   if (list->used == list->allocated) {
@@ -47,5 +47,7 @@ void append_string(STRINGLIST* list, const char* s) {
     list->allocated = new_allocated;
   }
   assert(list->used < list->allocated);
-  list->strings[list->used++] = estrdup(s);
+  unsigned i = list->used++;
+  list->strings[i] = estrdup(s);
+  return i;
 }

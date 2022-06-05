@@ -19,6 +19,7 @@ typedef struct {
   SEGNO curseg;
   unsigned cpu;
   const SYMBOL* assume_sym[N_SREG];
+  bool jumps;
 } STATE;
 
 void init_state(STATE*, unsigned max_errors);

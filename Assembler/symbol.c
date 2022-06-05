@@ -30,6 +30,7 @@ SYMTAB* new_symbol_table(void) {
   st->allocated = 0;
   st->used = 0;
   st->next_external_id = 0;
+  st->locals = 0;
   return st;
 }
 
@@ -114,6 +115,13 @@ SYMBOL* sym_insert_section(SYMTAB* st, const char* name) {
   sym->u.sec.type = ST_UNKNOWN;
   sym->u.sec.ord = 0;
   return sym;
+}
+
+// TODO: prevent non-local symbols using this namespace
+SYMBOL* sym_insert_local(SYMTAB* st) {
+  char buf[16];
+  sprintf(buf, "@@%u", st->locals++);
+  return sym_insert_relative(st, buf);
 }
 
 const char* sym_name(const SYMBOL* sym) {
@@ -260,6 +268,7 @@ static void test_new_symbol_table(CuTest* tc) {
   CuAssertIntEquals(tc, 0, st->allocated);
   CuAssertIntEquals(tc, 0, st->used);
   CuAssertIntEquals(tc, 0, st->next_external_id);
+  CuAssertIntEquals(tc, 0, st->locals);
 
   delete_symbol_table(st);
 }

@@ -11,8 +11,9 @@
 #define MAX_LEX (128)
 
 typedef struct {
-  SOURCE* source;
-  unsigned line;
+  const char* source_name;
+  const char* text;
+  unsigned lineno;
   unsigned pos;
   unsigned token_pos;
   char lexeme[MAX_LEX];
@@ -23,14 +24,15 @@ typedef struct {
   } val;
 } LEX;
 
-LEX* new_lex(SOURCE*);
+LEX* new_lex(const char* source_name);
 void delete_lex(LEX*);
 
 // source
+const char* lex_source_name(LEX*);
 unsigned lex_lineno(LEX*);
 const char* lex_text(LEX*);
 
-void lex_begin(LEX*, unsigned line, unsigned pos);
+void lex_begin(LEX*, const char* text, unsigned lineno, unsigned pos);
 int lex_token(LEX*);
 int lex_next(LEX*);
 unsigned lex_pos(LEX*);

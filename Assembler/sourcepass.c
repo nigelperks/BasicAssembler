@@ -28,7 +28,7 @@ void source_pass(IFILE* ifile, const Options* options) {
     assert(line != NULL);
     if (!blank(line)) {
       IREC* irec = new_irec(ifile);
-      irec->source = i;
+      set_source(irec, i);
     }
   }
 }
@@ -57,9 +57,9 @@ static void test_source_pass(CuTest* tc) {
   source_pass(ifile, opts);
 
   CuAssertIntEquals(tc, 3, ifile->used);
-  CuAssertIntEquals(tc, 1, ifile->recs[0].source);
-  CuAssertIntEquals(tc, 2, ifile->recs[1].source);
-  CuAssertIntEquals(tc, 4, ifile->recs[2].source);
+  CuAssertIntEquals(tc, 2, ifile->recs[0].si);
+  CuAssertIntEquals(tc, 3, ifile->recs[1].si);
+  CuAssertIntEquals(tc, 5, ifile->recs[2].si);
 
   delete_ifile(ifile);
   delete_source(src);

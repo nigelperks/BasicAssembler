@@ -133,6 +133,7 @@ Directives:
             (BYTE, WORD, DWORD, PROC)
 - GROUP    -- define a group and list its segments
 - IDEAL    -- no effect, allows Turbo Assembler to process the source unchanged
+- JUMPS    -- expand conditional jumps when out of short range
 - MODEL    -- set memory model
 - ORG      -- set segment origin (use 100h for main segment of COM program)
 - P8086    -- select 8086 instructions including 8087

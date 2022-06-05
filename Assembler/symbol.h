@@ -49,6 +49,7 @@ typedef struct {
   unsigned allocated;
   unsigned used;
   SYMBOL_ID next_external_id;
+  unsigned locals;
 } SYMTAB;
 
 SYMTAB* new_symbol_table(void);
@@ -62,6 +63,8 @@ SYMBOL* sym_insert_absolute(SYMTAB*, const char* name);
 SYMBOL* sym_insert_section(SYMTAB*, const char* name);
 
 SYMBOL* sym_insert_external(SYMTAB*, const char* name, SEGNO);
+
+SYMBOL* sym_insert_local(SYMTAB*);
 
 const char* sym_name(const SYMBOL*);
 int sym_type(const SYMBOL*);

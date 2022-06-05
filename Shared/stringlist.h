@@ -18,6 +18,6 @@ void delete_stringlist(STRINGLIST*);
 
 unsigned stringlist_count(STRINGLIST*);
 const char* stringlist_item(STRINGLIST*, unsigned);
-void append_string(STRINGLIST*, const char*);
+unsigned append_string(STRINGLIST*, const char*);
 
 #endif // STRINGLIST_H

@@ -21,6 +21,7 @@ void init_state(STATE* state, unsigned max_errors) {
     state->assume_sym[i] = NULL;
 
   state->cpu = (1 << P86) | (1 << P87);
+  state->jumps = false;
 }
 
 void error(STATE* state, const IFILE* ifile, const char* fmt, ...) {
@@ -32,7 +33,7 @@ void error(STATE* state, const IFILE* ifile, const char* fmt, ...) {
 
   if (ifile->pos < ifile->used) {
     const IREC* irec = get_irec_const(ifile, ifile->pos);
-    unsigned lineno = source_lineno(ifile->source, irec->source);
+    unsigned lineno = irec_lineno(ifile, irec);
 
     fprintf(stderr, "%u: ", lineno);
   }
@@ -59,7 +60,7 @@ void error2(STATE* state, LEX* lex, const char* fmt, ...) {
 
   state->errors++;
 
-  fprintf(stderr, "Error: %s: %u: ", source_name(lex->source), lex_lineno(lex));
+  fprintf(stderr, "Error: %s: %u: ", lex_source_name(lex), lex_lineno(lex));
 
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
@@ -842,10 +843,11 @@ static void test_size_override(CuTest* tc) {
 }
 
 static void test_parse_disp(CuTest* tc) {
+  static const char text[] = "1234h -76 newlab -newlab cabbage -cabbage";
+  SOURCE* src = load_source_mem(text);
   STATE state;
-  SOURCE* src = load_source_mem("1234h -76 newlab -newlab cabbage -cabbage");
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op;
   struct mem * const mem = &op.val.mem;
   BOOL succ;
@@ -853,7 +855,7 @@ static void test_parse_disp(CuTest* tc) {
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   op.opclass.type = OT_MEM;
 
@@ -920,8 +922,7 @@ static void test_parse_disp(CuTest* tc) {
 }
 
 static void test_parse_mem(CuTest* tc) {
-  STATE state;
-  SOURCE* src = load_source_mem(
+  static const char text[] =
       "bx "
       "word di "
       "dword si "
@@ -932,15 +933,17 @@ static void test_parse_mem(CuTest* tc) {
       "9933h "
       "ax "
       "BX-DI "
-      );
+      ;
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op;
+  STATE state;
   BOOL succ;
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   // [bx]
   init_operand(&op);
@@ -1085,15 +1088,16 @@ static void test_parse_mem(CuTest* tc) {
 
 static void test_parse_operand_register(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem("BH AL SI AX ES");
+  static const char text[] = "BH AL SI AX ES";
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op;
   BOOL succ;
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   // Register
 
@@ -1156,15 +1160,16 @@ static void test_parse_operand_register(CuTest* tc) {
 
 static void test_parse_operand_immediate(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem("1234 7FH, -1234, -80H '*' 'AB'");
+  static const char text[] = "1234 7FH, -1234, -80H '*' 'AB'";
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op;
   BOOL succ;
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
@@ -1240,9 +1245,10 @@ static void test_parse_operand_immediate(CuTest* tc) {
 
 static void test_parse_operand_label(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem("ahead behind K TINY newlabel");
+  static const char text[] = "ahead behind K TINY newlabel";
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op;
   SYMBOL* ahead_label;
   SYMBOL* behind_label;
@@ -1252,7 +1258,7 @@ static void test_parse_operand_label(CuTest* tc) {
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   ahead_label = sym_insert_relative(ifile->st, "ahead");
 
@@ -1328,21 +1334,22 @@ static void test_parse_operand_label(CuTest* tc) {
 
 static void test_parse_operand_offset(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem(
+  static const char text[] =
     "offset 39 "
     "OFFSET ahead "
     "OFFSET behind "
     "OFFSET newlabel2 "
     "OFFSET K "
-    );
+    ;
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op;
   BOOL succ;
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   SYMBOL* ahead_label = sym_insert_relative(ifile->st, "ahead");
 
@@ -1408,19 +1415,20 @@ static void test_parse_operand_offset(CuTest* tc) {
 
 static void test_parse_operand_jump(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem(
+  static const char text[] =
     "SHORT 86Ah"
     "NEAR newlabel3 "
     "near K "
-    );
+    ;
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op;
   BOOL succ;
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   SYMBOL* equ_label = sym_insert_absolute(ifile->st, "K");
   sym_define_absolute(equ_label, 903);
@@ -1466,15 +1474,16 @@ static void test_parse_operand_jump(CuTest* tc) {
 
 static void test_parse_operand_memory(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem("[bx] [word bp+si-40h]");
+  static const char text[] = "[bx] [word bp+si-40h]";
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op;
   BOOL succ;
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);
@@ -1512,15 +1521,16 @@ static void test_parse_operand_memory(CuTest* tc) {
 
 static void test_parse_operand_error(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem("+2");
+  static const char text[] = "+2";
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op;
   BOOL succ;
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   // Invalid operand: +2
   init_operand(&op);
@@ -1539,15 +1549,16 @@ static void test_parse_operand_error(CuTest* tc) {
 
 static void test_parse_operands(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem(
+  static const char mem[] =
     ";no operands\n"
     "[bx+di-40h]\n"
     "AX-2\n"
     "BH,99h;comment\n"
     "*p ; invalid\n"
-    );
+    ;
+  SOURCE* src = load_source_mem(mem);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op1, op2;
   BOOL succ;
 
@@ -1555,7 +1566,7 @@ static void test_parse_operands(CuTest* tc) {
   init_state(&state, -1);
 
   // No operands
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, source_text(src, 0), source_lineno(src, 0), 0);
   memset(&op1, 0xff, sizeof op1);
   memset(&op2, 0xff, sizeof op2);
   succ = parse_operands(&state, ifile, lex, &op1, &op2);
@@ -1568,7 +1579,7 @@ static void test_parse_operands(CuTest* tc) {
   CuAssertIntEquals(tc, OF_NONE, op2.opclass.flags[0]);
 
   // One operand
-  lex_begin(lex, 1, 0);
+  lex_begin(lex, source_text(src, 1), source_lineno(src, 1), 0);
   memset(&op1, 0xff, sizeof op1);
   memset(&op2, 0xff, sizeof op2);
   succ = parse_operands(&state, ifile, lex, &op1, &op2);
@@ -1582,7 +1593,7 @@ static void test_parse_operands(CuTest* tc) {
   CuAssertIntEquals(tc, OF_NONE, op2.opclass.flags[0]);
 
   // One operand followed by incorrect syntax
-  lex_begin(lex, 2, 0);
+  lex_begin(lex, source_text(src, 2), source_lineno(src, 2), 0);
   memset(&op1, 0xff, sizeof op1);
   memset(&op2, 0xff, sizeof op2);
   succ = parse_operands(&state, ifile, lex, &op1, &op2);
@@ -1599,7 +1610,7 @@ static void test_parse_operands(CuTest* tc) {
   CuAssertIntEquals(tc, OF_NONE, op2.opclass.flags[0]);
 
   // Two operands
-  lex_begin(lex, 3, 0);
+  lex_begin(lex, source_text(src, 3), source_lineno(src, 3), 0);
   memset(&op1, 0xff, sizeof op1);
   memset(&op2, 0xff, sizeof op2);
   succ = parse_operands(&state, ifile, lex, &op1, &op2);
@@ -1618,7 +1629,7 @@ static void test_parse_operands(CuTest* tc) {
   CuAssertIntEquals(tc, OF_IMM, op2.opclass.flags[0]);
 
   // Invalid operand
-  lex_begin(lex, 4, 0);
+  lex_begin(lex, source_text(src, 4), source_lineno(src, 4), 0);
   memset(&op1, 0xff, sizeof op1);
   memset(&op2, 0xff, sizeof op2);
   CuAssertIntEquals(tc, 0, state.errors);
@@ -1635,11 +1646,10 @@ static void test_parse_operands(CuTest* tc) {
 
 static void test_primitive(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem(
-      "9876 newlabel HERE THING SegName 'mashed fig'''-"
-    );
+  static const char text[] = "9876 newlabel HERE THING SegName 'mashed fig'''-";
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   union value val;
   int type;
   SYMBOL* sym;
@@ -1647,7 +1657,7 @@ static void test_primitive(CuTest* tc) {
   source_pass(ifile, NULL);
   init_state(&state, -1);
 
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   // 9876
   type = primitive_expr(&state, ifile, lex, &val);
@@ -1708,11 +1718,10 @@ static void test_primitive(CuTest* tc) {
 
 static void test_expr(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem(
-      "-KARR  3+4*2 addr addr+0"
-    );
+  static const char text[] = "-KARR  3+4*2 addr addr+0";
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   union value val;
   int type;
   SYMBOL* sym;
@@ -1720,7 +1729,7 @@ static void test_expr(CuTest* tc) {
   source_pass(ifile, NULL);
   init_state(&state, -1);
 
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   // -KARR
   sym = sym_insert_absolute(ifile->st, "KARR");
@@ -1751,9 +1760,10 @@ static void test_expr(CuTest* tc) {
 
 static void test_expr_operand(CuTest* tc) {
   STATE state;
-  SOURCE* src = load_source_mem("-KARR*3");
+  static const char text[] = "-KARR*3";
+  SOURCE* src = load_source_mem(text);
   IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(src);
+  LEX* lex = new_lex(source_name(src));
   OPERAND op;
   SYMBOL* sym;
   BOOL succ;
@@ -1761,7 +1771,7 @@ static void test_expr_operand(CuTest* tc) {
   source_pass(ifile, NULL);
   init_state(&state, -1);
 
-  lex_begin(lex, 0, 0);
+  lex_begin(lex, text, 1, 0);
 
   // -KARR*3
   sym = sym_insert_absolute(ifile->st, "KARR");

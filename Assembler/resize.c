@@ -29,7 +29,7 @@ BOOL resize_pass(IFILE* ifile, const Options* options) {
     puts("Resizing pass");
 
   init_state(&state, options->max_errors);
-  lex = new_lex(ifile->source);
+  lex = new_lex(source_name(ifile->source));
 
   reset_pc(ifile);
 
@@ -57,7 +57,7 @@ static BOOL process_instruction(STATE*, IFILE*, IREC*, LEX*);
 static BOOL process_irec(STATE* state, IFILE* ifile, LEX* lex) {
   IREC* irec = get_irec(ifile, ifile->pos);
 
-  lex_begin(lex, irec->source, irec->operand_pos);
+  lex_begin(lex, irec_text(ifile, irec), irec_lineno(ifile, irec), irec->operand_pos);
 
   if (irec->label != NULL)
     define_label(state, ifile, irec, lex);
@@ -109,6 +109,8 @@ static void do_segment(STATE*, IFILE*, IREC*, LEX*);
 static void do_data(STATE*, IFILE*, IREC*, LEX*);
 
 static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
+  assert(state != NULL);
+  assert(irec != NULL);
   assert(token_is_directive(irec->op));
 
   switch (irec->op) {
@@ -117,6 +119,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
     case TOK_CODESEG: perform_codeseg(state, ifile, lex); break;
     case TOK_DATASEG: perform_dataseg(state, ifile, lex); break;
     case TOK_ENDS: do_ends(state, ifile, irec, lex); break;
+    case TOK_JUMPS: state->jumps = true; break;
     case TOK_ORG: do_org(state, ifile, irec, lex); break;
     case TOK_SEGMENT: do_segment(state, ifile, irec, lex); break;
     case TOK_UDATASEG: perform_udataseg(state, ifile, lex); break;
@@ -302,7 +305,9 @@ static void assume(STATE* state, IFILE* ifile, LEX* lex) {
 static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
                              const OPERAND* oper1, const OPERAND* oper2);
 static void size_near_jump(STATE*, IFILE*, IREC*, LEX*,
-                      const OPERAND* oper1, const OPERAND* oper2);
+                           const OPERAND* oper1, const OPERAND* oper2);
+static bool expand_short_jump(STATE*, IFILE*, IREC*, LEX*,
+                              const OPERAND* oper1, const OPERAND* oper2);
 
 // TRUE if record resized.
 static BOOL process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
@@ -351,6 +356,12 @@ static BOOL process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
   if (!parse_operands(state, ifile, lex, &oper1, &oper2)) {
     lex_discard_line(lex);
     return FALSE;
+  }
+
+  if (token_is_jcc_opcode(irec->op) && state->jumps) {
+    bool resized = expand_short_jump(state, ifile, irec, lex, &oper1, &oper2);
+    inc_segment_pc(ifile, state->curseg, irec->size);
+    return resized;
   }
 
   if (irec->near_jump_size)
@@ -433,6 +444,140 @@ static BOOL jump_same_module_segment(STATE* state, IFILE* ifile, const struct ju
 
   *addr = sym_relative_value(p->target.label);
   return TRUE;
+}
+
+static int reverse_jcc(int token);
+
+// Expand short conditional jump when out of short range, when JUMPS directive used.
+//   Jcc X
+//   ...
+// -->
+//   Jrr T
+//   JMP X
+// T:
+//   ...
+// where rr is reverse condition of cc.
+// Return true if change made, false if nothing changed.
+static bool expand_short_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, const OPERAND* oper1, const OPERAND* oper2) {
+  assert(state != NULL);
+  assert(irec != NULL);
+  assert(token_is_jcc_opcode(irec->op));
+  assert(oper1->opclass.type == OT_JUMP);
+  assert(oper2->opclass.type == OT_NONE);
+
+  unsigned previous_errors = state->errors;
+
+  if (state->curseg == NO_SEG)
+    error2(state, lex, "cannot expand jump outside segment");
+
+  if (oper1->val.jump.distance != NEAR)
+    error2(state, lex, "cannot expand non-near jump");
+
+  if (oper1->val.jump.target_type != LABEL_JUMP)
+    error2(state, lex, "cannot expand non-label jump");
+
+  if (irec->rep != TOK_NONE)
+    error2(state, lex, "cannot expand jump with repeat prefix");
+
+  if (irec->size != 2) {
+    error2(state, lex, "internal error: unexpected short jump instruction size: %u\n", (unsigned) irec->size);
+    exit(EXIT_FAILURE);
+  }
+
+  const SYMBOL* label = oper1->val.jump.target.label;
+  assert(label != NULL);
+  assert(sym_defined(label));
+  assert(sym_type(label) == SYM_RELATIVE);
+
+  if (sym_external(label))
+    error2(state, lex, "cannot expand external-label jump");
+
+  if (sym_seg(label) != state->curseg)
+    error2(state, lex, "cannot expand inter-segment jump");
+
+  irec->def = find_instruc(irec->op, &oper1->opclass, &oper2->opclass);
+  if (irec->def == NULL)
+    error2(state, lex, "instruction not supported with given operands: %s", token_name(irec->op));
+
+  assert(irec->def->oper1 == OF_JUMP);
+  assert(irec->def->oper2 == OF_NONE);
+  assert(irec->def->imm == 1);
+
+  if (state->errors != previous_errors)
+    return false;
+
+  DWORD dest = sym_relative_value(label);
+
+  long disp = (long)dest - (long)(segment_pc(ifile, state->curseg) + irec->size);
+  if (disp >= -0x80 && disp < 0x80)
+    return false;
+
+//   Jcc X
+// -->
+//   Jrr T
+//   JMP X
+// T:
+
+  const unsigned lineno = irec_lineno(ifile, irec);
+
+  SYMBOL* local = sym_insert_local(ifile->st);
+
+  irec->op = reverse_jcc(irec->op);
+
+  set_inject(irec, inject(ifile, lineno, sym_name(local)));
+  irec->operand_pos = 0;
+  irec->def = NULL;
+  irec->size = 2;
+
+  IREC* jmp = insert_irec_after(ifile, irec);
+  jmp->op = TOK_JMP;
+  set_inject(jmp, inject(ifile, lineno, sym_name(label)));
+  jmp->operand_pos = 0;
+  jmp->near_jump_size = 2;
+  jmp->size = 3;
+
+  IREC* over = insert_irec_after(ifile, jmp);
+  over->label = local;
+  sym_define_relative(local, state->curseg, 0, segment_pc(ifile, state->curseg) + 5);
+
+  return true;
+}
+
+static int reverse_jcc(int token) {
+  switch (token) {
+    case TOK_JA: return TOK_JBE;
+    case TOK_JAE: return TOK_JB;
+    case TOK_JB: return TOK_JAE;
+    case TOK_JBE: return TOK_JA;
+    case TOK_JC: return TOK_JNC;
+    case TOK_JE: return TOK_JNE;
+    case TOK_JZ: return TOK_JNZ;
+    case TOK_JG: return TOK_JLE;
+    case TOK_JGE: return TOK_JL;
+    case TOK_JL: return TOK_JGE;
+    case TOK_JLE: return TOK_JG;
+    case TOK_JNA: return TOK_JA;
+    case TOK_JNAE: return TOK_JAE;
+    case TOK_JNB: return TOK_JB;
+    case TOK_JNBE: return TOK_JBE;
+    case TOK_JNC: return TOK_JC;
+    case TOK_JNE: return TOK_JE;
+    case TOK_JNG: return TOK_JG;
+    case TOK_JNGE: return TOK_JGE;
+    case TOK_JNL: return TOK_JL;
+    case TOK_JNLE: return TOK_JLE;
+    case TOK_JNO: return TOK_JO;
+    case TOK_JNP: return TOK_JP;
+    case TOK_JNS: return TOK_JS;
+    case TOK_JNZ: return TOK_JZ;
+    case TOK_JO: return TOK_JNO;
+    case TOK_JP: return TOK_JNP;
+    case TOK_JPE: return TOK_JPO;
+    case TOK_JPO: return TOK_JPE;
+    case TOK_JS: return TOK_JNS;
+  }
+  fatal("internal error: unknown Jcc token\n");
+  return TOK_NONE;
 }
 
 static long signed_displacement(DWORD from, DWORD to) {

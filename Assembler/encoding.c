@@ -44,7 +44,7 @@ OFILE* encoding_pass(IFILE* ifile, const Options* options) {
   emit_externals(ifile->st, ofile);
   emit_publics(ifile->st, ofile);
 
-  LEX* lex = new_lex(ifile->source);
+  LEX* lex = new_lex(source_name(ifile->source));
   for (ifile->pos = 0; ifile->pos < irec_count(ifile); ifile->pos++)
     process_irec(&state, ifile, lex, ofile);
 
@@ -235,7 +235,7 @@ static void process_instruction(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void process_irec(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
   IREC* irec = get_irec(ifile, ifile->pos);
 
-  lex_begin(lex, irec->source, irec->operand_pos);
+  lex_begin(lex, irec_text(ifile, irec), irec_lineno(ifile, irec), irec->operand_pos);
 
   if (token_is_directive(irec->op))
     perform_directive(state, ifile, irec, lex, ofile);
@@ -267,6 +267,8 @@ static void define_qwords(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void define_tbytes(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 
 static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
+  assert(state != NULL);
+  assert(irec != NULL);
   assert(token_is_directive(irec->op));
 
   switch (irec->op) {
@@ -285,6 +287,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     case TOK_EQU: lex_discard_line(lex); break; // already handled
     case TOK_EXTRN: do_extrn(state, ifile, irec, lex, ofile); break;
     case TOK_GROUP: lex_discard_line(lex); break; // already handled
+    case TOK_JUMPS: state->jumps = true; break;
     case TOK_MODEL: lex_discard_line(lex); break; // already handled
     case TOK_ORG: do_org(state, ifile, irec, lex, ofile); break;
     case TOK_PUBLIC: do_public(state, ifile, irec, lex, ofile); break;

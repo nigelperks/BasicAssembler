@@ -31,7 +31,7 @@ void pass1(IFILE* ifile, const Options* options) {
     puts("Pass 1");
 
   init_state(&state, options->max_errors);
-  lex = new_lex(ifile->source);
+  lex = new_lex(source_name(ifile->source));
 
   for (ifile->pos = 0; ifile->pos < irec_count(ifile); ifile->pos++)
     process_irec(&state, ifile, lex);
@@ -55,7 +55,7 @@ static void process_irec(STATE* state, IFILE* ifile, LEX* lex) {
   IREC* irec = get_irec(ifile, ifile->pos);
   BOOL colon = FALSE;
 
-  lex_begin(lex, irec->source, 0);
+  lex_begin(lex, irec_text(ifile, irec), irec_lineno(ifile, irec), 0);
 
   if (lex_token(lex) == TOK_LABEL) {
     colon = define_label(state, ifile, irec, lex);
@@ -171,6 +171,7 @@ static void do_ends(STATE*, IFILE*, LEX*);
 static void do_equ(STATE*, IFILE*, LEX*);
 static void do_extrn(STATE*, IFILE*, LEX*);
 static void do_group(STATE*, IFILE*, LEX*);
+static void do_jumps(STATE*, IFILE*, LEX*);
 static void do_model(STATE*, IFILE*, LEX*);
 static void do_org(STATE*, IFILE*, LEX*);
 static void do_public(STATE*, IFILE*, LEX*);
@@ -206,6 +207,7 @@ static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
     case TOK_EQU: do_equ(state, ifile, lex); break;
     case TOK_EXTRN: do_extrn(state, ifile, lex); break;
     case TOK_GROUP: do_group(state, ifile, lex); break;
+    case TOK_JUMPS: do_jumps(state, ifile, lex); break;
     case TOK_MODEL: do_model(state, ifile, lex); break;
     case TOK_ORG: do_org(state, ifile, lex); break;
     case TOK_PUBLIC: do_public(state, ifile, lex); break;
@@ -1154,6 +1156,17 @@ static void external_symbol(STATE* state, IFILE* ifile, LEX* lex) {
 
 static BOOL extern_type(int t) {
   return t == TOK_BYTE || t == TOK_WORD || t == TOK_PROC;
+}
+
+static void do_jumps(STATE* state, IFILE* ifile, LEX* lex) {
+  assert(state != NULL);
+  assert(ifile != NULL);
+  assert(lex != NULL);
+  assert(lex_token(lex) == TOK_JUMPS);
+
+  lex_next(lex);
+  state->jumps = true;
+  ifile->provisional_sizes = true;
 }
 
 static BOOL direct_near_jump(int op, const OPERAND* oper1, const OPERAND* oper2);
