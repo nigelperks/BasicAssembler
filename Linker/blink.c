@@ -55,9 +55,12 @@ int main(int argc, char* argv[]) {
       }
 #endif
       if (arg[1] == 'f') {
-        if (arg[2] == '\0')
+        if (arg[2])
+          format = format_by_name(arg + 2);
+        else if (++i < argc)
+          format = format_by_name(argv[i]);
+        else
           fatal("-f: output format missing\n");
-        format = format_by_name(arg + 2);
       }
       else if (strcmp(arg, "-m") == 0)
         report_mem = true;
