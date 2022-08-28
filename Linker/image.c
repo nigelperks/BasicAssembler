@@ -322,9 +322,6 @@ IMAGE* build_image(const SEGMENTED* prog, const char* mapfile, int verbose) {
   if (mfp)
     fclose(mfp);
 
-  if (image->start.set == FALSE)
-    fatal("no start address in program image\n");
-
   resolve_segment_fixups(image, prog->fixups, bases, prog->groups, verbose);
 
   delete_vector(bases);
@@ -333,12 +330,11 @@ IMAGE* build_image(const SEGMENTED* prog, const char* mapfile, int verbose) {
 }
 
 static void check_start(const SEGMENTED* prog) {
-  if (prog->start.segno == NO_SEG)
-    fatal("no start address\n");
-
-  const SEGMENT* seg = get_segment(prog->segs, prog->start.segno);
-  if (seg == NULL || prog->start.offset >= seg_hi(seg))
-    fatal("the start offset is outside the start segment\n");
+  if (prog->start.segno != NO_SEG) {
+    const SEGMENT* seg = get_segment(prog->segs, prog->start.segno);
+    if (seg == NULL || prog->start.offset >= seg_hi(seg))
+      fatal("the start offset is outside the start segment\n");
+  }
 }
 
 #ifdef UNIT_TEST

@@ -64,8 +64,7 @@ Executables in x64\Debug.
 
     blink file ...  -- link object files
 
-      -fcom         -- COM format output (default)
-      -fexe         -- 16-bit EXE format output
+      -f format     -- output format: bin, com (default), exe
       -o name       -- output to file name (A.COM by default)
       -p name       -- map file showing segment layout in image
       -unittest     -- run unit tests (using CuTest) and quit
@@ -77,8 +76,9 @@ Executables in x64\Debug.
 
 ### Basic Disassembler
 
-    bdis test.com   -- disassemble COM file
+    bdis test.com   -- disassemble COM or BIN file
 
+      -b            -- raw binary, not COM
       -i            -- interactive mode
       -s            -- show assembly source only, not offsets or machine code
 
@@ -107,6 +107,7 @@ Enter '?' in interactive mode for help; d = dump, s = disassemble.
 All 8086 and 8087 instructions.
 
 A line is free format: no fixed column for labels.
+Instruction names and directives are reserved, not available for labels.
 
 Memory operands must be bracketed: [base+index+disp]
 

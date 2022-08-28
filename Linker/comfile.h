@@ -1,12 +1,12 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Output COM program image.
 
-#ifndef OUTPUT_H
-#define OUTPUT_H
+#ifndef COMFILE_H
+#define COMFILE_H
 
 #include "image.h"
 
 void output_com(const IMAGE*, const char* filename);
 
-#endif // OUTPUT_H
+#endif // COMFILE_H

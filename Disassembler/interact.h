@@ -8,6 +8,6 @@
 #include <stdbool.h>
 #include "decoder.h"
 
-void interact(const DECODER*, const char* fileName);
+void interact(const DECODER*, const char* fileName, DWORD origin);
 
 #endif // INTERACT_H

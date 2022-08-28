@@ -109,11 +109,11 @@ def assemble(tools, sources):
     objects.append(bare_name(x) + ".obj")
   return objects
 
-def compare_com(refName, outputName):
+def compare_raw(refName, outputName):
   if not os.path.isfile(refName):
     fatal("Reference not found: " + refName)
   if not os.path.isfile(outputName):
-    fatal("Output COM file not found: " + outputName)
+    fatal("Output file not found: " + outputName)
   if not filecmp.cmp(refName, outputName):
     fatal("Mismatch: " + refName + " " + os.path.abspath(outputName))
   print("Match: " + refName + " " + os.path.abspath(outputName))
@@ -126,6 +126,19 @@ def compare_map(refName, outputName):
   if not filecmp.cmp(refName, outputName):
     fatal("Mismatch: " + refName + " " + os.path.abspath(outputName))
   print("Match: " + refName + " " + os.path.abspath(outputName))
+
+def test_bin(tools, config, sources, force_ref, keepDosBox):
+  announce(sources, "BIN")
+  objects = assemble(tools, sources)
+  test_bin = "test.bin"
+  cmd = "%s -fbin %s -o %s" % (tools["blink"], " ".join(objects), test_bin)
+  if config_on(config, "mapfile"):
+    cmd += " -p test.map"
+  r = run(cmd)
+  if r != 0:
+    fatal("BIN linking error: %d" % r)
+  refName = "a.bi_" if len(sources) > 1 else bare_name(sources[0]) + ".bi_"
+  compare_raw(refName, test_bin)
 
 def test_com(tools, config, sources, force_ref, keepDosBox):
   announce(sources, "COM")
@@ -146,7 +159,7 @@ def test_com(tools, config, sources, force_ref, keepDosBox):
     comName = bare_name(sources[0]) + ".COM"
     refCOM = os.path.join(config["DosBoxMount"], config["DosBoxTestDir"], comName)
     shutil.copy2(refCOM, refName)
-  compare_com(refName, test_com)
+  compare_raw(refName, test_com)
   if config_on(config, "mapfile"):
     compare_map("a.map", "test.map")
 
@@ -217,7 +230,9 @@ def test(tools, config, sources, force_ref, keepDosBox):
     test_link_error(tools, sources)
     return
   formats = config["formats"] if "formats" in config else "both"
-  if formats == "com":
+  if formats == "bin":
+    test_bin(tools, config, sources, force_ref, keepDosBox)
+  elif formats == "com":
     test_com(tools, config, sources, force_ref, keepDosBox)
   elif formats == "exe":
     test_exe(tools, config, sources, force_ref, keepDosBox)

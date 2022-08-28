@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // COM image output.
 
 #include <assert.h>
@@ -22,7 +22,7 @@ void output_com(const IMAGE* image, const char* filename) {
     fatal("no data in image at 100h\n");
 
   if (!image->start.set)
-    fatal("no start address for COM file\n");
+    fatal("no start address for COM\n");
 
   if (image->start.seg != 0 || image->start.offset != 0x100)
     fatal("invalid start address for COM file\n");

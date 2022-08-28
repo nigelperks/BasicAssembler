@@ -1,11 +1,11 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Linker output executable formats.
 
 #ifndef FORMAT_H
 #define FORMAT_H
 
-enum output_formats { COM_FORMAT, EXE_FORMAT };
+enum output_formats { BIN_FORMAT, COM_FORMAT, EXE_FORMAT };
 
 int format_by_name(const char*);
 const char* format_name(int);

@@ -146,6 +146,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="binfile.c" />
     <ClCompile Include="blink.c" />
     <ClCompile Include="combine.c" />
     <ClCompile Include="consolidate.c" />
@@ -163,6 +164,7 @@
     <ClCompile Include="symbol.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="binfile.h" />
     <ClInclude Include="combine.h" />
     <ClInclude Include="consolidate.h" />
     <ClInclude Include="exefile.h" />

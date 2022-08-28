@@ -23,18 +23,18 @@ void delete_memory(MEMORY* mem) {
   }
 }
 
-static MEMORY* load_com(const char* fileName) {
+static MEMORY* load_image(const char* fileName, DWORD origin) {
   FILE* fp = efopen(fileName, "rb", "loading");
   fseek(fp, 0, SEEK_END);
   long size = ftell(fp);
   if (size < 0)
     fatal("cannot determine length of file: %s\n", fileName);
   MEMORY *mem = emalloc(sizeof *mem);
-  mem->size = size + 0x100;
+  mem->size = size + origin;
   mem->data = emalloc(mem->size);
-  memset(mem->data, 0, 0x100);
+  memset(mem->data, 0, origin);
   fseek(fp, 0, SEEK_SET);
-  if (fread(mem->data + 0x100, 1, size, fp) != size)
+  if (fread(mem->data + origin, 1, size, fp) != size)
     fatal("error reading file: %s\n", fileName);
   fclose(fp);
   return mem;
@@ -57,11 +57,11 @@ static void dump_page(STATE*);
 
 static void interpret(STATE*, const char* input);
 
-void interact(const DECODER* dec, const char* fileName) {
+void interact(const DECODER* dec, const char* fileName, DWORD origin) {
   STATE state;
   state.dec = dec;
-  state.mem = load_com(fileName);
-  state.ip = 0x100;
+  state.mem = load_image(fileName, origin);
+  state.ip = origin;
   state.mode = DISASSEMBLING;
   state.waiting = false;
 

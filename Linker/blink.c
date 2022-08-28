@@ -16,6 +16,7 @@
 #include "format.h"
 #include "exefile.h"
 #include "comfile.h"
+#include "binfile.h"
 #include "stringlist.h"
 
 #ifdef UNIT_TEST
@@ -124,19 +125,30 @@ int main(int argc, char* argv[]) {
   if (verbose)
     printf("Output %s file: %s\n", format_name(format), output_name);
 
-  if (format == COM_FORMAT) {
-    unsigned long n = segment_and_group_fixups(segmented_program->fixups);
-    if (n > 0)
-      fatal("cannot produce COM file: segment fixups: %lu\n", n);
-    output_com(image, output_name);
+  switch (format) {
+    case BIN_FORMAT: {
+      unsigned long n = segment_and_group_fixups(segmented_program->fixups);
+      if (n)
+        fatal("cannot produce BIN file: segment fixups: %lu\n", n);
+      output_bin(image, output_name);
+      break;
+    }
+    case COM_FORMAT: {
+      unsigned long n = segment_and_group_fixups(segmented_program->fixups);
+      if (n)
+        fatal("cannot produce COM file: segment fixups: %lu\n", n);
+      output_com(image, output_name);
+      break;
+    }
+    case EXE_FORMAT: {
+      BUILDEXE* exe = build_exe(segmented_program, image);
+      output_exe(exe, output_name);
+      delete_buildexe(exe);
+      break;
+    }
+    default:
+      fatal("output format known but unimplemented: %s\n", format_name(format));
   }
-  else if (format == EXE_FORMAT) {
-    BUILDEXE* exe = build_exe(segmented_program, image);
-    output_exe(exe, output_name);
-    delete_buildexe(exe);
-  }
-  else
-    fatal("unsupported output format: %s\n", format_name(format));
 
   delete_image(image);
   delete_segmented(segmented_program);
@@ -168,6 +180,12 @@ static void report_memory(void) {
   get_memory_counts(&malloc_count, &free_count);
   printf("malloc: %10lu\n", malloc_count);
   printf("free:   %10lu\n", free_count);
+}
+
+static void check_no_fixups(const SEGMENTED* segmented_program) {
+  unsigned long n = segment_and_group_fixups(segmented_program->fixups);
+  if (n)
+    fatal("cannot produce COM file: segment fixups: %lu\n", n);
 }
 
 #ifdef UNIT_TEST

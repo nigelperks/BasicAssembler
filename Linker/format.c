@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-2 Nigel Perks
 // Linker output executable formats.
 
 #include <string.h>
@@ -13,6 +13,8 @@ static const struct {
   char* name;
   char* output;
 } formats[] = {
+  // must be in same order as enum output_formats
+  { "BIN", "A.BIN" },
   { "COM", "A.COM" },
   { "EXE", "A.EXE" },
 };

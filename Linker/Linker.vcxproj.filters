@@ -60,6 +60,9 @@
     <ClCompile Include="fixup.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="binfile.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="module.h">
@@ -102,6 +105,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="fixup.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="binfile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

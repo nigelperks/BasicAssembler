@@ -12,7 +12,7 @@
 #include "disassemble.h"
 #include "interact.h"
 
-static void disassemble(const DECODER*, const char* filename, bool print_hex);
+static void disassemble(const DECODER*, const char* filename, DWORD origin, bool print_hex);
 
 static void help(void);
 
@@ -20,6 +20,7 @@ int main(int argc, char* argv[]) {
   const char* fileName = NULL;
   bool hex = true;
   bool interactive = false;
+  DWORD origin = 0x100;
 
   progname = "bdis";
 
@@ -33,6 +34,7 @@ int main(int argc, char* argv[]) {
         fatal("invalid option: %s\n", arg);
       for (const char* p = arg + 1; *p; p++)
         switch (*p) {
+          case 'b': origin = 0; break;
           case 'h': case '?': help(); break;
           case 'i': interactive = true; break;
           case 's': hex = false; break;
@@ -55,9 +57,9 @@ int main(int argc, char* argv[]) {
   const DECODER* dec = build_decoder();
 
   if (interactive)
-    interact(dec, fileName);
+    interact(dec, fileName, origin);
   else
-    disassemble(dec, fileName, hex);
+    disassemble(dec, fileName, origin, hex);
 
   return 0;
 }
@@ -65,6 +67,7 @@ int main(int argc, char* argv[]) {
 static void help(void) {
   puts("Basic Disassembler for .COM programs\n");
   puts("bdis [options] file\n");
+  puts("  -b  raw binary format, not COM");
   puts("  -i  interactive mode: enter ? for help");
   puts("  -s  omit hex, show disassembly only");
   exit(EXIT_FAILURE);
@@ -76,9 +79,9 @@ typedef struct {
 
 static unsigned instruction(STATE*, const DECODER*, FILE*, DWORD addr, bool print_hex);
 
-static void disassemble(const DECODER* dec, const char* filename, bool print_hex) {
+static void disassemble(const DECODER* dec, const char* filename, DWORD origin, bool print_hex) {
   FILE* fp = efopen(filename, "rb", "disassembly");
-  DWORD addr = 0x100;
+  DWORD addr = origin;
   int c;
 
   STATE state;
