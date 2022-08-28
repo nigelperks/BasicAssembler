@@ -3,7 +3,7 @@
 // COM image output.
 
 #include <assert.h>
-#include "output.h"
+#include "comfile.h"
 
 // MS-DOS Programmer's Reference p. 82
 #define MAX_COM_FILE_SIZE (65024)

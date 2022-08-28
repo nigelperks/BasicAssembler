@@ -15,7 +15,7 @@
 #include "image.h"
 #include "format.h"
 #include "exefile.h"
-#include "output.h"
+#include "comfile.h"
 #include "stringlist.h"
 
 #ifdef UNIT_TEST

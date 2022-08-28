@@ -18,7 +18,7 @@
     <ClCompile Include="blink.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="output.c">
+    <ClCompile Include="comfile.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="format.c">
@@ -98,7 +98,7 @@
     <ClInclude Include="exefile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="output.h">
+    <ClInclude Include="comfile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="fixup.h">
