@@ -7,7 +7,7 @@
 #include "token.h"
 
 BOOL token_is_directive(int tok) {
-  return tok >= TOK_ALIGN && tok <= TOK_UDATASEG;
+  return (tok >= TOK_ALIGN && tok <= TOK_UDATASEG) || (tok == '=');
 }
 
 BOOL token_is_opcode(int tok) {

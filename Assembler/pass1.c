@@ -102,7 +102,8 @@ static BOOL define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   if (irec->label == NULL) {
     char* name = estrdup(lex_lexeme(lex));
     BOOL colon = FALSE;
-    if (lex_next(lex) == TOK_EQU)
+    int tok = lex_next(lex);
+    if (tok == TOK_EQU || tok == '=')
       irec->label = sym_insert_absolute(ifile->st, name);      
     else {
       colon = eat_colon(lex);
@@ -125,8 +126,8 @@ static BOOL define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
     error2(state, lex, "label already defined: %s", sym_name(irec->label));
   else if (sym_type(irec->label) != SYM_RELATIVE)
     error2(state, lex, "not a relative label: %s", sym_name(irec->label));
-  else if (lex_token(lex) == TOK_EQU)
-    error2(state, lex, "EQU name is a relative label: %s", sym_name(irec->label));
+  else if (lex_token(lex) == TOK_EQU || lex_token(lex) == '=')
+    error2(state, lex, "equate name is a relative label: %s", sym_name(irec->label));
   else if (state->curseg == NO_SEG)
     error2(state, lex, "label outside segment: %s", sym_name(irec->label));
   else {
@@ -175,6 +176,7 @@ static void do_dataseg(STATE*, IFILE*, LEX*);
 static void do_end(STATE*, IFILE*, LEX*);
 static void do_ends(STATE*, IFILE*, LEX*);
 static void do_equ(STATE*, IFILE*, LEX*);
+static void do_equate(STATE*, IFILE*, LEX*);
 static void do_extrn(STATE*, IFILE*, LEX*);
 static void do_group(STATE*, IFILE*, LEX*);
 static void do_jumps(STATE*, IFILE*, LEX*);
@@ -211,6 +213,7 @@ static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
     case TOK_END: do_end(state, ifile, lex); break;
     case TOK_ENDS: do_ends(state, ifile, lex); break;
     case TOK_EQU: do_equ(state, ifile, lex); break;
+    case '=': do_equate(state, ifile, lex); break;
     case TOK_EXTRN: do_extrn(state, ifile, lex); break;
     case TOK_GROUP: do_group(state, ifile, lex); break;
     case TOK_JUMPS: do_jumps(state, ifile, lex); break;
@@ -254,6 +257,33 @@ static void do_equ(STATE* state, IFILE* ifile, LEX* lex) {
         break;
       default:
         error2(state, lex, "absolute numeric expression expected for EQU");
+        break;
+    }
+  }
+}
+
+static void do_equate(STATE* state, IFILE* ifile, LEX* lex) {
+  IREC* irec = get_irec(ifile, ifile->pos);
+
+  assert(lex_token(lex) == '=');
+
+  if (irec->label == NULL)
+    error2(state, lex, "equate without label");
+  else if (sym_type(irec->label) != SYM_ABSOLUTE)
+    error2(state, lex, "name already used as non-equate: %s", sym_name(irec->label));
+  else if (sym_defined(irec->label))
+    error2(state, lex, "already defined: %s", sym_name(irec->label));
+  else {
+    lex_next(lex);
+    union value val;
+    switch (expr(state, ifile, lex, &val)) {
+      case ET_ERR:
+        break;
+      case ET_ABS:
+        sym_define_absolute(irec->label, (long) val.n);
+        break;
+      default:
+        error2(state, lex, "absolute numeric expression expected for equate");
         break;
     }
   }

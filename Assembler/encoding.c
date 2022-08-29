@@ -287,6 +287,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     case TOK_END: do_end(state, ifile, irec, lex, ofile); break;
     case TOK_ENDS: do_ends(state, ifile, irec, lex, ofile); break;
     case TOK_EQU: lex_discard_line(lex); break; // already handled
+    case '=': lex_discard_line(lex); break; // already handled
     case TOK_EXTRN: do_extrn(state, ifile, irec, lex, ofile); break;
     case TOK_GROUP: lex_discard_line(lex); break; // already handled
     case TOK_JUMPS: state->jumps = true; break;
@@ -304,25 +305,6 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     default:
       error(state, ifile, "directive not implemented: %s", token_name(irec->op));
   }
-}
-
-static void do_equ(STATE* state, IFILE* ifile, LEX* lex) {
-  IREC* irec = get_irec(ifile, ifile->pos);
-
-  assert(lex_token(lex) == TOK_EQU);
-
-  if (irec->label == NULL)
-    error2(state, lex, "EQU without label");
-  else if (sym_type(irec->label) != SYM_ABSOLUTE)
-    error2(state, lex, "phase error: non-EQU name: %s", sym_name(irec->label));
-  else if (!sym_defined(irec->label))
-    error2(state, lex, "phase error: undefined: %s", sym_name(irec->label));
-  else if (lex_next(lex) != TOK_NUM)
-    error2(state, lex, "only numeric EQU is supported");
-  else if (sym_absolute_value(irec->label) != lex_val(lex))
-    error2(state, lex, "phase error: EQU value has changed");
-  else
-    lex_next(lex);
 }
 
 static void do_end(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {

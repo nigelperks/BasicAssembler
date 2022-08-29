@@ -83,7 +83,7 @@ static void define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   assert(irec->label != NULL);
   assert(sym_defined(irec->label));
 
-  if (irec->op == TOK_EQU)
+  if (irec->op == TOK_EQU || irec->op == '=')
     return;
 
   if (!sym_defined(irec->label))
@@ -142,6 +142,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
     // no resize or tracking action required
     case TOK_END:
     case TOK_EQU:
+    case '=':
     case TOK_EXTRN:
     case TOK_GROUP:
     case TOK_IDEAL:
