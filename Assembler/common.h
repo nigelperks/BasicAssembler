@@ -24,4 +24,6 @@ void select_cpu(STATE*, LEX*);
 
 bool wait_precedes(const IFILE*);
 
+void define_dollar(STATE*, IFILE*);
+
 #endif // COMMON_H

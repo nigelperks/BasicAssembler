@@ -59,6 +59,8 @@ static BOOL process_irec(STATE* state, IFILE* ifile, LEX* lex) {
 
   lex_begin(lex, irec_text(ifile, irec), irec_lineno(ifile, irec), irec->operand_pos);
 
+  define_dollar(state, ifile);
+
   if (irec->label != NULL)
     define_label(state, ifile, irec, lex);
 

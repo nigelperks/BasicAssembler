@@ -33,6 +33,10 @@ void pass1(IFILE* ifile, const Options* options) {
   init_state(&state, options->max_errors);
   lex = new_lex(source_name(ifile->source));
 
+  if (sym_lookup(ifile->st, "$"))
+    fatal("internal error: built-in symbol '$' is already defined\n");
+  sym_insert_relative(ifile->st, "$");
+
   for (ifile->pos = 0; ifile->pos < irec_count(ifile); ifile->pos++)
     process_irec(&state, ifile, lex);
 
@@ -56,6 +60,8 @@ static void process_irec(STATE* state, IFILE* ifile, LEX* lex) {
   BOOL colon = FALSE;
 
   lex_begin(lex, irec_text(ifile, irec), irec_lineno(ifile, irec), 0);
+
+  define_dollar(state, ifile);
 
   if (lex_token(lex) == TOK_LABEL) {
     colon = define_label(state, ifile, irec, lex);

@@ -1,0 +1,4 @@
+Error: dollar0.asm: 8: label already defined: $:
+$   dw  0
+    ^
+Errors: 1

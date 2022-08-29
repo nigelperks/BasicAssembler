@@ -148,6 +148,12 @@ int lex_next(LEX* lex) {
     return lex->token;
   }
 
+  if (c == '$') {
+    strcpy(lex->lexeme, "$");
+    lex->pos++;
+    return lex->token = TOK_LABEL;
+  }
+
   if (isdigit(c)) {
     int base = 10;
     unsigned i = 0;

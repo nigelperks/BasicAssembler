@@ -1,0 +1,23 @@
+	IDEAL
+
+	SEGMENT	SEG1
+	ASSUME	CS:SEG1
+	ORG	100h
+start:
+	jmp	$
+	mov	ax, OFFSET $
+	dw	$
+	dw	OFFSET $
+	ENDS	SEG1
+
+	SEGMENT	SEG2
+	ASSUME	CS:SEG2
+	jmp	$
+	mov	cx, OFFSET $
+	dw	$
+	dw	OFFSET $
+	ENDS	SEG2
+
+	GROUP	ALL SEG1, SEG2
+
+	END	start

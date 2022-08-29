@@ -237,6 +237,8 @@ static void process_irec(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
 
   lex_begin(lex, irec_text(ifile, irec), irec_lineno(ifile, irec), irec->operand_pos);
 
+  define_dollar(state, ifile);
+
   if (token_is_directive(irec->op))
     perform_directive(state, ifile, irec, lex, ofile);
   else if (token_is_opcode(irec->op))

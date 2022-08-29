@@ -143,6 +143,10 @@ Directives:
 - PUBLIC   -- make specified symbols public
 - SEGMENT  -- open named segment
 
+Predefined symbols:
+
+- $        -- location counter: OFFSET $ = offset in group
+
 
 ## 5. Memory model
 ---------------

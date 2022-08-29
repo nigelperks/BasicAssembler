@@ -161,6 +161,21 @@ void sym_define_relative(SYMBOL* sym, int seg, unsigned data_size, DWORD val) {
   sym->u.rel.data_size = data_size;
 }
 
+void sym_update_relative(SYMBOL* sym, int seg, unsigned data_size, DWORD val) {
+  assert(sym != NULL);
+  assert(sym->type == SYM_RELATIVE);
+  assert(data_size == 0 || data_size == 1 || data_size == 2 || data_size == 4 ||
+         data_size == 8 || data_size == 10);
+
+  if (sym->u.rel.data_size != 0 && data_size != sym->u.rel.data_size)
+    fatal("resizing %s data size from %u to %u\n", sym->name, sym->u.rel.data_size, data_size);
+
+  sym->defined = TRUE;
+  sym->u.rel.seg = seg;
+  sym->u.rel.val = val;
+  sym->u.rel.data_size = data_size;
+}
+
 DWORD sym_relative_value(const SYMBOL* sym) {
   assert(sym != NULL);
   assert(sym->type == SYM_RELATIVE);

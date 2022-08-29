@@ -288,7 +288,7 @@ def test_source(tools, config, source, force_ref, keepDosBox):
 
 def clean_file(name):
   ext = extension(name).lower()
-  if ext in ["com","exe","obj"] or name in ["err"]:
+  if ext in ["bin","com","exe","obj"] or name in ["err"]:
     print("Remove:", name)
     os.remove(name)
   else:

@@ -110,3 +110,10 @@ bool wait_precedes(const IFILE* ifile) {
   int op;
   return ifile->pos > 0 && ((op = ifile->recs[ifile->pos - 1].op) == TOK_WAIT || op == TOK_FWAIT);
 }
+
+void define_dollar(STATE* state, IFILE* ifile) {
+  SYMBOL* sym = sym_lookup(ifile->st, "$");
+  assert(sym != NULL);
+  DWORD pc = (state->curseg == NO_SEG) ? 0 : segment_pc(ifile, state->curseg);
+  sym_update_relative(sym, state->curseg, 0, pc);
+}
