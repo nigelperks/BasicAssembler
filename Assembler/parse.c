@@ -180,6 +180,32 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
     return TRUE;
   }
 
+  if (lex_token(lex) == TOK_ST) {
+    op->opclass.type = OT_ST;
+    op->val.reg = 0;
+    if (lex_next(lex) == '(') {
+      if (lex_next(lex) == TOK_NUM) {
+        if (lex_val(lex) == 0)
+          add_flag(op, OF_STT);
+        else if (lex_val(lex) < 8) {
+          op->val.reg = lex_val(lex);
+          add_flag(op, OF_STI);
+        }
+        else
+          error2(state, lex, "invalid stack index");
+        if (lex_next(lex) == ')')
+          lex_next(lex);
+        else
+          error2(state, lex, "')' expected");
+      }
+      else
+        error2(state, lex, "numeric stack index expected");
+    }
+    else
+      add_flag(op, OF_STT);
+    return TRUE;
+  }
+
   if (lex_token(lex) == '[') {
     lex_next(lex);
     if (!parse_mem(state, ifile, lex, op))
@@ -285,32 +311,6 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
 
     error2(state, lex, "invalid jump target");
     return FALSE;
-  }
-
-  if (lex_token(lex) == TOK_ST) {
-    op->opclass.type = OT_ST;
-    op->val.reg = 0;
-    if (lex_next(lex) == '(') {
-      if (lex_next(lex) == TOK_NUM) {
-        if (lex_val(lex) == 0)
-          add_flag(op, OF_STT);
-        else if (lex_val(lex) < 8) {
-          op->val.reg = lex_val(lex);
-          add_flag(op, OF_STI);
-        }
-        else
-          error2(state, lex, "invalid stack index");
-        if (lex_next(lex) == ')')
-          lex_next(lex);
-        else
-          error2(state, lex, "')' expected");
-      }
-      else
-        error2(state, lex, "numeric stack index expected");
-    }
-    else
-      add_flag(op, OF_STT);
-    return TRUE;
   }
 
   union value val;
