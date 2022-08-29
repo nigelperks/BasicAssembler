@@ -25,6 +25,7 @@ void RunAllTests(void);
 
 static void help(void);
 static void report_memory(void);
+static void check_no_fixups(const SEGMENTED* segmented_program, const char* format);
 
 int main(int argc, char* argv[]) {
   STRINGLIST* files = new_stringlist();
@@ -126,20 +127,14 @@ int main(int argc, char* argv[]) {
     printf("Output %s file: %s\n", format_name(format), output_name);
 
   switch (format) {
-    case BIN_FORMAT: {
-      unsigned long n = segment_and_group_fixups(segmented_program->fixups);
-      if (n)
-        fatal("cannot produce BIN file: segment fixups: %lu\n", n);
+    case BIN_FORMAT:
+      check_no_fixups(segmented_program, "BIN");
       output_bin(image, output_name);
       break;
-    }
-    case COM_FORMAT: {
-      unsigned long n = segment_and_group_fixups(segmented_program->fixups);
-      if (n)
-        fatal("cannot produce COM file: segment fixups: %lu\n", n);
+    case COM_FORMAT:
+      check_no_fixups(segmented_program, "COM");
       output_com(image, output_name);
       break;
-    }
     case EXE_FORMAT: {
       BUILDEXE* exe = build_exe(segmented_program, image);
       output_exe(exe, output_name);
@@ -182,10 +177,10 @@ static void report_memory(void) {
   printf("free:   %10lu\n", free_count);
 }
 
-static void check_no_fixups(const SEGMENTED* segmented_program) {
+static void check_no_fixups(const SEGMENTED* segmented_program, const char* format) {
   unsigned long n = segment_and_group_fixups(segmented_program->fixups);
   if (n)
-    fatal("cannot produce COM file: segment fixups: %lu\n", n);
+    fatal("cannot produce %s file: segment fixups: %lu\n", format, n);
 }
 
 #ifdef UNIT_TEST
