@@ -412,7 +412,7 @@ const char* sreg_name(unsigned reg) {
 static void test_directive(CuTest* tc) {
   CuAssertIntEquals(tc, FALSE, token_is_directive(0));
   CuAssertIntEquals(tc, FALSE, token_is_directive(' '));
-  CuAssertIntEquals(tc, FALSE, token_is_directive('='));
+  CuAssertIntEquals(tc, TRUE, token_is_directive('='));
   CuAssertIntEquals(tc, FALSE, token_is_directive(TOK_NONE));
   CuAssertIntEquals(tc, FALSE, token_is_directive(TOK_NUM));
   CuAssertIntEquals(tc, FALSE, token_is_directive(TOK_MOV));

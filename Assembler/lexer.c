@@ -239,7 +239,8 @@ size_t lex_string_len(LEX* lex) {
   return len - 2;
 }
 
-// Return NULL for empty string.
+// Return newly allocated, null-terminated memory to be freed by caller,
+// or NULL for empty string.
 BYTE* lex_string_content(LEX* lex, size_t *len) {
   BYTE* buf = NULL;
 

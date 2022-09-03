@@ -80,13 +80,24 @@ static SYMBOL* insert(SYMTAB* st, const char* name, int type) {
   return st->sym[id] = new_symbol(name, type);
 }
 
-SYMBOL* sym_insert_relative(SYMTAB* st, const char* name) {
-  SYMBOL* sym = insert(st, name, SYM_RELATIVE);
+SYMBOL* sym_insert_unknown(SYMTAB* st, const char* name) {
+  return insert(st, name, SYM_UNKNOWN);
+}
+
+void sym_init_relative(SYMBOL* sym) {
+  assert(sym != NULL);
+  assert(sym->type == SYM_UNKNOWN || sym->type == SYM_RELATIVE);
+  sym->type = SYM_RELATIVE;
   sym->u.rel.val = 0;
   sym->u.rel.seg = NO_SEG;
   sym->u.rel.public = PRIVATE;
   sym->u.rel.external_id = -1;
   sym->u.rel.data_size = 0;
+}
+
+SYMBOL* sym_insert_relative(SYMTAB* st, const char* name) {
+  SYMBOL* sym = insert(st, name, SYM_RELATIVE);
+  sym_init_relative(sym);
   return sym;
 }
 

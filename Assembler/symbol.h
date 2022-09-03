@@ -9,12 +9,10 @@
 
 typedef short SYMBOL_ID;
 
-#define NO_SYM (-1)
-
 typedef short SEGNO;
 typedef short GROUPNO;
 
-enum symbol_type { SYM_RELATIVE, SYM_ABSOLUTE, SYM_SECTION };
+enum symbol_type { SYM_UNKNOWN, SYM_RELATIVE, SYM_ABSOLUTE, SYM_SECTION };
 
 enum defined_status { UNDEFINED = FALSE, DEFINED = TRUE };
 
@@ -58,6 +56,7 @@ void delete_symbol_table(SYMTAB*);
 unsigned sym_count(SYMTAB*);
 SYMBOL* get_sym(SYMTAB*, int id);
 SYMBOL* sym_lookup(SYMTAB*, const char* name);
+SYMBOL* sym_insert_unknown(SYMTAB*, const char* name);
 SYMBOL* sym_insert_relative(SYMTAB*, const char* name);
 SYMBOL* sym_insert_absolute(SYMTAB*, const char* name);
 SYMBOL* sym_insert_section(SYMTAB*, const char* name);
@@ -65,6 +64,8 @@ SYMBOL* sym_insert_section(SYMTAB*, const char* name);
 SYMBOL* sym_insert_external(SYMTAB*, const char* name, SEGNO);
 
 SYMBOL* sym_insert_local(SYMTAB*);
+
+void sym_init_relative(SYMBOL*);
 
 const char* sym_name(const SYMBOL*);
 int sym_type(const SYMBOL*);

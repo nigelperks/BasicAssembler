@@ -134,15 +134,11 @@ static BOOL parse_mem(STATE*, IFILE*, LEX*, OPERAND*);
 static void set_immediate_absolute(OPERAND*, long);
 
 static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
-  int lookahead;
-
   assert(state != NULL);
   assert(lex != NULL);
   assert(op != NULL);
   assert(op->opclass.type == OT_NONE);
   assert(op->opclass.nflag == 0);
-
-  lookahead = lex_token(lex);
 
   if (lex_token(lex) == TOK_REG8) {
     op->opclass.type = OT_REG;
@@ -375,6 +371,7 @@ static void set_immediate_absolute(OPERAND* op, long n) {
   op->val.imm.type = IMM_ABS;
   op->val.imm.sval = n;
   op->val.imm.label = NULL;
+  op->opclass.nflag = 0;
   add_flag(op, OF_IMM);
   if (n >= -0x80 && n < 0x80) {
     add_flag(op, OF_IMM8);
@@ -593,148 +590,354 @@ static BOOL data_size_flags(unsigned size, int *rm_flag, int *mem_flag) {
   return FALSE;
 }
 
+enum {
+  AST_BINARY,
+  AST_UNARY,
+  AST_COMPONENT,
+  AST_NUM,
+  AST_LABEL,
+  AST_STRING,
+  AST_UNDEF,
+};
 
+typedef struct ast {
+  short kind;
+  union {
+    struct {
+      int op;
+      struct ast * lhs;
+      struct ast * rhs;
+    } binary;
+    struct {
+      int op;
+      struct ast * expr;
+    } unary;
+    struct {
+      int op;
+      const SYMBOL* sym;
+    } component;
+    unsigned long long num;
+    SYMBOL* label;
+    struct {
+      BYTE* content;
+      size_t len;
+    } string;
+  } u;
+} AST;
 
+static AST* new_ast(int kind);
+static void delete_ast(AST*);
+static AST* parse_expr(STATE*, IFILE*, LEX*);
 
-static int unary_expr(STATE*, IFILE*, LEX*, union value *);
-
-static BOOL expr_operator(int t) {
-  return t == '+' || t == '-' || t == '*';
-}
+static int eval(STATE*, IFILE*, const AST*, union value *);
 
 int expr(STATE* state, IFILE* ifile, LEX* lex, union value * val) {
-  int type = unary_expr(state, ifile, lex, val);
-  if (type == ET_ERR)
+  AST* ast = parse_expr(state, ifile, lex);
+  if (ast == NULL)
     return ET_ERR;
+  int type = eval(state, ifile, ast, val);
+  delete_ast(ast);
+  return type;
+}
 
-  while (expr_operator(lex_token(lex))) {
+static AST* new_ast(int kind) {
+  AST* p = ecalloc(1, sizeof *p);
+  p->kind = kind;
+  return p;
+}
+
+static void delete_ast(AST* p) {
+  if (p) {
+    switch (p->kind) {
+      case AST_BINARY:
+        delete_ast(p->u.binary.lhs);
+        delete_ast(p->u.binary.rhs);
+        break;
+      case AST_UNARY:
+        delete_ast(p->u.unary.expr);
+        break;
+      case AST_STRING:
+        efree(p->u.string.content);
+        break;
+    }
+    efree(p);
+  }
+}
+
+static AST* add_expr(STATE*, IFILE*, LEX*);
+
+static AST* parse_expr(STATE* state, IFILE* ifile, LEX* lex) {
+  return add_expr(state, ifile, lex);
+}
+
+static AST* mult_expr(STATE*, IFILE*, LEX*);
+
+// add-expr:
+//      add-expr ADDOP mult-expr
+//      mult-expr
+static AST* add_expr(STATE* state, IFILE* ifile, LEX* lex) {
+  AST* node = mult_expr(state, ifile, lex);
+  if (node == NULL)
+    return NULL;
+
+  while (lex_token(lex) == '+' || lex_token(lex) == '-') {
     int op = lex_token(lex);
     lex_next(lex);
-    union value val2;
-    int type2 = unary_expr(state, ifile, lex, &val2);
-    if (type2 == ET_ERR)
-      return ET_ERR;
-    if (make_absolute(type, val) && make_absolute(type2, &val2)) {
-      switch (op) {
-        case '+': val->n += val2.n; break;
-        case '-': val->n -= val2.n; break;
-        case '*': val->n *= val2.n; break;
-        default: assert(0 && "unknown operator");
-      }
-      type = ET_ABS;
+    AST* rhs = mult_expr(state, ifile, lex);
+    if (rhs == NULL) {
+      delete_ast(node);
+      return NULL;
     }
-    else {
-      error2(state, lex, "invalid expression");
-      return ET_ERR;
-    }
+    AST* parent = new_ast(AST_BINARY);
+    parent->u.binary.op = op;
+    parent->u.binary.lhs = node;
+    parent->u.binary.rhs = rhs;
+    node = parent;
   }
-
-  return type;
+  return node;
 }
 
-static int primitive_expr(STATE*, IFILE*, LEX*, union value *);
+static AST* unary_expr(STATE*, IFILE*, LEX*);
 
-static int unary_expr(STATE* state, IFILE* ifile, LEX* lex, union value * val) {
+// mult-expr:
+//      mult-expr MULOP unary-expr
+//      unary-expr
+static AST* mult_expr(STATE* state, IFILE* ifile, LEX* lex) {
+  AST* node = unary_expr(state, ifile, lex);
+  if (node == NULL)
+    return NULL;
+
+  while (lex_token(lex) == '*') {
+    lex_next(lex);
+    AST* rhs = unary_expr(state, ifile, lex);
+    if (rhs == NULL) {
+      delete_ast(node);
+      return NULL;
+    }
+    AST* parent = new_ast(AST_BINARY);
+    parent->u.binary.op = '*';
+    parent->u.binary.lhs = node;
+    parent->u.binary.rhs = rhs;
+    node = parent;
+  }
+  return node;
+}
+
+static AST* component_expr(STATE*, IFILE*, LEX*);
+
+// unary-expr:
+//      '-' unary-expr
+//      component-expr
+static AST* unary_expr(STATE* state, IFILE* ifile, LEX* lex) {
   BOOL neg = FALSE;
   if (lex_token(lex) == '-') {
-    neg = TRUE;
     lex_next(lex);
+    AST* e = unary_expr(state, ifile, lex);
+    if (e == NULL)
+      return NULL;
+    AST* node = new_ast(AST_UNARY);
+    node->u.unary.op = '-';
+    node->u.unary.expr = e;
+    return node;
   }
 
-  int type = primitive_expr(state, ifile, lex, val);
-  if (type == ET_ERR)
-    return ET_ERR;
-
-  if (neg) {
-    if (!make_absolute(type, val)) {
-      error2(state, lex, "invalid unary minus");
-      return ET_ERR;
-    }
-    val->n = - val->n;
-    type = ET_ABS;
-  }
-
-  return type;
+  return component_expr(state, ifile, lex);
 }
 
-static const SYMBOL* parse_label(STATE*, IFILE*, LEX*, const char* opname);
+static const SYMBOL* relative_label(STATE*, IFILE*, LEX*, int operator_token);
+static AST* primitive_expr(STATE*, IFILE*, LEX*);
 
-static int primitive_expr(STATE* state, IFILE* ifile, LEX* lex, union value * val) {
-  long n = 0;
-
-  if (lex_token(lex) == TOK_NUM) {
-    val->n = lex_lval(lex);
+// component-expr:
+//      SEG relative-label
+//      OFFSET relative-label
+//      primitive-expr
+static AST* component_expr(STATE* state, IFILE* ifile, LEX* lex) {
+  if (lex_token(lex) == TOK_SEG || lex_token(lex) == TOK_OFFSET) {
+    int op = lex_token(lex);
     lex_next(lex);
+    const SYMBOL* sym = relative_label(state, ifile, lex, op);
+    if (sym == NULL)
+      return NULL;
+    AST* node = new_ast(AST_COMPONENT);
+    node->u.component.op = op;
+    node->u.component.sym = sym;
+    return node;
+  }
+
+  return primitive_expr(state, ifile, lex);
+}
+
+static const SYMBOL* relative_label(STATE* state, IFILE* ifile, LEX* lex, int op) {
+  if (lex_token(lex) != TOK_LABEL) {
+    error2(state, lex, "%s requires symbol", token_name(op));
+    return NULL;
+  }
+  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
+  if (sym == NULL)
+    sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
+  else {
+    if (sym_type(sym) != SYM_RELATIVE) {
+      error2(state, lex, "%s requires relative label", token_name(op));
+      return NULL;
+    }
+  }
+  lex_next(lex);
+  return sym;
+}
+
+// primitive-expr:
+//      number
+//      label
+//      string
+//      ?
+static AST* primitive_expr(STATE* state, IFILE* ifile, LEX* lex) {
+  AST* node = NULL;
+
+  switch (lex_token(lex)) {
+    case TOK_NUM:
+      node = new_ast(AST_NUM);
+      node->u.num = lex_lval(lex);
+      lex_next(lex);
+      break;
+    case TOK_LABEL:
+      node = new_ast(AST_LABEL);
+      node->u.label = sym_lookup(ifile->st, lex_lexeme(lex));
+      if (node->u.label == NULL)
+        node->u.label = sym_insert_unknown(ifile->st, lex_lexeme(lex));
+      lex_next(lex);
+      break;
+    case TOK_STR:
+      node = new_ast(AST_STRING);
+      node->u.string.content = lex_string_content(lex, &node->u.string.len);
+      assert(node->u.string.content != NULL || node->u.string.len == 0);
+      lex_next(lex);
+      break;
+    case '?':
+      node = new_ast(AST_UNDEF);
+      lex_next(lex);
+      break;
+    default:
+      error2(state, lex, "expression expected");
+  }
+
+  return node;
+}
+
+static int eval_binary(STATE*, IFILE*, int op, AST* lhs, AST* rhs, VALUE*);
+static int eval_unary(STATE*, IFILE*, int op, AST* arg, VALUE*);
+static int eval_component(int op, const SYMBOL* label, VALUE*);
+static int eval_label(STATE*, IFILE*, SYMBOL*, VALUE*);
+static int eval_string(STATE*, IFILE*, const BYTE* content, size_t len, VALUE*);
+
+static int eval(STATE* state, IFILE* ifile, const AST* ast, union value * val) {
+  assert(val != NULL);
+
+  if (ast == NULL)
+    return ET_ERR;
+
+  switch (ast->kind) {
+    case AST_BINARY:
+      return eval_binary(state, ifile, ast->u.binary.op, ast->u.binary.lhs, ast->u.binary.rhs, val);
+    case AST_UNARY:
+      return eval_unary(state, ifile, ast->u.unary.op, ast->u.unary.expr, val);
+    case AST_COMPONENT:
+      return eval_component(ast->u.component.op, ast->u.component.sym, val);
+    case AST_NUM:
+      val->n = ast->u.num;
+      return ET_ABS;
+    case AST_LABEL:
+      return eval_label(state, ifile, ast->u.label, val);
+    case AST_STRING:
+      return eval_string(state, ifile, ast->u.string.content, ast->u.string.len, val);
+    case AST_UNDEF:
+      return ET_UNDEF;
+  }
+
+  fatal("internal error: %s: %d: unexpected kind of expression\n", __FILE__, __LINE__);
+  return ET_ERR;
+}
+
+static int eval_binary(STATE* state, IFILE* ifile, int op, AST* lhs, AST* rhs, VALUE* val) {
+  int t1 = eval(state, ifile, lhs, val);
+  if (t1 == ET_ERR)
+    return ET_ERR;
+  VALUE val2;
+  int t2 = eval(state, ifile, rhs, &val2);
+  if (t1 == ET_ERR)
+    return ET_ERR;
+  if (make_absolute(t1, val) && make_absolute(t2, &val2)) {
+    switch (op) {
+      case '+': val->n += val2.n; break;
+      case '-': val->n -= val2.n; break;
+      case '*': val->n *= val2.n; break;
+      default: fatal("internal error: %s: %d: unexpected binary operator: %s\n", __FILE__, __LINE__, token_name(op));
+    }
     return ET_ABS;
   }
-
-  if (lex_token(lex) == '?') {
-    lex_next(lex);
-    return ET_UNDEF;
-  }
-
-  if (lex_token(lex) == TOK_SEG) {
-    const SYMBOL* sym = parse_label(state, ifile, lex, "SEG");
-    if (sym == NULL)
-      return ET_ERR;
-    val->label = sym;
-    return ET_SEG;
-  }
-
-  if (lex_token(lex) == TOK_OFFSET) {
-    const SYMBOL* sym = parse_label(state, ifile, lex, "OFFSET");
-    if (sym == NULL)
-      return ET_ERR;
-    val->label = sym;
-    return ET_OFFSET;
-  }
-
-  if (lex_token(lex) == TOK_LABEL) {
-    SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
-    if (sym == NULL) {
-      val->label = sym_insert_relative(ifile->st, lex_lexeme(lex));
-      lex_next(lex);
-      return ET_REL;
-    }
-    switch (sym_type(sym)) {
-      case SYM_ABSOLUTE:
-        val->n = sym_absolute_value(sym);
-        lex_next(lex);
-        return ET_ABS;
-      case SYM_RELATIVE:
-        val->label = sym;
-        lex_next(lex);
-        return ET_REL;
-      case SYM_SECTION:
-        val->label = sym;
-        lex_next(lex);
-        return ET_SEC;
-      default:
-        error2(state, lex, "invalid symbol in expression: %s", sym_name(sym));
-        return ET_ERR;
-    }
-  }
-
-  if (lex_token(lex) == TOK_STR) {
-    size_t len;
-    BYTE* content = lex_string_content(lex, &len);
-    if (content == NULL) {
-      assert(len == 0);
-      val->str[0] = '\0';
-    }
-    else if (len + 1 > sizeof val->str) {
-      error2(state, lex, "string too long");
-      val->str[0] = '\0';
-    }
-    else
-      strcpy(val->str, content);
-    efree(content);
-    lex_next(lex);
-    return ET_STR;
-  }
-
-  error2(state, lex, "expression expected");
+  error(state, ifile, "invalid expression");
   return ET_ERR;
+}
+
+static int eval_unary(STATE* state, IFILE* ifile, int op, AST* arg, VALUE* val) {
+  int type = eval(state, ifile, arg, val);
+  if (type == ET_ERR)
+    return ET_ERR;
+  assert(op == '-');
+  if (!make_absolute(type, val)) {
+    error(state, ifile, "invalid unary minus");
+    return ET_ERR;
+  }
+  val->n = - val->n;
+  return ET_ABS;
+}
+
+static int eval_component(int op, const SYMBOL* label, VALUE* val) {
+  assert(op == TOK_SEG || op == TOK_OFFSET);
+  assert(label != NULL);
+  assert(val != NULL);
+
+  val->label = label;
+  return op == TOK_SEG ? ET_SEG : ET_OFFSET;
+}
+
+static int eval_label(STATE* state, IFILE* ifile, SYMBOL* sym, VALUE* val) {
+  assert(sym != NULL);
+  assert(val != NULL);
+
+  if (sym_type(sym) == SYM_UNKNOWN)
+    sym_init_relative(sym);
+
+  switch (sym_type(sym)) {
+    case SYM_ABSOLUTE:
+      val->n = sym_absolute_value(sym);
+      return ET_ABS;
+    case SYM_RELATIVE:
+      val->label = sym;
+      return ET_REL;
+    case SYM_SECTION:
+      val->label = sym;
+      return ET_SEC;
+    default:
+      error(state, ifile, "invalid symbol in expression: %s", sym_name(sym));
+      break;
+  }
+
+  return ET_ERR;
+}
+
+static int eval_string(STATE* state, IFILE* ifile, const BYTE* content, size_t len, VALUE* val) {
+  if (content == NULL)
+    val->str[0] = '\0';
+  else if (len >= sizeof val->str) {
+    error(state, ifile, "string too long");
+    val->str[0] = '\0';
+    return ET_ERR;
+  }
+  else {
+    memcpy(val->str, content, len);
+    val->str[len] = '\0';
+  }
+  return ET_STR;
 }
 
 BOOL make_absolute(int type, union value * val) {
@@ -745,27 +948,8 @@ BOOL make_absolute(int type, union value * val) {
   return (type == ET_ABS);
 }
 
-static const SYMBOL* parse_label(STATE* state, IFILE* ifile, LEX* lex, const char* opname) {
-  if (lex_next(lex) != TOK_LABEL) {
-    error2(state, lex, "%s requires symbol", opname);
-    return NULL;
-  }
-  SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
-  if (sym == NULL)
-    sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
-  else {
-    if (sym_type(sym) != SYM_RELATIVE) {
-      error2(state, lex, "%s requires relative label", opname);
-      return NULL;
-    }
-  }
-  lex_next(lex);
-  return sym;
-}
-
 #ifdef UNIT_TEST
 
-#include <string.h>
 #include "CuTest.h"
 #include "sourcepass.h"
 
@@ -798,6 +982,17 @@ static void test_error(CuTest* tc) {
 
   delete_ifile(ifile);
   delete_source(src);
+}
+
+static void test_token_data_size(CuTest* tc) {
+  CuAssertIntEquals(tc, 1, token_data_size(TOK_DB));
+  CuAssertIntEquals(tc, 2, token_data_size(TOK_DW));
+  CuAssertIntEquals(tc, 4, token_data_size(TOK_DD));
+  CuAssertIntEquals(tc, 8, token_data_size(TOK_DQ));
+  CuAssertIntEquals(tc, 10, token_data_size(TOK_DT));
+
+  CuAssertIntEquals(tc, 0, token_data_size(0));
+  CuAssertIntEquals(tc, 0, token_data_size(TOK_NONE));
 }
 
 static void test_size_override(CuTest* tc) {
@@ -840,6 +1035,757 @@ static void test_size_override(CuTest* tc) {
   rm_flag = -1;
   mem_flag = -1;
   CuAssertIntEquals(tc, FALSE, size_override_token(TOK_MOV, &size, &rm_flag, &mem_flag));
+}
+
+static void test_data_size_flags(CuTest* tc) {
+  int rm_flag, mem_flag;
+
+  rm_flag = -1;
+  mem_flag = -1;
+  CuAssertIntEquals(tc, TRUE, data_size_flags(1, &rm_flag, &mem_flag));
+  CuAssertIntEquals(tc, OF_RM8, rm_flag);
+  CuAssertIntEquals(tc, OF_MEM8, mem_flag);
+
+  rm_flag = -1;
+  mem_flag = -1;
+  CuAssertIntEquals(tc, TRUE, data_size_flags(2, &rm_flag, &mem_flag));
+  CuAssertIntEquals(tc, OF_RM16, rm_flag);
+  CuAssertIntEquals(tc, OF_MEM16, mem_flag);
+
+  rm_flag = -1;
+  mem_flag = -1;
+  CuAssertIntEquals(tc, TRUE, data_size_flags(4, &rm_flag, &mem_flag));
+  CuAssertIntEquals(tc, OF_RM32, rm_flag);
+  CuAssertIntEquals(tc, OF_MEM32, mem_flag);
+
+  rm_flag = -1;
+  mem_flag = -1;
+  CuAssertIntEquals(tc, TRUE, data_size_flags(8, &rm_flag, &mem_flag));
+  CuAssertIntEquals(tc, OF_RM64, rm_flag);
+  CuAssertIntEquals(tc, OF_MEM64, mem_flag);
+
+  rm_flag = -1;
+  mem_flag = -1;
+  CuAssertIntEquals(tc, FALSE, data_size_flags(0, &rm_flag, &mem_flag));
+  CuAssertIntEquals(tc, FALSE, data_size_flags(3, &rm_flag, &mem_flag));
+}
+
+static void test_set_immediate_absolute(CuTest* tc) {
+  OPERAND op;
+
+  memset(&op, 0xff, sizeof op);
+  set_immediate_absolute(&op, 0);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
+  CuAssertIntEquals(tc, 0, op.val.imm.sval);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+
+  memset(&op, 0xff, sizeof op);
+  set_immediate_absolute(&op, 1);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_1, op.opclass.flags[2]);
+  CuAssertIntEquals(tc, 3, op.opclass.nflag);
+  CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
+  CuAssertIntEquals(tc, 1, op.val.imm.sval);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+
+  memset(&op, 0xff, sizeof op);
+  set_immediate_absolute(&op, -0x80);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
+  CuAssertIntEquals(tc, -0x80, op.val.imm.sval);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+
+  memset(&op, 0xff, sizeof op);
+  set_immediate_absolute(&op, 0x80);
+  CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
+  CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
+  CuAssertIntEquals(tc, 0x80, op.val.imm.sval);
+  CuAssertTrue(tc, op.val.imm.label == NULL);
+}
+
+static void test_new_ast(CuTest* tc) {
+  AST* ast = new_ast(AST_BINARY);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_BINARY, ast->kind);
+  delete_ast(ast);
+}
+
+static void test_delete_ast(CuTest* tc) {
+  AST* ast;
+  SYMBOL symbol;
+
+  memset(&symbol, 0xff, sizeof symbol);
+
+  ast = new_ast(AST_BINARY);
+  ast->u.binary.lhs = new_ast(AST_UNDEF);
+  ast->u.binary.rhs = new_ast(AST_UNDEF);
+  delete_ast(ast);
+
+  ast = new_ast(AST_UNARY);
+  ast->u.unary.expr = new_ast(AST_UNDEF);
+  delete_ast(ast);
+
+  ast = new_ast(AST_COMPONENT);
+  ast->u.component.sym = &symbol;
+  delete_ast(ast);
+
+  ast = new_ast(AST_NUM);
+  ast->u.num = 1234;
+  delete_ast(ast);
+
+  ast = new_ast(AST_LABEL);
+  ast->u.label = &symbol;
+  delete_ast(ast);
+
+  ast = new_ast(AST_STRING);
+  ast->u.string.content = NULL;
+  ast->u.string.len = 0;
+  delete_ast(ast);
+
+  ast = new_ast(AST_STRING);
+  ast->u.string.content = emalloc(12);
+  ast->u.string.len = 12;
+  delete_ast(ast);
+}
+
+// primitive-expr:
+//      number
+//      label
+//      string
+//      ?
+static void test_primitive_expr(CuTest* tc) {
+  static const char text[] = "871 0FACEhFred'''cobblers'?+";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  LEX* lex = new_lex(source_name(src));
+  STATE state;
+  AST* ast;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+  lex_begin(lex, text, 1, 0);
+
+  // number
+  ast = primitive_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_NUM, ast->kind);
+  CuAssertLongLongEquals(tc, 871, ast->u.num);
+  delete_ast(ast);
+
+  ast = primitive_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_NUM, ast->kind);
+  CuAssertLongLongEquals(tc, 0xFACE, ast->u.num);
+  delete_ast(ast);
+
+  // label
+  CuAssertPtrEquals(tc, NULL, sym_lookup(ifile->st, "Fred"));
+  ast = primitive_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_LABEL, ast->kind);
+  CuAssertPtrNotNull(tc, sym_lookup(ifile->st, "Fred"));
+  delete_ast(ast);
+
+  // string
+  ast = primitive_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_STRING, ast->kind);
+  CuAssertPtrEquals(tc, NULL, ast->u.string.content);
+  CuAssertIntEquals(tc, 0, ast->u.string.len);
+  delete_ast(ast);
+
+  ast = primitive_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_STRING, ast->kind);
+  CuAssertPtrNotNull(tc, ast->u.string.content);
+  CuAssertTrue(tc, memcmp(ast->u.string.content, "cobblers", 8) == 0);
+  CuAssertIntEquals(tc, 8, ast->u.string.len);
+  delete_ast(ast);
+
+  // ?
+  ast = primitive_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_UNDEF, ast->kind);
+  delete_ast(ast);
+
+  // invalid
+  CuAssertIntEquals(tc, 0, state.errors);
+  ast = primitive_expr(&state, ifile, lex);
+  CuAssertPtrEquals(tc, NULL, ast);
+  CuAssertIntEquals(tc, 1, state.errors);
+
+  // clean up
+  delete_lex(lex);
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+static void test_relative_label(CuTest* tc) {
+  static const char text[] = "+ Fred Sally Outside Tom:";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  LEX* lex = new_lex(source_name(src));
+  STATE state;
+  const SYMBOL* sym;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+  lex_begin(lex, text, 1, 0);
+
+  // non-label
+  sym = relative_label(&state, ifile, lex, TOK_OFFSET);
+  CuAssertTrue(tc, sym == NULL);
+  CuAssertIntEquals(tc, 1, state.errors);
+  lex_next(lex);
+
+  // new label
+  sym = relative_label(&state, ifile, lex, TOK_OFFSET);
+  CuAssertPtrNotNull(tc, sym);
+  CuAssertPtrNotNull(tc, sym_lookup(ifile->st, "Fred"));
+
+  // existing relative label
+  SYMBOL* sally = sym_insert_relative(ifile->st, "Sally");
+  sym = relative_label(&state, ifile, lex, TOK_OFFSET);
+  CuAssertPtrNotNull(tc, sym);
+  CuAssertTrue(tc, sym == sally);
+
+  SYMBOL* outside = sym_insert_external(ifile->st, "Outside", 1);
+  sym = relative_label(&state, ifile, lex, TOK_OFFSET);
+  CuAssertPtrNotNull(tc, sym);
+  CuAssertTrue(tc, sym == outside);
+
+  // non-relative label
+  sym_insert_absolute(ifile->st, "Tom");
+  CuAssertIntEquals(tc, 1, state.errors);
+  sym = relative_label(&state, ifile, lex, TOK_OFFSET);
+  CuAssertTrue(tc, sym == NULL);
+  CuAssertIntEquals(tc, 2, state.errors);
+  CuAssertIntEquals(tc, TOK_LABEL, lex_token(lex));
+  lex_next(lex);
+  CuAssertIntEquals(tc, ':', lex_token(lex));
+
+  // clean up
+  delete_lex(lex);
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+// component-expr:
+//      SEG relative-label
+//      OFFSET relative-label
+//      primitive-expr
+static void test_component_expr(CuTest* tc) {
+  static const char text[] = "SEG addr: SEG 1234: OFFSET addr: OFFSET 9: lavender:";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  LEX* lex = new_lex(source_name(src));
+  STATE state;
+  AST* ast;
+  SYMBOL* addr;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+  lex_begin(lex, text, 1, 0);
+
+  // SEG relative-label
+  ast = component_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  addr = sym_lookup(ifile->st, "addr");
+  CuAssertPtrNotNull(tc, addr);
+  CuAssertIntEquals(tc, SYM_RELATIVE, addr->type);
+  CuAssertIntEquals(tc, AST_COMPONENT, ast->kind);
+  CuAssertIntEquals(tc, TOK_SEG, ast->u.component.op);
+  CuAssertPtrEquals(tc, addr, (void*) ast->u.component.sym);
+  delete_ast(ast);
+  CuAssertIntEquals(tc, 0, state.errors);
+
+  CuAssertIntEquals(tc, ':', lex_token(lex));
+  lex_next(lex);
+
+  ast = component_expr(&state, ifile, lex);
+  CuAssertPtrEquals(tc, NULL, ast);
+  CuAssertIntEquals(tc, 1, state.errors);
+
+  CuAssertIntEquals(tc, TOK_NUM, lex_token(lex));
+  lex_next(lex);
+  CuAssertIntEquals(tc, ':', lex_token(lex));
+  lex_next(lex);
+
+  // OFFSET relative-label
+  ast = component_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_COMPONENT, ast->kind);
+  CuAssertIntEquals(tc, TOK_OFFSET, ast->u.component.op);
+  CuAssertPtrEquals(tc, addr, (void*) ast->u.component.sym);
+  delete_ast(ast);
+  CuAssertIntEquals(tc, 1, state.errors);
+
+  CuAssertIntEquals(tc, ':', lex_token(lex));
+  lex_next(lex);
+
+  ast = component_expr(&state, ifile, lex);
+  CuAssertPtrEquals(tc, NULL, ast);
+  CuAssertIntEquals(tc, 2, state.errors);
+
+  CuAssertIntEquals(tc, TOK_NUM, lex_token(lex));
+  lex_next(lex);
+  CuAssertIntEquals(tc, ':', lex_token(lex));
+  lex_next(lex);
+
+  // primitive-expr
+  ast = component_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_LABEL, ast->kind);
+  CuAssertPtrNotNull(tc, ast->u.label);
+  CuAssertPtrEquals(tc, sym_lookup(ifile->st, "lavender"), ast->u.label);
+  delete_ast(ast);
+  CuAssertIntEquals(tc, 2, state.errors);
+
+  CuAssertIntEquals(tc, ':', lex_token(lex));
+  lex_next(lex);
+
+  // clean up
+  delete_lex(lex);
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+// unary-expr:
+//      '-' unary-expr
+//      component-expr
+static void test_unary_expr(CuTest* tc) {
+  static const char text[] = "29: -X: --X:";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  LEX* lex = new_lex(source_name(src));
+  STATE state;
+  AST* ast;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+  lex_begin(lex, text, 1, 0);
+
+  // component-expr
+  ast = unary_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_NUM, ast->kind);
+  CuAssertLongLongEquals(tc, 29, ast->u.num);
+  delete_ast(ast);
+
+  CuAssertIntEquals(tc, ':', lex_token(lex));
+  lex_next(lex);
+
+  // '-' component-expr
+  ast = unary_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_UNARY, ast->kind);
+  CuAssertIntEquals(tc, '-', ast->u.unary.op);
+  CuAssertPtrNotNull(tc, ast->u.unary.expr);
+  CuAssertIntEquals(tc, AST_LABEL, ast->u.unary.expr->kind);
+  delete_ast(ast);
+
+  CuAssertIntEquals(tc, ':', lex_token(lex));
+  lex_next(lex);
+
+  // '-' '-' component-expr
+  ast = unary_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_UNARY, ast->kind);
+  CuAssertIntEquals(tc, '-', ast->u.unary.op);
+  AST* e = ast->u.unary.expr;
+  CuAssertPtrNotNull(tc, e);
+  CuAssertIntEquals(tc, AST_UNARY, e->kind);
+  CuAssertIntEquals(tc, '-', e->u.unary.op);
+  CuAssertPtrNotNull(tc, e->u.unary.expr);
+  CuAssertIntEquals(tc, AST_LABEL, e->u.unary.expr->kind);
+  delete_ast(ast);
+
+  CuAssertIntEquals(tc, ':', lex_token(lex));
+  lex_next(lex);
+
+  // clean up
+  delete_lex(lex);
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+// mult-expr:
+//      mult-expr MULOP unary-expr
+//      unary-expr
+static void test_mult_expr(CuTest* tc) {
+  static const char text[] = "-3-2*K*7";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  LEX* lex = new_lex(source_name(src));
+  STATE state;
+  AST* ast;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+  lex_begin(lex, text, 1, 0);
+
+  // unary-expr
+  ast = mult_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_UNARY, ast->kind);
+  CuAssertIntEquals(tc, '-', ast->u.unary.op);
+  AST* e = ast->u.unary.expr;
+  CuAssertPtrNotNull(tc, e);
+  CuAssertIntEquals(tc, AST_NUM, e->kind);
+  CuAssertLongLongEquals(tc, 3, e->u.num);
+  delete_ast(ast);
+
+  // mult-expr '*' unary-expr
+  ast = mult_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_BINARY, ast->kind);
+  CuAssertIntEquals(tc, '*', ast->u.binary.op);
+  AST* lhs = ast->u.binary.lhs;
+  AST* rhs = ast->u.binary.rhs;
+  CuAssertPtrNotNull(tc, lhs);
+  CuAssertIntEquals(tc, AST_BINARY, lhs->kind);
+  CuAssertIntEquals(tc, AST_NUM, rhs->kind);
+  delete_ast(ast);
+
+  // clean up
+  delete_lex(lex);
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+// add-expr:
+//      add-expr ADDOP mult-expr
+//      mult-expr
+static void test_add_expr(CuTest* tc) {
+  static const char text[] = "3*K 2+A*7-1";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  LEX* lex = new_lex(source_name(src));
+  STATE state;
+  AST* ast;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+  lex_begin(lex, text, 1, 0);
+
+  // mult-expr
+  ast = add_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_BINARY, ast->kind);
+  CuAssertIntEquals(tc, '*', ast->u.binary.op);
+  CuAssertPtrNotNull(tc, ast->u.binary.lhs);
+  CuAssertPtrNotNull(tc, ast->u.binary.rhs);
+  CuAssertIntEquals(tc, AST_NUM, ast->u.binary.lhs->kind);
+  CuAssertIntEquals(tc, AST_LABEL, ast->u.binary.rhs->kind);
+  delete_ast(ast);
+
+  // add-expr '-' mult-expr
+  // (add-expr '+' mult-expr) '-' mult-expr
+  ast = add_expr(&state, ifile, lex);
+  CuAssertPtrNotNull(tc, ast);
+  CuAssertIntEquals(tc, AST_BINARY, ast->kind);
+  CuAssertIntEquals(tc, '-', ast->u.binary.op);
+
+  AST* lhs = ast->u.binary.lhs;
+  AST* rhs = ast->u.binary.rhs;
+  CuAssertPtrNotNull(tc, lhs);
+  CuAssertPtrNotNull(tc, rhs);
+  CuAssertIntEquals(tc, AST_BINARY, lhs->kind);
+  CuAssertIntEquals(tc, '+', lhs->u.binary.op);
+  CuAssertIntEquals(tc, AST_NUM, rhs->kind);
+  CuAssertLongLongEquals(tc, 1, rhs->u.num);
+
+  rhs = lhs->u.binary.rhs;
+  lhs = lhs->u.binary.lhs;
+  CuAssertPtrNotNull(tc, lhs);
+  CuAssertPtrNotNull(tc, rhs);
+  CuAssertIntEquals(tc, AST_NUM, lhs->kind);
+  CuAssertIntEquals(tc, AST_BINARY, rhs->kind);
+  CuAssertLongLongEquals(tc, 2, lhs->u.num);
+  CuAssertIntEquals(tc, '*', rhs->u.binary.op);
+
+  delete_ast(ast);
+
+  // clean up
+  delete_lex(lex);
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+static void test_make_absolute(CuTest* tc) {
+  VALUE val;
+  BOOL succ;
+
+  val.n = -1234;
+  succ = make_absolute(ET_ABS, &val);
+  CuAssertIntEquals(tc, TRUE, succ);
+  CuAssertLongLongEquals(tc, -1234, val.n);
+
+  SYMBOL symbol;
+  memset(&symbol, 0xff, sizeof symbol);
+  val.label = &symbol;
+  succ = make_absolute(ET_OFFSET, &val);
+  CuAssertIntEquals(tc, FALSE, succ);
+  CuAssertPtrEquals(tc, &symbol, (void*) val.label);
+
+  strcpy(val.str, "");
+  succ = make_absolute(ET_STR, &val);
+  CuAssertIntEquals(tc, FALSE, succ);
+
+  strcpy(val.str, "*");
+  succ = make_absolute(ET_STR, &val);
+  CuAssertIntEquals(tc, TRUE, succ);
+  CuAssertLongLongEquals(tc, '*', val.n);
+
+  strcpy(val.str, "**");
+  succ = make_absolute(ET_STR, &val);
+  CuAssertIntEquals(tc, FALSE, succ);
+}
+
+static void test_eval_string(CuTest* tc) {
+  static const char text[] = "";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  STATE state;
+  VALUE val;
+  int type;
+  char buff[sizeof val.str];
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+
+  // null empty string
+  memset(&val, 0xff, sizeof val);
+  type = eval_string(&state, ifile, NULL, 0, &val);
+  CuAssertIntEquals(tc, ET_STR, type);
+  CuAssertIntEquals(tc, '\0', val.str[0]);
+
+  // non-null empty string
+  memset(&val, 0xff, sizeof val);
+  type = eval_string(&state, ifile, "", 0, &val);
+  CuAssertIntEquals(tc, ET_STR, type);
+  CuAssertIntEquals(tc, '\0', val.str[0]);
+
+  // non-empty string
+  memset(buff, '*', sizeof buff);
+  type = eval_string(&state, ifile, buff, sizeof val.str - 1, &val);
+  CuAssertIntEquals(tc, ET_STR, type);
+  CuAssertTrue(tc, memcmp(val.str, buff, sizeof val.str - 1) == 0);
+  CuAssertIntEquals(tc, '\0', val.str[sizeof val.str - 1]);
+
+  // string too long
+  type = eval_string(&state, ifile, buff, sizeof val.str, &val);
+  CuAssertIntEquals(tc, ET_ERR, type);
+  CuAssertIntEquals(tc, '\0', val.str[0]);
+
+  // clean up
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+static void test_eval_label(CuTest* tc) {
+  static const char text[] = "";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  STATE state;
+  VALUE val;
+  int type;
+  SYMBOL symbol;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+
+  symbol.name = "Fred";
+
+  // SYM_UNKNOWN -> SYM_RELATIVE
+  symbol.type = SYM_UNKNOWN;
+  symbol.defined = FALSE;
+  val.label = NULL;
+  type = eval_label(&state, ifile, &symbol, &val);
+  CuAssertIntEquals(tc, ET_REL, type);
+  CuAssertPtrEquals(tc, &symbol, (void*) val.label);
+  CuAssertIntEquals(tc, SYM_RELATIVE, symbol.type);
+
+  // SYM_RELATIVE
+  val.label = NULL;
+  type = eval_label(&state, ifile, &symbol, &val);
+  CuAssertIntEquals(tc, ET_REL, type);
+  CuAssertPtrEquals(tc, &symbol, (void*) val.label);
+
+  // SYM_ABSOLUTE
+  symbol.type = SYM_ABSOLUTE;
+  symbol.defined = TRUE;
+  symbol.u.abs.val = -912;
+  val.n = 0;
+  type = eval_label(&state, ifile, &symbol, &val);
+  CuAssertIntEquals(tc, ET_ABS, type);
+  CuAssertLongLongEquals(tc, -912, val.n);
+
+  // SYM_SECTION
+  symbol.type = SYM_SECTION;
+  val.label = NULL;
+  type = eval_label(&state, ifile, &symbol, &val);
+  CuAssertIntEquals(tc, ET_SEC, type);
+  CuAssertPtrEquals(tc, &symbol, (void*) val.label);
+
+  // clean up
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+static void test_eval_component(CuTest* tc) {
+  static const char text[] = "";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  STATE state;
+  VALUE val;
+  int type;
+  SYMBOL symbol;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+
+  symbol.name = "Fred";
+
+  // OFFSET label
+  val.label = 0;
+  type = eval_component(TOK_OFFSET, &symbol, &val);
+  CuAssertIntEquals(tc, ET_OFFSET, type);
+  CuAssertPtrEquals(tc, &symbol, (void*) val.label);
+
+  // SEG label
+  val.label = 0;
+  type = eval_component(TOK_SEG, &symbol, &val);
+  CuAssertIntEquals(tc, ET_SEG, type);
+  CuAssertPtrEquals(tc, &symbol, (void*) val.label);
+
+  // clean up
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+static void test_eval_unary(CuTest* tc) {
+  static const char text[] = "";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  STATE state;
+  VALUE val;
+  int type;
+  AST* arg;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+
+  // - 1234
+  arg = new_ast(AST_NUM);
+  arg->u.num = 1234;
+  val.n = 0;
+  type = eval_unary(&state, ifile, '-', arg, &val);
+  CuAssertIntEquals(tc, ET_ABS, type);
+  CuAssertLongLongEquals(tc, -1234, val.n);
+  delete_ast(arg);
+
+  // - - K
+  SYMBOL K;
+  K.name = "K";
+  K.type = SYM_ABSOLUTE;
+  K.defined = TRUE;
+  K.u.abs.val = 9040;
+  AST* p = new_ast(AST_LABEL);
+  p->u.label = &K;
+  arg = new_ast(AST_UNARY);
+  arg->u.unary.op = '-';
+  arg->u.unary.expr = p;
+  val.n = 0;
+  type = eval_unary(&state, ifile, '-', arg, &val);
+  CuAssertIntEquals(tc, ET_ABS, type);
+  CuAssertLongLongEquals(tc, 9040, val.n);
+  delete_ast(arg);
+
+  // - relative
+  SYMBOL addr;
+  addr.name = "addr";
+  addr.type = SYM_RELATIVE;
+  addr.defined = TRUE;
+  addr.u.rel.val = 0x1000;
+  arg = new_ast(AST_LABEL);
+  arg->u.label = &addr;
+  CuAssertIntEquals(tc, 0, state.errors);
+  type = eval_unary(&state, ifile, '-', arg, &val);
+  CuAssertIntEquals(tc, ET_ERR, type);
+  CuAssertIntEquals(tc, 1, state.errors);
+  delete_ast(arg);
+
+  // clean up
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+static void test_eval_binary(CuTest* tc) {
+  static const char text[] = "";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  STATE state;
+  VALUE val;
+  int type;
+  AST* lhs;
+  AST* rhs;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+
+  // 23 + K
+
+  SYMBOL K;
+  K.name = "K";
+  K.type = SYM_ABSOLUTE;
+  K.defined = TRUE;
+  K.u.abs.val = 9040;
+
+  lhs = new_ast(AST_NUM);
+  lhs->u.num = 23;
+  rhs = new_ast(AST_LABEL);
+  rhs->u.label = &K;
+  val.n = 0;
+  type = eval_binary(&state, ifile, '+', lhs, rhs, &val);
+  CuAssertIntEquals(tc, ET_ABS, type);
+  CuAssertLongLongEquals(tc, 9063, val.n);
+  delete_ast(lhs);
+  delete_ast(rhs);
+
+  // relative - 0x40
+
+  SYMBOL addr;
+  addr.name = "addr";
+  addr.type = SYM_RELATIVE;
+  addr.defined = TRUE;
+
+  lhs = new_ast(AST_LABEL);
+  lhs->u.label = &addr;
+  rhs = new_ast(AST_NUM);
+  rhs->u.num = 0x40;
+  val.n = 0;
+  CuAssertIntEquals(tc, 0, state.errors);
+  type = eval_binary(&state, ifile, '+', lhs, rhs, &val);
+  CuAssertIntEquals(tc, ET_ERR, type);
+  CuAssertIntEquals(tc, 1, state.errors);
+  delete_ast(lhs);
+  delete_ast(rhs);
+
+  // clean up
+  delete_ifile(ifile);
+  delete_source(src);
 }
 
 static void test_parse_disp(CuTest* tc) {
@@ -1644,78 +2590,6 @@ static void test_parse_operands(CuTest* tc) {
   delete_source(src);
 }
 
-static void test_primitive(CuTest* tc) {
-  STATE state;
-  static const char text[] = "9876 newlabel HERE THING SegName 'mashed fig'''-";
-  SOURCE* src = load_source_mem(text);
-  IFILE* ifile = new_ifile(src);
-  LEX* lex = new_lex(source_name(src));
-  union value val;
-  int type;
-  SYMBOL* sym;
-
-  source_pass(ifile, NULL);
-  init_state(&state, -1);
-
-  lex_begin(lex, text, 1, 0);
-
-  // 9876
-  type = primitive_expr(&state, ifile, lex, &val);
-  CuAssertIntEquals(tc, ET_ABS, type);
-  CuAssertLongLongEquals(tc, 9876, val.n);
-
-  // newlabel
-  type = primitive_expr(&state, ifile, lex, &val);
-  CuAssertIntEquals(tc, ET_REL, type);
-  CuAssertIntEquals(tc, 1, sym_count(ifile->st));
-  CuAssertStrEquals(tc, "newlabel", sym_name(get_sym(ifile->st, 0)));
-  CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(get_sym(ifile->st, 0)));
-
-  sym = sym_insert_absolute(ifile->st, "THING");
-  sym_define_absolute(sym, -5781);
-
-  const SYMBOL* here_sym = sym_insert_relative(ifile->st, "HERE");
-
-  sym_insert_section(ifile->st, "SegName");
-
-  // HERE
-  type = primitive_expr(&state, ifile, lex, &val);
-  CuAssertIntEquals(tc, ET_REL, type);
-  CuAssertTrue(tc, val.label == here_sym);
-
-  // THING
-  type = primitive_expr(&state, ifile, lex, &val);
-  CuAssertIntEquals(tc, ET_ABS, type);
-  CuAssertLongLongEquals(tc, -5781, val.n);
-
-  // SegName
-  CuAssertIntEquals(tc, TOK_LABEL, lex_token(lex));
-  type = primitive_expr(&state, ifile, lex, &val);
-  CuAssertIntEquals(tc, ET_SEC, type);
-
-  // 'mashed fig'
-  CuAssertIntEquals(tc, TOK_STR, lex_token(lex));
-  type = primitive_expr(&state, ifile, lex, &val);
-  CuAssertIntEquals(tc, ET_STR, type);
-  CuAssertStrEquals(tc, "mashed fig", val.str);
-
-  // ''
-  type = primitive_expr(&state, ifile, lex, &val);
-  CuAssertIntEquals(tc, ET_STR, type);
-  CuAssertStrEquals(tc, "", val.str);
-
-  // -
-  CuAssertIntEquals(tc, '-', lex_token(lex));
-  type = primitive_expr(&state, ifile, lex, &val);
-  CuAssertIntEquals(tc, ET_ERR, type);
-
-  // Cleanup
-
-  delete_lex(lex);
-  delete_ifile(ifile);
-  delete_source(src);
-}
-
 static void test_expr(CuTest* tc) {
   STATE state;
   static const char text[] = "-KARR  3+4*2 addr addr+0";
@@ -1741,7 +2615,7 @@ static void test_expr(CuTest* tc) {
   // 3+4*2
   type = expr(&state, ifile, lex, &val);
   CuAssertIntEquals(tc, ET_ABS, type);
-  CuAssertLongLongEquals(tc, 14, val.n); // no operator precedence
+  CuAssertLongLongEquals(tc, 11, val.n); // now with operator precedence
 
   // addr addr+0"
   sym = sym_insert_relative(ifile->st, "addr");
@@ -1797,7 +2671,24 @@ CuSuite* parse_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_init_state);
   SUITE_ADD_TEST(suite, test_error);
+  SUITE_ADD_TEST(suite, test_token_data_size);
   SUITE_ADD_TEST(suite, test_size_override);
+  SUITE_ADD_TEST(suite, test_data_size_flags);
+  SUITE_ADD_TEST(suite, test_set_immediate_absolute);
+  SUITE_ADD_TEST(suite, test_new_ast);
+  SUITE_ADD_TEST(suite, test_delete_ast);
+  SUITE_ADD_TEST(suite, test_primitive_expr);
+  SUITE_ADD_TEST(suite, test_relative_label);
+  SUITE_ADD_TEST(suite, test_component_expr);
+  SUITE_ADD_TEST(suite, test_unary_expr);
+  SUITE_ADD_TEST(suite, test_mult_expr);
+  SUITE_ADD_TEST(suite, test_add_expr);
+  SUITE_ADD_TEST(suite, test_make_absolute);
+  SUITE_ADD_TEST(suite, test_eval_string);
+  SUITE_ADD_TEST(suite, test_eval_label);
+  SUITE_ADD_TEST(suite, test_eval_component);
+  SUITE_ADD_TEST(suite, test_eval_unary);
+  SUITE_ADD_TEST(suite, test_eval_binary);
   SUITE_ADD_TEST(suite, test_parse_disp);
   SUITE_ADD_TEST(suite, test_parse_mem);
   SUITE_ADD_TEST(suite, test_parse_operand_register);
@@ -1808,7 +2699,6 @@ CuSuite* parse_test_suite(void) {
   SUITE_ADD_TEST(suite, test_parse_operand_memory);
   SUITE_ADD_TEST(suite, test_parse_operand_error);
   SUITE_ADD_TEST(suite, test_parse_operands);
-  SUITE_ADD_TEST(suite, test_primitive);
   SUITE_ADD_TEST(suite, test_expr);
   SUITE_ADD_TEST(suite, test_expr_operand);
   return suite;

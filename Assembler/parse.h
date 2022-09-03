@@ -47,6 +47,8 @@ union value {
   char str[MAX_EXPR_STR];
 };
 
+typedef union value VALUE;
+
 int expr(STATE*, IFILE*, LEX*, union value *);
 BOOL make_absolute(int type, union value *);
 
