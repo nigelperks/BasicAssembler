@@ -27,7 +27,7 @@ void pass1(IFILE* ifile, const Options* options) {
   STATE state;
   LEX* lex = NULL;
 
-  if (options->quiet == FALSE)
+  if (options->verbose)
     puts("Pass 1");
 
   init_state(&state, options->max_errors);

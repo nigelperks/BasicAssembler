@@ -29,6 +29,7 @@ Unit tests:
 
     bas -unittest
     blink -unittest
+    basl -unittest
 
 Functional & system tests:
 
@@ -49,22 +50,37 @@ No user documentation yet.
 
 Executables in x64\Debug.
 
+### Basic Assembler and Linker (driver)
+
+    basl file.asm file.obj ...
+
+      -f format     -- output format: bin, com (default), exe
+      -m            -- report dynamic memory allocations (for debugging)
+      -me=N         -- max errors N
+      -o name       -- output to file name (A.COM by default)
+      -p name       -- map file showing segment layout in image
+      -s            -- assemble only; do not link
+      -unittest     -- run unit tests (using CuTest) and quit
+      -vv           -- 1-2 verbosity levels
+
 ### Basic Assembler
 
     bas test.asm    -- assemble test.asm to test.obj
 
       -I            -- print intermediate file
+      -m            -- report dynamic memory allocations (for debugging)
       -me=N         -- max errors N
       -o name       -- output to file name
-      -q            -- quiet
       -S            -- print source instead of assembling
       -unittest     -- run unit tests (using CuTest) and quit
+      -v            -- verbose
 
 ### Basic Linker
 
     blink file ...  -- link object files
 
       -f format     -- output format: bin, com (default), exe
+      -m            -- report dynamic memory allocations (for debugging)
       -o name       -- output to file name (A.COM by default)
       -p name       -- map file showing segment layout in image
       -unittest     -- run unit tests (using CuTest) and quit

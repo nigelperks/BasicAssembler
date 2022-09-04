@@ -20,7 +20,7 @@ void source_pass(IFILE* ifile, const Options* options) {
 
   assert(ifile != NULL);
 
-  if (options && options->quiet == FALSE)
+  if (options && options->verbose)
     puts("Reading source");
 
   for (i = 0; i < source_lines(ifile->source); i++) {

@@ -24,19 +24,19 @@ void delete_stringlist(STRINGLIST* p) {
   }
 }
 
-unsigned stringlist_count(STRINGLIST* list) {
+unsigned stringlist_count(const STRINGLIST* list) {
   assert(list != NULL);
   return list->used;
 }
 
-const char* stringlist_item(STRINGLIST* list, unsigned i) {
+const char* stringlist_item(const STRINGLIST* list, unsigned i) {
   assert(list != NULL);
   assert(i < list->used);
   assert(list->strings != NULL);
   return list->strings[i];
 }
 
-unsigned append_string(STRINGLIST* list, const char* s) {
+unsigned append_string_pointer(STRINGLIST* list, char* s) {
   assert(list != NULL);
   assert(list->used <= list->allocated);
   if (list->used == list->allocated) {
@@ -48,6 +48,10 @@ unsigned append_string(STRINGLIST* list, const char* s) {
   }
   assert(list->used < list->allocated);
   unsigned i = list->used++;
-  list->strings[i] = estrdup(s);
+  list->strings[i] = s;
   return i;
+}
+
+unsigned append_string(STRINGLIST* list, const char* s) {
+  return append_string_pointer(list, estrdup(s));
 }

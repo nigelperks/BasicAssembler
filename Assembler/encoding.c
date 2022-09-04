@@ -30,7 +30,7 @@ static void emit_start(IFILE*, OFILE*);
 static void emit_uninit_segments(STATE*, IFILE*, OFILE*);
 
 OFILE* encoding_pass(IFILE* ifile, const Options* options) {
-  if (options->quiet == FALSE)
+  if (options->verbose)
     puts("Encoding pass");
 
   STATE state;

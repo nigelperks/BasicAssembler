@@ -15,7 +15,7 @@ typedef struct {
   BOOL print_source;
   BOOL print_intermediate;
   char* output_name;
-  BOOL quiet;
+  BOOL verbose;
   unsigned max_errors;
   BOOL report_memory;
   BOOL help;

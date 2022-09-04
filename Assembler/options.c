@@ -17,7 +17,7 @@ Options* new_options(void) {
   p->print_source = FALSE;
   p->print_intermediate = FALSE;
   p->output_name = NULL;
-  p->quiet = FALSE;
+  p->verbose = FALSE;
   p->max_errors = -1;
   p->report_memory = FALSE;
   p->help = FALSE;
@@ -56,8 +56,8 @@ void process_argv(int argc, char* argv[], Options* opts) {
         opts->max_errors = atoi(arg + 4);
       else if (strcmp(arg, "-o") == 0 && i + 1 < argc)
         opts->output_name = estrdup(argv[++i]);
-      else if (strcmp(arg, "-q") == 0)
-        opts->quiet = TRUE;
+      else if (strcmp(arg, "-v") == 0)
+        opts->verbose = TRUE;
       else
         fatal("invalid option: %s\n", arg);
     }
@@ -87,7 +87,7 @@ static void test_new_options(CuTest* tc) {
   CuAssertIntEquals(tc, FALSE, opt->print_source);
   CuAssertIntEquals(tc, FALSE, opt->print_intermediate);
   CuAssertTrue(tc, opt->output_name == NULL);
-  CuAssertIntEquals(tc, FALSE, opt->quiet);
+  CuAssertIntEquals(tc, FALSE, opt->verbose);
 
   delete_options(opt);
 }

@@ -25,7 +25,7 @@ BOOL resize_pass(IFILE* ifile, const Options* options) {
   LEX* lex = NULL;
   BOOL resized = FALSE;
 
-  if (options->quiet == FALSE)
+  if (options->verbose)
     puts("Resizing pass");
 
   init_state(&state, options->max_errors);
