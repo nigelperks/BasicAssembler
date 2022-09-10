@@ -100,10 +100,10 @@ def announce(sources, target):
   print()
   banner(desc + " -> " + target)
 
-def assemble(tools, sources):
+def assemble(tools, sources, verbose):
   objects = []
   for x in sources:
-    r = run("%s %s" % (tools["bas"], x))
+    r = run("%s %s %s" % (tools["bas"], "-v" if verbose else "", x))
     if r != 0:
       fatal("Assembler error: %d" % r)
     objects.append(bare_name(x) + ".obj")
@@ -127,9 +127,9 @@ def compare_map(refName, outputName):
     fatal("Mismatch: " + refName + " " + os.path.abspath(outputName))
   print("Match: " + refName + " " + os.path.abspath(outputName))
 
-def test_bin(tools, config, sources, force_ref, keepDosBox):
+def test_bin(tools, config, sources, force_ref, keepDosBox, verbose):
   announce(sources, "BIN")
-  objects = assemble(tools, sources)
+  objects = assemble(tools, sources, verbose)
   test_bin = "test.bin"
   cmd = "%s -fbin %s -o %s" % (tools["blink"], " ".join(objects), test_bin)
   if config_on(config, "mapfile"):
@@ -140,9 +140,9 @@ def test_bin(tools, config, sources, force_ref, keepDosBox):
   refName = "a.bi_" if len(sources) > 1 else bare_name(sources[0]) + ".bi_"
   compare_raw(refName, test_bin)
 
-def test_com(tools, config, sources, force_ref, keepDosBox):
+def test_com(tools, config, sources, force_ref, keepDosBox, verbose):
   announce(sources, "COM")
-  objects = assemble(tools, sources)
+  objects = assemble(tools, sources, verbose)
   test_com = "test.com"
   cmd = "%s -fcom %s -o %s" % (tools["blink"], " ".join(objects), test_com)
   if config_on(config, "mapfile"):
@@ -175,9 +175,9 @@ def compare_exe(tools, refName, outputName):
     fatal("Mismatch: " + refName + " " + os.path.abspath(outputName))
   print("Match: " + refName + " " + os.path.abspath(outputName))
 
-def test_exe(tools, config, sources, force_ref, keepDosBox):
+def test_exe(tools, config, sources, force_ref, keepDosBox, verbose):
   announce(sources, "EXE")
-  objects = assemble(tools, sources)
+  objects = assemble(tools, sources, verbose)
   test_exe = "test.exe"
   r = run("%s -fexe %s -o %s" % (tools["blink"], " ".join(objects), test_exe))
   if r != 0:
@@ -211,38 +211,38 @@ def test_asm_error(tools, source, error_file):
     fatal("Assembly succeeded unexpectedly")
   compare_err(error_file, "err")
 
-def test_link_error(tools, sources):
+def test_link_error(tools, sources, verbose):
   announce(sources, "ERR")
-  objects = assemble(tools, sources)
+  objects = assemble(tools, sources, verbose)
   test_err = "err"
   r = run("%s -fcom %s 2> %s" % (tools["blink"], " ".join(objects), test_err))
   if r == 0:
     fatal("Linking succeeded unexpectedly")
   compare_err(LINKING_ERROR_REFERENCE, test_err)
 
-def test(tools, config, sources, force_ref, keepDosBox):
+def test(tools, config, sources, force_ref, keepDosBox, verbose):
   if not config_on(config, "link"):
     error_file = bare_name(sources[0]) + ".err"
     if os.path.isfile(error_file):
       test_asm_error(tools, sources[0], error_file)
       return
   elif os.path.isfile(LINKING_ERROR_REFERENCE):
-    test_link_error(tools, sources)
+    test_link_error(tools, sources, verbose)
     return
   formats = config["formats"] if "formats" in config else "both"
   if formats == "bin":
-    test_bin(tools, config, sources, force_ref, keepDosBox)
+    test_bin(tools, config, sources, force_ref, keepDosBox, verbose)
   elif formats == "com":
-    test_com(tools, config, sources, force_ref, keepDosBox)
+    test_com(tools, config, sources, force_ref, keepDosBox, verbose)
   elif formats == "exe":
-    test_exe(tools, config, sources, force_ref, keepDosBox)
+    test_exe(tools, config, sources, force_ref, keepDosBox, verbose)
   elif formats == "both":
-    test_com(tools, config, sources, force_ref, keepDosBox)
-    test_exe(tools, config, sources, force_ref, keepDosBox)
+    test_com(tools, config, sources, force_ref, keepDosBox, verbose)
+    test_exe(tools, config, sources, force_ref, keepDosBox, verbose)
   else:
     fatal("Invalid config: formats=" + formats)
 
-def test_dir(tools, config, name, force_ref, keepDosBox):
+def test_dir(tools, config, name, force_ref, keepDosBox, verbose):
   cfg = copy(config)
   os.chdir(name)
   if os.path.isfile(CONFIG_NAME):
@@ -251,18 +251,18 @@ def test_dir(tools, config, name, force_ref, keepDosBox):
     if config_on(cfg, "link"):
       sources = glob("*.asm")
       if sources != []:
-        test(tools, cfg, sources, force_ref, keepDosBox)
+        test(tools, cfg, sources, force_ref, keepDosBox, verbose)
     else:
       for x in glob("*.asm"):
-        test(tools, cfg, [x], force_ref, keepDosBox)
+        test(tools, cfg, [x], force_ref, keepDosBox, verbose)
   for x in glob("*"):
     if os.path.isdir(x):
-      test_dir(tools, cfg, x, force_ref, keepDosBox)
+      test_dir(tools, cfg, x, force_ref, keepDosBox, verbose)
   os.chdir("..")
 
 # Given a test directory or source file, test it
 # by processing the configurations on the path.
-def test_source(tools, config, source, force_ref, keepDosBox):
+def test_source(tools, config, source, force_ref, keepDosBox, verbose):
   cfg = copy(config)
   components = source.split(os.sep)
   saved = os.getcwd()
@@ -276,10 +276,10 @@ def test_source(tools, config, source, force_ref, keepDosBox):
         add_config(cfg, CONFIG_NAME)
   name = components[-1]
   if os.path.isdir(name):
-    test_dir(tools, cfg, name, force_ref, keepDosBox)
+    test_dir(tools, cfg, name, force_ref, keepDosBox, verbose)
   elif os.path.isfile(name):
     if name.lower().endswith(".asm"):
-      test(tools, cfg, [name], force_ref, keepDosBox)
+      test(tools, cfg, [name], force_ref, keepDosBox, verbose)
     else:
       fatal("Not a .asm source file: " + source)
   else:
@@ -328,6 +328,7 @@ def main(argv):
   clean_on_success = True
   force_ref = False
   keepDosBox = False
+  verbose = False
 
   for arg in argv[1:]:
     if arg[0] == '-':
@@ -337,6 +338,8 @@ def main(argv):
         force_ref = True
       elif arg == "-k" or arg == "--keep-dosbox":
         keepDosBox = True
+      elif arg == "-v":
+        verbose = True
       elif arg in ["-?", "-h", "--help"]:
         help()
       else:
@@ -362,10 +365,10 @@ def main(argv):
   if sources == []:
     for name in glob("*"):
       if os.path.isdir(name):
-        test_dir(tools, config, name, force_ref, keepDosBox)
+        test_dir(tools, config, name, force_ref, keepDosBox, verbose)
   else:
     for source in sources:
-      test_source(tools, config, source, force_ref, keepDosBox)
+      test_source(tools, config, source, force_ref, keepDosBox, verbose)
 
   if clean_on_success:
     clean(sources)

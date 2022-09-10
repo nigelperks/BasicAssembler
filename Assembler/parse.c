@@ -664,8 +664,12 @@ static void delete_ast(AST* p) {
   }
 }
 
+// Expression parsing functions may return NULL, to become ET_ERR later.
+
 static AST* add_expr(STATE*, IFILE*, LEX*);
 
+// expr:
+//      add-expr
 static AST* parse_expr(STATE* state, IFILE* ifile, LEX* lex) {
   return add_expr(state, ifile, lex);
 }
@@ -785,11 +789,19 @@ static const SYMBOL* relative_label(STATE* state, IFILE* ifile, LEX* lex, int op
   return sym;
 }
 
+static void match(STATE* state, LEX* lex, int tok) {
+  if (lex_token(lex) == tok)
+    lex_next(lex);
+  else
+    error2(state, lex, "expected %s", token_name(tok));
+}
+
 // primitive-expr:
 //      number
 //      label
 //      string
-//      ?
+//      '?'
+//      '(' expr ')'
 static AST* primitive_expr(STATE* state, IFILE* ifile, LEX* lex) {
   AST* node = NULL;
 
@@ -815,6 +827,12 @@ static AST* primitive_expr(STATE* state, IFILE* ifile, LEX* lex) {
     case '?':
       node = new_ast(AST_UNDEF);
       lex_next(lex);
+      break;
+    case '(':
+      lex_next(lex);
+      node = parse_expr(state, ifile, lex);
+      if (node)
+        match(state, lex, ')');
       break;
     default:
       error2(state, lex, "expression expected");
