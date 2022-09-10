@@ -628,6 +628,7 @@ typedef struct ast {
 static AST* new_ast(int kind);
 static void delete_ast(AST*);
 static AST* parse_expr(STATE*, IFILE*, LEX*);
+static int expr_type(STATE*, IFILE*, const AST*);
 
 static int eval(STATE*, IFILE*, const AST*, union value *);
 
@@ -635,7 +636,9 @@ int expr(STATE* state, IFILE* ifile, LEX* lex, union value * val) {
   AST* ast = parse_expr(state, ifile, lex);
   if (ast == NULL)
     return ET_ERR;
-  int type = eval(state, ifile, ast, val);
+  int type = expr_type(state, ifile, ast);
+  if (type != ET_ERR)
+    type = eval(state, ifile, ast, val);
   delete_ast(ast);
   return type;
 }
@@ -841,6 +844,84 @@ static AST* primitive_expr(STATE* state, IFILE* ifile, LEX* lex) {
   return node;
 }
 
+static int binary_type(STATE*, IFILE*, int op, AST* lhs, AST* rhs);
+static int unary_type(STATE*, IFILE*, int op, AST* arg);
+static int component_type(int op, const SYMBOL* label);
+static int label_type(STATE*, IFILE*, SYMBOL*);
+
+static int expr_type(STATE* state, IFILE* ifile, const AST* ast) {
+  if (ast == NULL)
+    return ET_ERR;
+
+  switch (ast->kind) {
+    case AST_BINARY:
+      return binary_type(state, ifile, ast->u.binary.op, ast->u.binary.lhs, ast->u.binary.rhs);
+    case AST_UNARY:
+      return unary_type(state, ifile, ast->u.unary.op, ast->u.unary.expr);
+    case AST_COMPONENT:
+      return component_type(ast->u.component.op, ast->u.component.sym);
+    case AST_NUM:
+      return ET_ABS;
+    case AST_LABEL:
+      return label_type(state, ifile, ast->u.label);
+    case AST_STRING:
+      return ET_STR;
+    case AST_UNDEF:
+      return ET_UNDEF;
+  }
+
+  fatal("internal error: %s: %d: unexpected AST kind: %d\n", __FILE__, __LINE__, (int) ast->kind);
+  return ET_ERR;
+}
+
+static int binary_type(STATE* state, IFILE* ifile, int op, AST* lhs, AST* rhs) {
+  int t1 = expr_type(state, ifile, lhs);
+  if (t1 == ET_ERR)
+    return ET_ERR;
+  int t2 = expr_type(state, ifile, rhs);
+  if (t2 == ET_ERR)
+    return ET_ERR;
+  if (t1 == ET_ABS && t2 == ET_ABS)
+    return ET_ABS;
+  error(state, ifile, "invalid expression");
+  return ET_ERR;
+}
+
+static int unary_type(STATE* state, IFILE* ifile, int op, AST* arg) {
+  int type = expr_type(state, ifile, arg);
+  if (type == ET_ERR)
+    return ET_ERR;
+  assert(op == '-');
+  if (type != ET_ABS) {
+    error(state, ifile, "invalid unary minus");
+    return ET_ERR;
+  }
+  return ET_ABS;
+}
+
+static int component_type(int op, const SYMBOL* label) {
+  assert(op == TOK_SEG || op == TOK_OFFSET);
+  assert(label != NULL);
+
+  return op == TOK_SEG ? ET_SEG : ET_OFFSET;
+}
+
+static int label_type(STATE* state, IFILE* ifile, SYMBOL* sym) {
+  assert(sym != NULL);
+
+  if (sym_type(sym) == SYM_UNKNOWN)
+    sym_init_relative(sym);
+
+  switch (sym_type(sym)) {
+    case SYM_ABSOLUTE: return ET_ABS;
+    case SYM_RELATIVE: return ET_REL;
+    case SYM_SECTION:  return ET_SEC;
+  }
+
+  error(state, ifile, "invalid symbol in expression: %s", sym_name(sym));
+  return ET_ERR;
+}
+
 static int eval_binary(STATE*, IFILE*, int op, AST* lhs, AST* rhs, VALUE*);
 static int eval_unary(STATE*, IFILE*, int op, AST* arg, VALUE*);
 static int eval_component(int op, const SYMBOL* label, VALUE*);
@@ -877,23 +958,17 @@ static int eval(STATE* state, IFILE* ifile, const AST* ast, union value * val) {
 
 static int eval_binary(STATE* state, IFILE* ifile, int op, AST* lhs, AST* rhs, VALUE* val) {
   int t1 = eval(state, ifile, lhs, val);
-  if (t1 == ET_ERR)
-    return ET_ERR;
+  assert(t1 != ET_ERR);
   VALUE val2;
   int t2 = eval(state, ifile, rhs, &val2);
-  if (t1 == ET_ERR)
-    return ET_ERR;
-  if (make_absolute(t1, val) && make_absolute(t2, &val2)) {
-    switch (op) {
-      case '+': val->n += val2.n; break;
-      case '-': val->n -= val2.n; break;
-      case '*': val->n *= val2.n; break;
-      default: fatal("internal error: %s: %d: unexpected binary operator: %s\n", __FILE__, __LINE__, token_name(op));
-    }
-    return ET_ABS;
+  assert(t2 != ET_ERR);
+  assert(t1 == ET_ABS && t2 == ET_ABS);
+  switch (op) {
+    case '+': val->n += val2.n; break;
+    case '-': val->n -= val2.n; break;
+    case '*': val->n *= val2.n; break;
   }
-  error(state, ifile, "invalid expression");
-  return ET_ERR;
+  return ET_ABS;
 }
 
 static int eval_unary(STATE* state, IFILE* ifile, int op, AST* arg, VALUE* val) {
@@ -901,10 +976,7 @@ static int eval_unary(STATE* state, IFILE* ifile, int op, AST* arg, VALUE* val) 
   if (type == ET_ERR)
     return ET_ERR;
   assert(op == '-');
-  if (!make_absolute(type, val)) {
-    error(state, ifile, "invalid unary minus");
-    return ET_ERR;
-  }
+  assert(type == ET_ABS);
   val->n = - val->n;
   return ET_ABS;
 }
@@ -935,11 +1007,9 @@ static int eval_label(STATE* state, IFILE* ifile, SYMBOL* sym, VALUE* val) {
     case SYM_SECTION:
       val->label = sym;
       return ET_SEC;
-    default:
-      error(state, ifile, "invalid symbol in expression: %s", sym_name(sym));
-      break;
   }
 
+  error(state, ifile, "invalid symbol in expression: %s", sym_name(sym));
   return ET_ERR;
 }
 
@@ -1693,6 +1763,58 @@ static void test_eval_component(CuTest* tc) {
   delete_source(src);
 }
 
+static void test_unary_type(CuTest* tc) {
+  static const char text[] = "";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  STATE state;
+  int type;
+  AST* arg;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+
+  // - 1234
+  arg = new_ast(AST_NUM);
+  arg->u.num = 1234;
+  type = unary_type(&state, ifile, '-', arg);
+  CuAssertIntEquals(tc, ET_ABS, type);
+  delete_ast(arg);
+
+  // - - K
+  SYMBOL K;
+  K.name = "K";
+  K.type = SYM_ABSOLUTE;
+  K.defined = TRUE;
+  K.u.abs.val = 9040;
+  AST* p = new_ast(AST_LABEL);
+  p->u.label = &K;
+  arg = new_ast(AST_UNARY);
+  arg->u.unary.op = '-';
+  arg->u.unary.expr = p;
+  type = unary_type(&state, ifile, '-', arg);
+  CuAssertIntEquals(tc, ET_ABS, type);
+  delete_ast(arg);
+
+  // - relative
+  SYMBOL addr;
+  addr.name = "addr";
+  addr.type = SYM_RELATIVE;
+  addr.defined = TRUE;
+  addr.u.rel.val = 0x1000;
+  arg = new_ast(AST_LABEL);
+  arg->u.label = &addr;
+  CuAssertIntEquals(tc, 0, state.errors);
+  type = unary_type(&state, ifile, '-', arg);
+  CuAssertIntEquals(tc, ET_ERR, type);
+  CuAssertIntEquals(tc, 1, state.errors);
+  delete_ast(arg);
+
+  // clean up
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
 static void test_eval_unary(CuTest* tc) {
   static const char text[] = "";
   SOURCE* src = load_source_mem(text);
@@ -1731,19 +1853,57 @@ static void test_eval_unary(CuTest* tc) {
   CuAssertLongLongEquals(tc, 9040, val.n);
   delete_ast(arg);
 
-  // - relative
+  // clean up
+  delete_ifile(ifile);
+  delete_source(src);
+}
+
+static void test_binary_type(CuTest* tc) {
+  static const char text[] = "";
+  SOURCE* src = load_source_mem(text);
+  IFILE* ifile = new_ifile(src);
+  STATE state;
+  int type;
+  AST* lhs;
+  AST* rhs;
+
+  source_pass(ifile, NULL);
+  init_state(&state, -1);
+
+  // 23 + K
+
+  SYMBOL K;
+  K.name = "K";
+  K.type = SYM_ABSOLUTE;
+  K.defined = TRUE;
+  K.u.abs.val = 9040;
+
+  lhs = new_ast(AST_NUM);
+  lhs->u.num = 23;
+  rhs = new_ast(AST_LABEL);
+  rhs->u.label = &K;
+  type = binary_type(&state, ifile, '+', lhs, rhs);
+  CuAssertIntEquals(tc, ET_ABS, type);
+  delete_ast(lhs);
+  delete_ast(rhs);
+
+  // relative - 0x40
+
   SYMBOL addr;
   addr.name = "addr";
   addr.type = SYM_RELATIVE;
   addr.defined = TRUE;
-  addr.u.rel.val = 0x1000;
-  arg = new_ast(AST_LABEL);
-  arg->u.label = &addr;
+
+  lhs = new_ast(AST_LABEL);
+  lhs->u.label = &addr;
+  rhs = new_ast(AST_NUM);
+  rhs->u.num = 0x40;
   CuAssertIntEquals(tc, 0, state.errors);
-  type = eval_unary(&state, ifile, '-', arg, &val);
+  type = binary_type(&state, ifile, '+', lhs, rhs);
   CuAssertIntEquals(tc, ET_ERR, type);
   CuAssertIntEquals(tc, 1, state.errors);
-  delete_ast(arg);
+  delete_ast(lhs);
+  delete_ast(rhs);
 
   // clean up
   delete_ifile(ifile);
@@ -1779,25 +1939,6 @@ static void test_eval_binary(CuTest* tc) {
   type = eval_binary(&state, ifile, '+', lhs, rhs, &val);
   CuAssertIntEquals(tc, ET_ABS, type);
   CuAssertLongLongEquals(tc, 9063, val.n);
-  delete_ast(lhs);
-  delete_ast(rhs);
-
-  // relative - 0x40
-
-  SYMBOL addr;
-  addr.name = "addr";
-  addr.type = SYM_RELATIVE;
-  addr.defined = TRUE;
-
-  lhs = new_ast(AST_LABEL);
-  lhs->u.label = &addr;
-  rhs = new_ast(AST_NUM);
-  rhs->u.num = 0x40;
-  val.n = 0;
-  CuAssertIntEquals(tc, 0, state.errors);
-  type = eval_binary(&state, ifile, '+', lhs, rhs, &val);
-  CuAssertIntEquals(tc, ET_ERR, type);
-  CuAssertIntEquals(tc, 1, state.errors);
   delete_ast(lhs);
   delete_ast(rhs);
 
@@ -2702,6 +2843,8 @@ CuSuite* parse_test_suite(void) {
   SUITE_ADD_TEST(suite, test_mult_expr);
   SUITE_ADD_TEST(suite, test_add_expr);
   SUITE_ADD_TEST(suite, test_make_absolute);
+  SUITE_ADD_TEST(suite, test_unary_type);
+  SUITE_ADD_TEST(suite, test_binary_type);
   SUITE_ADD_TEST(suite, test_eval_string);
   SUITE_ADD_TEST(suite, test_eval_label);
   SUITE_ADD_TEST(suite, test_eval_component);
