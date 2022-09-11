@@ -155,6 +155,7 @@
     <ClCompile Include="operand.c" />
     <ClCompile Include="options.c" />
     <ClCompile Include="parse.c" />
+    <ClCompile Include="parsedata.c" />
     <ClCompile Include="pass1.c" />
     <ClCompile Include="resize.c" />
     <ClCompile Include="source.c" />
@@ -169,6 +170,7 @@
     <ClInclude Include="operand.h" />
     <ClInclude Include="options.h" />
     <ClInclude Include="parse.h" />
+    <ClInclude Include="parsedata.h" />
     <ClInclude Include="pass1.h" />
     <ClInclude Include="resize.h" />
     <ClInclude Include="source.h" />

@@ -186,11 +186,15 @@ static void do_public(STATE*, IFILE*, LEX*);
 static void do_segment(STATE*, IFILE*, LEX*);
 static void do_udataseg(STATE*, IFILE*, LEX*);
 
-static void define_bytes(STATE*, IFILE*, LEX*);
-static void define_words(STATE*, IFILE*, LEX*);
-static void define_dwords(STATE*, IFILE*, LEX*);
-static void define_qwords(STATE*, IFILE*, LEX*);
-static void define_tbytes(STATE*, IFILE*, LEX*);
+typedef size_t EXPR_SIZE(int type, VALUE*, BOOL *init);
+
+static size_t byte_expr_size(int expr_type, VALUE*, BOOL *init);
+static size_t word_expr_size(int expr_type, VALUE*, BOOL *init);
+static size_t dword_expr_size(int expr_type, VALUE*, BOOL *init);
+static size_t qword_expr_size(int expr_type, VALUE*, BOOL *init);
+static size_t tbyte_expr_size(int expr_type, VALUE*, BOOL *init);
+
+static void define_data(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*);
 
 static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
   IREC* irec = get_irec(ifile, ifile->pos);
@@ -205,11 +209,11 @@ static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
     case TOK_ASSUME: do_assume(state, ifile, lex); break;
     case TOK_CODESEG: do_codeseg(state, ifile, lex); break;
     case TOK_DATASEG: do_dataseg(state, ifile, lex); break;
-    case TOK_DB: define_bytes(state, ifile, lex); break;
-    case TOK_DD: define_dwords(state, ifile, lex); break;
-    case TOK_DQ: define_qwords(state, ifile, lex); break;
-    case TOK_DT: define_tbytes(state, ifile, lex); break;
-    case TOK_DW: define_words(state, ifile, lex); break;
+    case TOK_DB: define_data(state, ifile, lex, "byte", byte_expr_size); break;
+    case TOK_DD: define_data(state, ifile, lex, "dword", dword_expr_size); break;
+    case TOK_DQ: define_data(state, ifile, lex, "qword", qword_expr_size); break;
+    case TOK_DT: define_data(state, ifile, lex, "tbyte", tbyte_expr_size); break;
+    case TOK_DW: define_data(state, ifile, lex, "word", word_expr_size); break;
     case TOK_END: do_end(state, ifile, lex); break;
     case TOK_ENDS: do_ends(state, ifile, lex); break;
     case TOK_EQU: do_equ(state, ifile, lex); break;
@@ -730,49 +734,6 @@ static void do_org(STATE* state, IFILE* ifile, LEX* lex) {
   lex_next(lex);
 }
 
-static void check_initialization_consistent(STATE* state, IFILE* ifile, LEX* lex, BOOL init) {
-  assert(state != NULL);
-  assert(state->curseg != NO_SEG);
-  assert(ifile != NULL);
-
-  if (segment_uninit(ifile, state->curseg)) {
-    if (init == INIT)
-      error2(state, lex, "initialised data in UNINIT segment");
-  }
-  else {
-    if (init == UNINIT)
-      error2(state, lex, "uninitialised data in non-UNINIT segment");
-  }
-}
-
-static size_t byte_data(STATE*, IFILE*, LEX*, BOOL *init);
-static size_t word_data(STATE*, IFILE*, LEX*, BOOL *init);
-static size_t dword_data(STATE*, IFILE*, LEX*, BOOL *init);
-static size_t qword_data(STATE*, IFILE*, LEX*, BOOL *init);
-static size_t tbyte_data(STATE*, IFILE*, LEX*, BOOL *init);
-
-static void define_bytes(STATE* state, IFILE* ifile, LEX* lex) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(lex_token(lex) == TOK_DB);
-
-  if (state->curseg == NO_SEG) {
-    error2(state, lex, "data outside segment");
-    lex_discard_line(lex);
-    return;
-  }
-
-  IREC* irec = get_irec(ifile, ifile->pos);
-  assert(irec->size == 0);
-
-  lex_next(lex);
-  BOOL init;
-  irec->size += byte_data(state, ifile, lex, &init);
-  check_initialization_consistent(state, ifile, lex, init);
-  inc_segment_pc(ifile, state->curseg, irec->size);
-}
-
 static void do_align(STATE* state, IFILE* ifile, LEX* lex) {
   assert(state != NULL);
   assert(ifile != NULL);
@@ -798,116 +759,56 @@ static void do_align(STATE* state, IFILE* ifile, LEX* lex) {
   }
 }
 
-static void define_words(STATE* state, IFILE* ifile, LEX* lex) {
-  IREC* irec = get_irec(ifile, ifile->pos);
+static void check_initialization_consistent(STATE* state, IFILE* ifile, LEX* lex, BOOL init) {
+  assert(state != NULL);
+  assert(state->curseg != NO_SEG);
+  assert(ifile != NULL);
 
+  if (segment_uninit(ifile, state->curseg)) {
+    if (init == INIT)
+      error2(state, lex, "initialised data in UNINIT segment");
+  }
+  else {
+    if (init == UNINIT)
+      error2(state, lex, "uninitialised data in non-UNINIT segment");
+  }
+}
+
+static size_t data_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*, BOOL *init);
+
+static void define_data(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE* expr_size) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(lex != NULL);
-  assert(lex_token(lex) == TOK_DW);
-  assert(irec->size == 0);
+  assert(descrip != NULL);
+  assert(expr_size != NULL);
 
   if (state->curseg == NO_SEG) {
-    error(state, ifile, "data outside segment");
+    error2(state, lex, "data outside segment");
     lex_discard_line(lex);
     return;
   }
 
-  do {
-    lex_next(lex);
-    BOOL init;
-    irec->size += word_data(state, ifile, lex, &init);
-    check_initialization_consistent(state, ifile, lex, init);
-  } while (lex_token(lex) == ',');
-
-  inc_segment_pc(ifile, state->curseg, irec->size);
-}
-
-static void define_dwords(STATE* state, IFILE* ifile, LEX* lex) {
   IREC* irec = get_irec(ifile, ifile->pos);
-
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(lex_token(lex) == TOK_DD);
   assert(irec->size == 0);
 
-  if (state->curseg == NO_SEG) {
-    error(state, ifile, "data outside segment");
-    lex_discard_line(lex);
-    return;
-  }
-
-  do {
-    lex_next(lex);
-    BOOL init;
-    irec->size += dword_data(state, ifile, lex, &init);
-    check_initialization_consistent(state, ifile, lex, init);
-  } while (lex_token(lex) == ',');
-
+  lex_next(lex);
+  BOOL init;
+  irec->size += data_size(state, ifile, lex, descrip, expr_size, &init);
+  check_initialization_consistent(state, ifile, lex, init);
   inc_segment_pc(ifile, state->curseg, irec->size);
 }
 
-static void define_qwords(STATE* state, IFILE* ifile, LEX* lex) {
-  IREC* irec = get_irec(ifile, ifile->pos);
+static size_t datum_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*, BOOL *init);
 
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(lex_token(lex) == TOK_DQ);
-  assert(irec->size == 0);
-
-  if (state->curseg == NO_SEG) {
-    error(state, ifile, "data outside segment");
-    lex_discard_line(lex);
-    return;
-  }
-
-  do {
-    lex_next(lex);
-    BOOL init;
-    irec->size += qword_data(state, ifile, lex, &init);
-    check_initialization_consistent(state, ifile, lex, init);
-  } while (lex_token(lex) == ',');
-
-  inc_segment_pc(ifile, state->curseg, irec->size);
-}
-
-static void define_tbytes(STATE* state, IFILE* ifile, LEX* lex) {
-  IREC* irec = get_irec(ifile, ifile->pos);
-
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(lex_token(lex) == TOK_DT);
-  assert(irec->size == 0);
-
-  if (state->curseg == NO_SEG) {
-    error(state, ifile, "data outside segment");
-    lex_discard_line(lex);
-    return;
-  }
-
-  do {
-    lex_next(lex);
-    BOOL init;
-    irec->size += tbyte_data(state, ifile, lex, &init);
-    check_initialization_consistent(state, ifile, lex, init);
-  } while (lex_token(lex) == ',');
-
-  inc_segment_pc(ifile, state->curseg, irec->size);
-}
-
-static size_t byte_datum(STATE*, IFILE*, LEX*, BOOL *init);
-
-static size_t byte_data(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
-  size_t size = byte_datum(state, ifile, lex, init);
+static size_t data_size(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE* expr_size, BOOL *init) {
+  size_t size = datum_size(state, ifile, lex, descrip, expr_size, init);
 
   bool reported = false;
   while (lex_token(lex) == ',') {
     lex_next(lex);
     BOOL init2;
-    size += byte_datum(state, ifile, lex, &init2);
+    size += datum_size(state, ifile, lex, descrip, expr_size, &init2);
     if (*init != init2 && !reported) {
       error2(state, lex, "mix of initialised and uninitialised data");
       reported = true;
@@ -918,7 +819,9 @@ static size_t byte_data(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
   return size;
 }
 
-static size_t byte_datum(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
+static size_t dup_size(STATE*, IFILE*, LEX*, long long count, const char* descrip, EXPR_SIZE*, BOOL *init);
+
+static size_t datum_size(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE* expr_size, BOOL *init) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(lex != NULL);
@@ -931,59 +834,62 @@ static size_t byte_datum(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
   if (type == ET_ERR)
     return 0;
 
-  if (type == ET_STR) {
-    *init = INIT;
-    return val.string.len;
+  if (lex_token(lex) == TOK_DUP) {
+    if (type == ET_ABS)
+      return dup_size(state, ifile, lex, val.n, descrip, expr_size, init);
+    error2(state, lex, "invalid DUP expression");
+    return 0;
   }
 
-  if (type == ET_ABS) {
-    if (lex_token(lex) != TOK_DUP) {
-      *init = INIT;
-      return 1;
+  size_t size = expr_size(type, &val, init);
+  if (size == 0)
+    error2(state, lex, "invalid expression for %s data", descrip);
+  return size;
+}
+
+static size_t dup_size(STATE* state, IFILE* ifile, LEX* lex, long long count, const char* descrip, EXPR_SIZE* expr_size, BOOL *init) {
+    if (count < 0) {
+      error2(state, lex, "negative DUP count");
+      count = 0;
     }
 
-    if (val.n < 0) {
-      error2(state, lex, "negative DUP count");
-      val.n = 0;
-    }
     if (lex_next(lex) != '(') {
       error2(state, lex, "parentheses required");
       lex_discard_line(lex);
       return 0;
     }
+
     lex_next(lex);
-    size_t size = (size_t) (val.n * byte_data(state, ifile, lex, init)); // TODO: overflow check
+    size_t size = (size_t) (count * data_size(state, ifile, lex, descrip, expr_size, init)); // TODO: overflow check
     if (lex_token(lex) == ')')
       lex_next(lex);
     else
       error2(state, lex, "closing parenthesis expected");
     return size;
-  }
+}
 
-  if (type == ET_REL) {
-    error2(state, lex, "invalid expression for byte data");
-    return 0;
-  }
-
+static size_t byte_expr_size(int type, VALUE* val, BOOL *init) {
   if (type == ET_UNDEF) {
     *init = UNINIT;
     return 1;
   }
 
-  assert(0 && "unknown ET");
+  if (type == ET_ABS) {
+    *init = INIT;
+    return 1;
+  }
+
+  if (type == ET_STR) {
+    *init = INIT;
+    return val->string.len;
+  }
+
   return 0;
 }
 
-static size_t word_data(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(state->curseg != NO_SEG);
-
+static size_t word_expr_size(int type, VALUE* val, BOOL *init) {
   size_t size = 0;
 
-  union value val;
-  int type = expr(state, ifile, lex, &val);
   switch (type) {
     case ET_ERR:
       break;
@@ -1000,12 +906,10 @@ static size_t word_data(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
       size = 2;
       break;
     case ET_STR:
-      if (make_absolute(type, &val)) {
+      if (make_absolute(type, val)) {
         *init = INIT;
         size = 2;
       }
-      else
-        error2(state, lex, "word data expected");
       break;
     default:
       assert(0 && "unknown ET");
@@ -1014,76 +918,49 @@ static size_t word_data(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
   return size;
 }
 
-static size_t dword_data(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(state->curseg != NO_SEG);
-
+static size_t dword_expr_size(int type, VALUE* val, BOOL *init) {
   size_t size = 0;
 
-  union value val;
-  int type = expr(state, ifile, lex, &val);
   if (type == ET_UNDEF) {
     *init = UNINIT;
     size = 4;
   }
-  else if (make_absolute(type, &val)) {
+  else if (make_absolute(type, val)) {
     *init = INIT;
     size = 4;
   }
-  else
-    error2(state, lex, "doubleword data expected");
 
   return size;
 }
 
-static size_t qword_data(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(state->curseg != NO_SEG);
-
+static size_t qword_expr_size(int type, VALUE* val, BOOL *init) {
   size_t size = 0;
 
-  union value val;
-  int type = expr(state, ifile, lex, &val);
   if (type == ET_UNDEF) {
     *init = UNINIT;
     size = 8;
   }
-  else if (make_absolute(type, &val)) {
+  else if (make_absolute(type, val)) {
     *init = INIT;
     size = 8;
   }
-  else
-    error2(state, lex, "quadword data expected");
 
   return size;
 }
 
-static size_t tbyte_data(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(state->curseg != NO_SEG);
-
+static size_t tbyte_expr_size(int type, VALUE* val, BOOL *init) {
   size_t size = 0;
 
   // TODO: allow some kind of "long hex" value, not just long or even long long values
 
-  union value val;
-  int type = expr(state, ifile, lex, &val);
   if (type == ET_UNDEF) {
     *init = UNINIT;
     size = 10;
   }
-  else if (make_absolute(type, &val)) {
+  else if (make_absolute(type, val)) {
     *init = INIT;
     size = 10;
   }
-  else
-    error2(state, lex, "ten-byte data expected");
 
   return size;
 }

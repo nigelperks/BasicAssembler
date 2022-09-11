@@ -26,4 +26,10 @@ bool wait_precedes(const IFILE*);
 
 void define_dollar(STATE*, IFILE*);
 
+bool valid_byte_expr(int type);
+bool valid_word_expr(int type);
+bool valid_dword_expr(int type);
+bool valid_qword_expr(int type);
+bool valid_tbyte_expr(int type);
+
 #endif // COMMON_H

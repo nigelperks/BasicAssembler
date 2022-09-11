@@ -117,3 +117,23 @@ void define_dollar(STATE* state, IFILE* ifile) {
   DWORD pc = (state->curseg == NO_SEG) ? 0 : segment_pc(ifile, state->curseg);
   sym_update_relative(sym, state->curseg, 0, pc);
 }
+
+bool valid_byte_expr(int type) {
+  return type == ET_UNDEF || type == ET_ABS || type == ET_STR;
+}
+
+bool valid_word_expr(int type) {
+  return type == ET_UNDEF || type == ET_ABS || type == ET_STR || type == ET_REL || type == ET_OFFSET || type == ET_SEG || type == ET_SEC;
+}
+
+bool valid_dword_expr(int type) {
+  return type == ET_UNDEF || type == ET_ABS || type == ET_STR;
+}
+
+bool valid_qword_expr(int type) {
+  return type == ET_UNDEF || type == ET_ABS || type == ET_STR;
+}
+
+bool valid_tbyte_expr(int type) {
+  return type == ET_UNDEF || type == ET_ABS || type == ET_STR;
+}

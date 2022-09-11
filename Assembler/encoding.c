@@ -17,6 +17,7 @@
 #include "instable.h"
 #include "operand.h"
 #include "parse.h"
+#include "parsedata.h"
 #include "common.h"
 #include "options.h"
 #include "object.h"
@@ -262,11 +263,16 @@ static void do_public(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void do_segment(STATE*, IFILE*, IREC*, LEX*, OFILE*);
 static void do_udataseg(STATE*, IFILE*, LEX*, OFILE*);
 
-static void define_bytes(STATE*, IFILE*, IREC*, LEX*, OFILE*);
-static void define_words(STATE*, IFILE*, IREC*, LEX*, OFILE*);
-static void define_dwords(STATE*, IFILE*, IREC*, LEX*, OFILE*);
-static void define_qwords(STATE*, IFILE*, IREC*, LEX*, OFILE*);
-static void define_tbytes(STATE*, IFILE*, IREC*, LEX*, OFILE*);
+typedef DWORD EMIT_EXPR(STATE*, IFILE*, OFILE*, int expr_type, VALUE*);
+
+static void define_data(STATE*, IFILE*, IREC*, LEX*, OFILE*,
+                        const char* descrip, bool valid_expr_type(int), EMIT_EXPR*);
+
+static DWORD emit_byte_expr(STATE*, IFILE*, OFILE*, int expr_type, VALUE*);
+static DWORD emit_word_expr(STATE*, IFILE*, OFILE*, int expr_type, VALUE*);
+static DWORD emit_dword_expr(STATE*, IFILE*, OFILE*, int expr_type, VALUE*);
+static DWORD emit_qword_expr(STATE*, IFILE*, OFILE*, int expr_type, VALUE*);
+static DWORD emit_tbyte_expr(STATE*, IFILE*, OFILE*, int expr_type, VALUE*);
 
 static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
   assert(state != NULL);
@@ -279,11 +285,11 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     case TOK_ASSUME: do_assume(state, ifile, irec, lex); break;
     case TOK_CODESEG: do_codeseg(state, ifile, lex, ofile); break;
     case TOK_DATASEG: do_dataseg(state, ifile, lex, ofile); break;
-    case TOK_DB: define_bytes(state, ifile, irec, lex, ofile); break;
-    case TOK_DW: define_words(state, ifile, irec, lex, ofile); break;
-    case TOK_DD: define_dwords(state, ifile, irec, lex, ofile); break;
-    case TOK_DQ: define_qwords(state, ifile, irec, lex, ofile); break;
-    case TOK_DT: define_tbytes(state, ifile, irec, lex, ofile); break;
+    case TOK_DB: define_data(state, ifile, irec, lex, ofile, "byte", valid_byte_expr, emit_byte_expr); break;
+    case TOK_DW: define_data(state, ifile, irec, lex, ofile, "word", valid_word_expr, emit_word_expr); break;
+    case TOK_DD: define_data(state, ifile, irec, lex, ofile, "dword", valid_dword_expr, emit_dword_expr); break;
+    case TOK_DQ: define_data(state, ifile, irec, lex, ofile, "qword", valid_qword_expr, emit_qword_expr); break;
+    case TOK_DT: define_data(state, ifile, irec, lex, ofile, "tbyte", valid_tbyte_expr, emit_tbyte_expr); break;
     case TOK_END: do_end(state, ifile, irec, lex, ofile); break;
     case TOK_ENDS: do_ends(state, ifile, irec, lex, ofile); break;
     case TOK_EQU: lex_discard_line(lex); break; // already handled
@@ -496,193 +502,6 @@ static void do_udataseg(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
   emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) state->curseg);
 }
 
-// Node in DB data: either single value expression or DUP expression
-
-enum { DB_EXPR, DB_DUP };
-
-struct db_node {
-  int type;
-  union {
-    struct {
-      AST* ast;
-      int type;
-    } expr;
-    struct {
-      unsigned long long count;
-      struct db_node * data;
-    } dup;
-  } u;
-  struct db_node * next;
-};
-
-static struct db_node * new_db_node(int type) {
-  struct db_node * p = emalloc(sizeof *p);
-  p->type = type;
-  p->next = NULL;
-  return p;
-}
-
-static void free_db_node(struct db_node * node) {
-  while (node != NULL) {
-    struct db_node * next = node->next;
-
-    switch (node->type) {
-      case DB_EXPR:
-        delete_ast(node->u.expr.ast);
-        break;
-      case DB_DUP:
-        free_db_node(node->u.dup.data);
-        break;
-    }
-
-    efree(node);
-    node = next;
-  }
-}
-
-static struct db_node * parse_byte_list(STATE*, IFILE*, LEX*);
-static DWORD generate_byte_data(STATE*, IFILE*, OFILE*, const struct db_node *);
-
-static void define_bytes(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(irec->op == TOK_DB);
-
-  if (state->curseg == NO_SEG) {
-    error(state, ifile, "data outside segment");
-    lex_discard_line(lex);
-    return;
-  }
-
-  struct db_node * root = parse_byte_list(state, ifile, lex);
-
-  DWORD size = generate_byte_data(state, ifile, ofile, root);
-
-  if (size != irec->size)
-    error(state, ifile, "internal error: data size discrepancy: sized %u, emitted %u",
-          (unsigned) irec->size, (unsigned) size);
-
-  free_db_node(root);
-}
-
-static struct db_node * parse_byte_datum(STATE*, IFILE*, LEX*);
-
-static struct db_node * parse_byte_list(STATE* state, IFILE* ifile, LEX* lex) {
-  struct db_node * const first = parse_byte_datum(state, ifile, lex);
-
-  for (struct db_node * node = first; lex_token(lex) == ','; node = node->next) {
-    lex_next(lex);
-    node->next = parse_byte_datum(state, ifile, lex);
-  }
-
-  return first;
-}
-
-static struct db_node * parse_dup(STATE*, IFILE*, LEX*, unsigned long long count);
-
-static struct db_node * parse_byte_datum(STATE* state, IFILE* ifile, LEX* lex) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(state->curseg != NO_SEG);
-
-  AST* ast = parse_expr(state, ifile, lex);
-  if (ast == NULL)
-    return NULL; // error already issued
-
-  int type = expr_type(state, ifile, ast);
-  if (type == ET_ERR) {
-    delete_ast(ast);
-    return NULL; // error already issued
-  }
-
-  if (lex_token(lex) == TOK_DUP) {
-    if (type == ET_ABS) {
-      VALUE count;
-      eval(state, ifile, ast, &count);
-      return parse_dup(state, ifile, lex, count.n);
-    }
-    error2(state, lex, "invalid DUP expression");
-    delete_ast(ast);
-    return NULL;
-  }
-
-  if (type == ET_UNDEF || type == ET_ABS || type == ET_STR) {
-    struct db_node * node = new_db_node(DB_EXPR);
-    node->u.expr.ast = ast;
-    node->u.expr.type = type;
-    return node;
-  }
-
-  error2(state, lex, "invalid expression for byte data");
-  return NULL;
-}
-
-static struct db_node * parse_dup(STATE* state, IFILE* ifile, LEX* lex, unsigned long long count) {
-  assert(lex_token(lex) == TOK_DUP);
-
-  if (lex_next(lex) != '(') {
-    error2(state, lex, "parentheses required");
-    lex_discard_line(lex);
-    return NULL;
-  }
-
-  struct db_node * node = new_db_node(DB_DUP);
-  node->u.dup.count = count;
-
-  lex_next(lex);
-  node->u.dup.data = parse_byte_list(state, ifile, lex);
-
-  if (lex_token(lex) == ')')
-    lex_next(lex);
-  else
-    error2(state, lex, "closing parenthesis expected");
-
-  return node;
-}
-
-static DWORD generate_byte_data(STATE* state, IFILE* ifile, OFILE* ofile, const struct db_node * node) {
-  DWORD size = 0;
-
-  while (node) {
-    struct db_node * next = node->next;
-
-    if (node->type == DB_DUP) {
-      for (unsigned i = 0; i < node->u.dup.count; i++)
-        size += generate_byte_data(state, ifile, ofile, node->u.dup.data);
-    }
-    else {
-      assert(node->type == DB_EXPR);
-      VALUE val;
-      int type = eval(state, ifile, node->u.expr.ast, &val);
-      assert(type == node->u.expr.type);
-      switch (type) {
-        case ET_UNDEF:
-          inc_segment_pc(ifile, state->curseg, 1);
-          size++;
-          break;
-        case ET_ABS:
-          emit_object_byte(ofile, OBJ_DB, (BYTE) val.n);
-          inc_segment_pc(ifile, state->curseg, 1);
-          size++;
-          break;
-        case ET_STR:
-          emit_object_data(ofile, OBJ_DS, val.string.content, val.string.len);
-          inc_segment_pc(ifile, state->curseg, val.string.len);
-          size += val.string.len;
-          break;
-        default:
-          assert(0 && "unexpected expression type");
-      }
-    }
-
-    node = next;
-  }
-
-  return size;
-}
-
 static void do_align(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
   assert(state != NULL);
   assert(ifile != NULL);
@@ -705,15 +524,10 @@ static void do_align(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* of
   }
 }
 
-static size_t word_data(STATE*, IFILE*, LEX*, OFILE*);
+static DWORD generate_data(STATE* state, IFILE* ifile, OFILE* ofile, const DATA_NODE* node, EMIT_EXPR*);
 
-static void define_words(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
-  DWORD size;
-
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(irec->op == TOK_DW);
+static void define_data(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile,
+                        const char* descrip, bool valid_expr_type(int), EMIT_EXPR* emit_expr) {
 
   if (state->curseg == NO_SEG) {
     error(state, ifile, "data outside segment");
@@ -721,27 +535,65 @@ static void define_words(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE
     return;
   }
 
-  size = word_data(state, ifile, lex, ofile);
-  while (lex_token(lex) == ',') {
-    lex_next(lex);
-    size += word_data(state, ifile, lex, ofile);
-  }
+  struct db_node * root = parse_data_list(state, ifile, lex, valid_expr_type, descrip);
 
-  if (size != irec->size)
+  DWORD size = generate_data(state, ifile, ofile, root, emit_expr);
+
+  if (size != irec->size) {
     error(state, ifile, "internal error: data size discrepancy: sized %u, emitted %u",
           (unsigned) irec->size, (unsigned) size);
+    exit(EXIT_FAILURE);
+  }
+
+  free_db_node(root);
 }
 
-static size_t word_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(state->curseg != NO_SEG);
+static DWORD generate_data(STATE* state, IFILE* ifile, OFILE* ofile, const DATA_NODE* node, EMIT_EXPR* emit_expr) {
+  DWORD size = 0;
 
-  size_t size = 0;
+  for ( ; node; node = node->next) {
+    if (node->type == DB_DUP) {
+      for (unsigned i = 0; i < node->u.dup.count; i++)
+        size += generate_data(state, ifile, ofile, node->u.dup.data, emit_expr);
+    }
+    else {
+      VALUE val;
+      int type = eval(state, ifile, node->u.expr.ast, &val);
+      assert(type == node->u.expr.type);
+      DWORD sz = emit_expr(state, ifile, ofile, type, &val);
+      if (sz == 0)
+        error(state, ifile, "unexpected expression type");
+      size += sz;
+    }
+  }
 
-  union value val;
-  int type = expr(state, ifile, lex, &val);
+  return size;
+}
+
+static DWORD emit_byte_expr(STATE* state, IFILE* ifile, OFILE* ofile, int type, VALUE* val) {
+  DWORD size = 0;
+
+  switch (type) {
+    case ET_UNDEF:
+      size = 1;
+      break;
+    case ET_ABS:
+      emit_object_byte(ofile, OBJ_DB, (BYTE) val->n);
+      size = 1;
+      break;
+    case ET_STR:
+      emit_object_data(ofile, OBJ_DS, val->string.content, val->string.len);
+      size = val->string.len;
+      break;
+  }
+
+  inc_segment_pc(ifile, state->curseg, size);
+  return size;
+}
+
+static DWORD emit_word_expr(STATE* state, IFILE* ifile, OFILE* ofile, int type, VALUE* val) {
+  DWORD size = 0;
+
   switch (type) {
     case ET_ERR:
       break;
@@ -749,39 +601,39 @@ static size_t word_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
       size = 2;
       break;
     case ET_ABS:
-      emit_object_word(ofile, OBJ_DW, (WORD) val.n); // TODO: is this conversion always desired?
+      emit_object_word(ofile, OBJ_DW, (WORD) val->n);
       size = 2;
       break;
     case ET_REL:
     case ET_OFFSET:
-      if (relocatable_relative(ifile, val.label)) {
+      if (relocatable_relative(ifile, val->label)) {
         emit_object_signal(ofile, OBJ_BEGIN_OFFSET);
         emit_object_word(ofile, OBJ_POS, (WORD) segment_pc(ifile, state->curseg));
-        emit_segno(ofile, sym_seg(val.label));
+        emit_segno(ofile, sym_seg(val->label));
         emit_object_signal(ofile, OBJ_END_OFFSET);
       }
-      emit_object_word(ofile, OBJ_DW, (WORD) sym_relative_value(val.label));
+      emit_object_word(ofile, OBJ_DW, (WORD) sym_relative_value(val->label));
       size = 2;
       break;
     case ET_SEC:
-      if (sym_section_type(val.label) == ST_SEGMENT) {
+      if (sym_section_type(val->label) == ST_SEGMENT) {
         emit_object_signal(ofile, OBJ_BEGIN_SEG_ADDR);
         emit_object_word(ofile, OBJ_POS, (WORD) segment_pc(ifile, state->curseg));
-        emit_segno(ofile, sym_section_ordinal(val.label));
+        emit_segno(ofile, sym_section_ordinal(val->label));
         emit_object_signal(ofile, OBJ_END_SEG_ADDR);
       }
       else {
-        assert(sym_section_type(val.label) == ST_GROUP);
+        assert(sym_section_type(val->label) == ST_GROUP);
         emit_object_signal(ofile, OBJ_BEGIN_GROUP_ADDR);
         emit_object_word(ofile, OBJ_POS, (WORD) segment_pc(ifile, state->curseg));
-        emit_groupno(ofile, sym_section_ordinal(val.label));
+        emit_groupno(ofile, sym_section_ordinal(val->label));
         emit_object_signal(ofile, OBJ_END_GROUP_ADDR);
       }
       emit_object_word(ofile, OBJ_DW, 0);
       size = 2;
       break;
     case ET_SEG: {
-      SEGNO segno = sym_seg(val.label);
+      SEGNO segno = sym_seg(val->label);
       GROUPNO groupno = segment_group(ifile, segno);
       if (groupno == NO_GROUP) {
         emit_object_signal(ofile, OBJ_BEGIN_SEG_ADDR);
@@ -800,12 +652,10 @@ static size_t word_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
       break;
     }
     default:
-      if (make_absolute(type, &val)) {
-        emit_object_word(ofile, OBJ_DW, (WORD)val.n);
+      if (make_absolute(type, val)) {
+        emit_object_word(ofile, OBJ_DW, (WORD)val->n);
         size = 2;
       }
-      else
-        error2(state, lex, "word data expected");
       break;
   }
 
@@ -813,151 +663,43 @@ static size_t word_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
   return size;
 }
 
-static size_t dword_data(STATE*, IFILE*, LEX*, OFILE*);
+static DWORD emit_dword_expr(STATE* state, IFILE* ifile, OFILE* ofile, int type, VALUE* val) {
+  DWORD size = 0;
 
-static void define_dwords(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
-  DWORD size;
-
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(irec->op == TOK_DD);
-
-  if (state->curseg == NO_SEG) {
-    error(state, ifile, "data outside segment");
-    lex_discard_line(lex);
-    return;
-  }
-
-  size = dword_data(state, ifile, lex, ofile);
-  while (lex_token(lex) == ',') {
-    lex_next(lex);
-    size += dword_data(state, ifile, lex, ofile);
-  }
-
-  if (size != irec->size)
-    error(state, ifile, "internal error: data size discrepancy: sized %u, emitted %u",
-          (unsigned) irec->size, (unsigned) size);
-}
-
-static size_t dword_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(state->curseg != NO_SEG);
-
-  size_t size = 0;
-
-  union value val;
-  int type = expr(state, ifile, lex, &val);
   if (type == ET_UNDEF)
     size = 4;
-  else if (make_absolute(type, &val)) {
-    emit_object_dword(ofile, OBJ_DD, (DWORD) val.n);
+  else if (make_absolute(type, val)) {
+    emit_object_dword(ofile, OBJ_DD, (DWORD) val->n);
     size = 4;
   }
-  else
-    error2(state, lex, "doubleword data expected");
 
   inc_segment_pc(ifile, state->curseg, size);
   return size;
 }
 
-static size_t qword_data(STATE*, IFILE*, LEX*, OFILE*);
+static DWORD emit_qword_expr(STATE* state, IFILE* ifile, OFILE* ofile, int type, VALUE* val) {
+  DWORD size = 0;
 
-static void define_qwords(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
-  DWORD size;
-
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(irec->op == TOK_DQ);
-
-  if (state->curseg == NO_SEG) {
-    error(state, ifile, "data outside segment");
-    lex_discard_line(lex);
-    return;
-  }
-
-  size = qword_data(state, ifile, lex, ofile);
-  while (lex_token(lex) == ',') {
-    lex_next(lex);
-    size += qword_data(state, ifile, lex, ofile);
-  }
-
-  if (size != irec->size)
-    error(state, ifile, "internal error: data size discrepancy: sized %u, emitted %u",
-          (unsigned) irec->size, (unsigned) size);
-}
-
-static size_t qword_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(state->curseg != NO_SEG);
-
-  size_t size = 0;
-
-  union value val;
-  int type = expr(state, ifile, lex, &val);
   if (type == ET_UNDEF)
     size = 8;
-  else if (make_absolute(type, &val)) {
-    emit_object_qword(ofile, OBJ_DQ, val.n);
+  else if (make_absolute(type, val)) {
+    emit_object_qword(ofile, OBJ_DQ, val->n);
     size = 8;
   }
-  else
-    error2(state, lex, "quadword data expected");
 
   inc_segment_pc(ifile, state->curseg, size);
   return size;
 }
 
-static size_t tbyte_data(STATE*, IFILE*, LEX*, OFILE*);
+static DWORD emit_tbyte_expr(STATE* state, IFILE* ifile, OFILE* ofile, int type, VALUE* val) {
+  DWORD size = 0;
 
-static void define_tbytes(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
-  DWORD size;
-
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(irec->op == TOK_DT);
-
-  if (state->curseg == NO_SEG) {
-    error(state, ifile, "data outside segment");
-    lex_discard_line(lex);
-    return;
-  }
-
-  size = tbyte_data(state, ifile, lex, ofile);
-  while (lex_token(lex) == ',') {
-    lex_next(lex);
-    size += tbyte_data(state, ifile, lex, ofile);
-  }
-
-  if (size != irec->size)
-    error(state, ifile, "internal error: data size discrepancy: sized %u, emitted %u",
-          (unsigned) irec->size, (unsigned) size);
-}
-
-static size_t tbyte_data(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
-  assert(state != NULL);
-  assert(ifile != NULL);
-  assert(lex != NULL);
-  assert(state->curseg != NO_SEG);
-
-  size_t size = 0;
-
-  union value val;
-  int type = expr(state, ifile, lex, &val);
   if (type == ET_UNDEF)
     size = 10;
-  else if (make_absolute(type, &val)) {
-    emit_object_qword(ofile, OBJ_DT, val.n);
+  else if (make_absolute(type, val)) {
+    emit_object_qword(ofile, OBJ_DT, val->n);
     size = 10;
   }
-  else
-    error2(state, lex, "ten-byte data expected");
 
   inc_segment_pc(ifile, state->curseg, size);
   return size;

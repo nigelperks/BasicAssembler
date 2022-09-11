@@ -1,0 +1,13 @@
+Error: dberr.asm: 7: invalid expression for byte data:
+data    db  data
+                ^
+Error: dberr.asm: 8: invalid expression for byte data:
+    db  OFFSET data
+                   ^
+Error: dberr.asm: 9: invalid expression for byte data:
+    db  SEG data
+                ^
+Error: dberr.asm: 10: invalid expression for byte data:
+    db  MAIN
+            ^
+Errors: 4
