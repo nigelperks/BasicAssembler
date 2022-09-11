@@ -332,7 +332,11 @@ IMAGE* build_image(const SEGMENTED* prog, const char* mapfile, int verbose) {
 static void check_start(const SEGMENTED* prog) {
   if (prog->start.segno != NO_SEG) {
     const SEGMENT* seg = get_segment(prog->segs, prog->start.segno);
-    if (seg == NULL || prog->start.offset >= seg_hi(seg))
+    if (seg == NULL)
+      fatal("no start segment\n");
+    if (prog->start.offset == seg_hi(seg))
+      fatal("the start offset is at the end of the start segment\n");
+    if (prog->start.offset > seg_hi(seg))
       fatal("the start offset is outside the start segment\n");
   }
 }
