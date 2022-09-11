@@ -39,15 +39,61 @@ enum expression_type {
   ET_OFFSET  // OFFSET name
 };
 
+enum {
+  AST_BINARY,
+  AST_UNARY,
+  AST_COMPONENT,
+  AST_NUM,
+  AST_LABEL,
+  AST_STRING,
+  AST_UNDEF,
+};
+
+typedef struct ast {
+  short kind;
+  union {
+    struct {
+      int op;
+      struct ast * lhs;
+      struct ast * rhs;
+    } binary;
+    struct {
+      int op;
+      struct ast * expr;
+    } unary;
+    struct {
+      int op;
+      const SYMBOL* sym;
+    } component;
+    unsigned long long num;
+    SYMBOL* label;
+    struct {
+      BYTE* content;
+      size_t len;
+    } string;
+  } u;
+} AST;
+
+AST* new_ast(int kind);
+void delete_ast(AST*);
+
+AST* parse_expr(STATE*, IFILE*, LEX*);
+int expr_type(STATE*, IFILE*, const AST*);
+
 #define MAX_EXPR_STR (128)
 
 union value {
   long long n;
   const SYMBOL* label;
-  char str[MAX_EXPR_STR];
+  struct {
+    BYTE content[MAX_EXPR_STR];
+    unsigned short len;
+  } string;
 };
 
 typedef union value VALUE;
+
+int eval(STATE*, IFILE*, const AST*, union value *);
 
 int expr(STATE*, IFILE*, LEX*, union value *);
 BOOL make_absolute(int type, union value *);

@@ -328,8 +328,8 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
       succ = TRUE;
       break;
     case ET_STR:
-      if (val.str[0] != '\0' && val.str[1] == '\0') {
-        set_immediate_absolute(op, val.str[0]);
+      if (val.string.len == 1) {
+        set_immediate_absolute(op, val.string.content[0]);
         succ = TRUE;
       }
       else
@@ -590,48 +590,6 @@ static BOOL data_size_flags(unsigned size, int *rm_flag, int *mem_flag) {
   return FALSE;
 }
 
-enum {
-  AST_BINARY,
-  AST_UNARY,
-  AST_COMPONENT,
-  AST_NUM,
-  AST_LABEL,
-  AST_STRING,
-  AST_UNDEF,
-};
-
-typedef struct ast {
-  short kind;
-  union {
-    struct {
-      int op;
-      struct ast * lhs;
-      struct ast * rhs;
-    } binary;
-    struct {
-      int op;
-      struct ast * expr;
-    } unary;
-    struct {
-      int op;
-      const SYMBOL* sym;
-    } component;
-    unsigned long long num;
-    SYMBOL* label;
-    struct {
-      BYTE* content;
-      size_t len;
-    } string;
-  } u;
-} AST;
-
-static AST* new_ast(int kind);
-static void delete_ast(AST*);
-static AST* parse_expr(STATE*, IFILE*, LEX*);
-static int expr_type(STATE*, IFILE*, const AST*);
-
-static int eval(STATE*, IFILE*, const AST*, union value *);
-
 int expr(STATE* state, IFILE* ifile, LEX* lex, union value * val) {
   AST* ast = parse_expr(state, ifile, lex);
   if (ast == NULL)
@@ -643,13 +601,13 @@ int expr(STATE* state, IFILE* ifile, LEX* lex, union value * val) {
   return type;
 }
 
-static AST* new_ast(int kind) {
+AST* new_ast(int kind) {
   AST* p = ecalloc(1, sizeof *p);
   p->kind = kind;
   return p;
 }
 
-static void delete_ast(AST* p) {
+void delete_ast(AST* p) {
   if (p) {
     switch (p->kind) {
       case AST_BINARY:
@@ -673,7 +631,7 @@ static AST* add_expr(STATE*, IFILE*, LEX*);
 
 // expr:
 //      add-expr
-static AST* parse_expr(STATE* state, IFILE* ifile, LEX* lex) {
+AST* parse_expr(STATE* state, IFILE* ifile, LEX* lex) {
   return add_expr(state, ifile, lex);
 }
 
@@ -849,7 +807,7 @@ static int unary_type(STATE*, IFILE*, int op, AST* arg);
 static int component_type(int op, const SYMBOL* label);
 static int label_type(STATE*, IFILE*, SYMBOL*);
 
-static int expr_type(STATE* state, IFILE* ifile, const AST* ast) {
+int expr_type(STATE* state, IFILE* ifile, const AST* ast) {
   if (ast == NULL)
     return ET_ERR;
 
@@ -928,7 +886,7 @@ static int eval_component(int op, const SYMBOL* label, VALUE*);
 static int eval_label(STATE*, IFILE*, SYMBOL*, VALUE*);
 static int eval_string(STATE*, IFILE*, const BYTE* content, size_t len, VALUE*);
 
-static int eval(STATE* state, IFILE* ifile, const AST* ast, union value * val) {
+int eval(STATE* state, IFILE* ifile, const AST* ast, union value * val) {
   assert(val != NULL);
 
   if (ast == NULL)
@@ -1014,23 +972,22 @@ static int eval_label(STATE* state, IFILE* ifile, SYMBOL* sym, VALUE* val) {
 }
 
 static int eval_string(STATE* state, IFILE* ifile, const BYTE* content, size_t len, VALUE* val) {
-  if (content == NULL)
-    val->str[0] = '\0';
-  else if (len >= sizeof val->str) {
+  if (len > sizeof val->string.content) {
     error(state, ifile, "string too long");
-    val->str[0] = '\0';
     return ET_ERR;
   }
+  if (content == NULL || len == 0)
+    val->string.len = 0;
   else {
-    memcpy(val->str, content, len);
-    val->str[len] = '\0';
+    memcpy(val->string.content, content, len);
+    val->string.len = (unsigned short) len;
   }
   return ET_STR;
 }
 
 BOOL make_absolute(int type, union value * val) {
-  if (type == ET_STR && strlen(val->str) == 1) {
-    val->n = val->str[0];
+  if (type == ET_STR && val->string.len == 1) {
+    val->n = val->string.content[0];
     return TRUE;
   }
   return (type == ET_ABS);
@@ -1627,16 +1584,18 @@ static void test_make_absolute(CuTest* tc) {
   CuAssertIntEquals(tc, FALSE, succ);
   CuAssertPtrEquals(tc, &symbol, (void*) val.label);
 
-  strcpy(val.str, "");
+  val.string.len = 0;
   succ = make_absolute(ET_STR, &val);
   CuAssertIntEquals(tc, FALSE, succ);
 
-  strcpy(val.str, "*");
+  val.string.content[0] = '*';
+  val.string.len = 1;
   succ = make_absolute(ET_STR, &val);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertLongLongEquals(tc, '*', val.n);
 
-  strcpy(val.str, "**");
+  strcpy(val.string.content, "**");
+  val.string.len = 2;
   succ = make_absolute(ET_STR, &val);
   CuAssertIntEquals(tc, FALSE, succ);
 }
@@ -1648,7 +1607,7 @@ static void test_eval_string(CuTest* tc) {
   STATE state;
   VALUE val;
   int type;
-  char buff[sizeof val.str];
+  char buff[sizeof val.string.content];
 
   source_pass(ifile, NULL);
   init_state(&state, -1);
@@ -1657,25 +1616,24 @@ static void test_eval_string(CuTest* tc) {
   memset(&val, 0xff, sizeof val);
   type = eval_string(&state, ifile, NULL, 0, &val);
   CuAssertIntEquals(tc, ET_STR, type);
-  CuAssertIntEquals(tc, '\0', val.str[0]);
+  CuAssertIntEquals(tc, 0, val.string.len);
 
   // non-null empty string
   memset(&val, 0xff, sizeof val);
   type = eval_string(&state, ifile, "", 0, &val);
   CuAssertIntEquals(tc, ET_STR, type);
-  CuAssertIntEquals(tc, '\0', val.str[0]);
+  CuAssertIntEquals(tc, 0, val.string.len);
 
   // non-empty string
   memset(buff, '*', sizeof buff);
-  type = eval_string(&state, ifile, buff, sizeof val.str - 1, &val);
+  type = eval_string(&state, ifile, buff, sizeof buff, &val);
   CuAssertIntEquals(tc, ET_STR, type);
-  CuAssertTrue(tc, memcmp(val.str, buff, sizeof val.str - 1) == 0);
-  CuAssertIntEquals(tc, '\0', val.str[sizeof val.str - 1]);
+  CuAssertTrue(tc, memcmp(val.string.content, buff, sizeof buff) == 0);
+  CuAssertIntEquals(tc, sizeof buff, val.string.len);
 
   // string too long
-  type = eval_string(&state, ifile, buff, sizeof val.str, &val);
+  type = eval_string(&state, ifile, buff, sizeof buff + 1, &val);
   CuAssertIntEquals(tc, ET_ERR, type);
-  CuAssertIntEquals(tc, '\0', val.str[0]);
 
   // clean up
   delete_ifile(ifile);

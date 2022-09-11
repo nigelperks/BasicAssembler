@@ -933,7 +933,7 @@ static size_t byte_datum(STATE* state, IFILE* ifile, LEX* lex, BOOL *init) {
 
   if (type == ET_STR) {
     *init = INIT;
-    return strlen(val.str);
+    return val.string.len;
   }
 
   if (type == ET_ABS) {

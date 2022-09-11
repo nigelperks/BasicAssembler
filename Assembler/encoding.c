@@ -496,13 +496,17 @@ static void do_udataseg(STATE* state, IFILE* ifile, LEX* lex, OFILE* ofile) {
   emit_object_byte(ofile, OBJ_OPEN_SEGMENT, (BYTE) state->curseg);
 }
 
-enum db_node_type { DB_UNDEF, DB_VALUE, DB_STR, DB_DUP };
+// Node in DB data: either single value expression or DUP expression
+
+enum { DB_EXPR, DB_DUP };
 
 struct db_node {
   int type;
   union {
-    BYTE val;
-    char* str;
+    struct {
+      AST* ast;
+      int type;
+    } expr;
     struct {
       unsigned long long count;
       struct db_node * data;
@@ -523,8 +527,8 @@ static void free_db_node(struct db_node * node) {
     struct db_node * next = node->next;
 
     switch (node->type) {
-      case DB_STR:
-        efree(node->u.str);
+      case DB_EXPR:
+        delete_ast(node->u.expr.ast);
         break;
       case DB_DUP:
         free_db_node(node->u.dup.data);
@@ -583,36 +587,36 @@ static struct db_node * parse_byte_datum(STATE* state, IFILE* ifile, LEX* lex) {
   assert(lex != NULL);
   assert(state->curseg != NO_SEG);
 
-  struct db_node * node = NULL;
+  AST* ast = parse_expr(state, ifile, lex);
+  if (ast == NULL)
+    return NULL; // error already issued
 
-  union value val;
-  int type = expr(state, ifile, lex, &val);
-
-  switch (type) {
-    case ET_STR:
-      node = new_db_node(DB_STR);
-      node->u.str = estrdup(val.str); // too much copying!
-      break;
-    case ET_ABS:
-      if (lex_token(lex) == TOK_DUP)
-        node = parse_dup(state, ifile, lex, val.n);
-      else {
-        node = new_db_node(DB_VALUE);
-        node->u.val = (const BYTE) val.n;
-      }
-      break;
-    case ET_UNDEF:
-      node = new_db_node(DB_UNDEF);
-      break;
-    case ET_REL:
-      error2(state, lex, "invalid expression for byte data");
-      break;
-    default:
-      error2(state, lex, "byte data expected");
-      break;
+  int type = expr_type(state, ifile, ast);
+  if (type == ET_ERR) {
+    delete_ast(ast);
+    return NULL; // error already issued
   }
 
-  return node;
+  if (lex_token(lex) == TOK_DUP) {
+    if (type == ET_ABS) {
+      VALUE count;
+      eval(state, ifile, ast, &count);
+      return parse_dup(state, ifile, lex, count.n);
+    }
+    error2(state, lex, "invalid DUP expression");
+    delete_ast(ast);
+    return NULL;
+  }
+
+  if (type == ET_UNDEF || type == ET_ABS || type == ET_STR) {
+    struct db_node * node = new_db_node(DB_EXPR);
+    node->u.expr.ast = ast;
+    node->u.expr.type = type;
+    return node;
+  }
+
+  error2(state, lex, "invalid expression for byte data");
+  return NULL;
 }
 
 static struct db_node * parse_dup(STATE* state, IFILE* ifile, LEX* lex, unsigned long long count) {
@@ -644,29 +648,33 @@ static DWORD generate_byte_data(STATE* state, IFILE* ifile, OFILE* ofile, const 
   while (node) {
     struct db_node * next = node->next;
 
-    switch (node->type) {
-      case DB_UNDEF:
-        inc_segment_pc(ifile, state->curseg, 1);
-        size++;
-        break;
-      case DB_VALUE:
-        emit_object_byte(ofile, OBJ_DB, node->u.val);
-        inc_segment_pc(ifile, state->curseg, 1);
-        size++;
-        break;
-      case DB_STR: {
-        size_t len = strlen(node->u.str);
-        emit_object_data(ofile, OBJ_DS, node->u.str, len);
-        inc_segment_pc(ifile, state->curseg, len);
-        size += len;
-        break;
+    if (node->type == DB_DUP) {
+      for (unsigned i = 0; i < node->u.dup.count; i++)
+        size += generate_byte_data(state, ifile, ofile, node->u.dup.data);
+    }
+    else {
+      assert(node->type == DB_EXPR);
+      VALUE val;
+      int type = eval(state, ifile, node->u.expr.ast, &val);
+      assert(type == node->u.expr.type);
+      switch (type) {
+        case ET_UNDEF:
+          inc_segment_pc(ifile, state->curseg, 1);
+          size++;
+          break;
+        case ET_ABS:
+          emit_object_byte(ofile, OBJ_DB, (BYTE) val.n);
+          inc_segment_pc(ifile, state->curseg, 1);
+          size++;
+          break;
+        case ET_STR:
+          emit_object_data(ofile, OBJ_DS, val.string.content, val.string.len);
+          inc_segment_pc(ifile, state->curseg, val.string.len);
+          size += val.string.len;
+          break;
+        default:
+          assert(0 && "unexpected expression type");
       }
-      case DB_DUP:
-        for (unsigned i = 0; i < node->u.dup.count; i++)
-          size += generate_byte_data(state, ifile, ofile, node->u.dup.data);
-        break;
-      default:
-        assert(0 && "unknown DB node type");
     }
 
     node = next;
