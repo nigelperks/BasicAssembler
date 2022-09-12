@@ -33,6 +33,7 @@ enum expression_type {
   ET_UNDEF,  // undefined value: '?'
   ET_ABS,    // absolute symbol or number literal
   ET_REL,    // relative symbol
+  ET_REL_DIFF,
   ET_STR,    // '...' or "..."
   ET_SEC,    // section (segment or group) name
   ET_SEG,    // SEG name

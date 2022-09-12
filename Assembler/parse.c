@@ -359,6 +359,9 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
       add_flag(op, OF_IMM);
       succ = TRUE;
       break;
+    case ET_REL_DIFF:
+      error2(state, lex, "unsupported as an operand");
+      break;
     default:
       assert(0 && "unexpected expr type");
   }
@@ -841,6 +844,8 @@ static int binary_type(STATE* state, IFILE* ifile, int op, AST* lhs, AST* rhs) {
     return ET_ERR;
   if (t1 == ET_ABS && t2 == ET_ABS)
     return ET_ABS;
+  if (t1 == ET_REL && t2 == ET_REL)
+    return ET_REL_DIFF;
   error(state, ifile, "invalid expression");
   return ET_ERR;
 }
@@ -916,10 +921,21 @@ int eval(STATE* state, IFILE* ifile, const AST* ast, union value * val) {
 
 static int eval_binary(STATE* state, IFILE* ifile, int op, AST* lhs, AST* rhs, VALUE* val) {
   int t1 = eval(state, ifile, lhs, val);
-  assert(t1 != ET_ERR);
+  if (t1 == ET_ERR)
+    return ET_ERR;
   VALUE val2;
   int t2 = eval(state, ifile, rhs, &val2);
-  assert(t2 != ET_ERR);
+  if (t2 == ET_ERR)
+    return ET_ERR;
+  if (t1 == ET_REL && t2 == ET_REL && op == '-') {
+    if (sym_type(val->label) != SYM_RELATIVE || !sym_defined(val->label) ||
+        sym_type(val2.label) != SYM_RELATIVE || !sym_defined(val2.label)) {
+      error(state, ifile, "undefined labels in difference expression");
+      return ET_ERR;
+    }
+    val->n = sym_relative_value(val->label) - sym_relative_value(val2.label);
+    return ET_REL_DIFF;
+  }
   assert(t1 == ET_ABS && t2 == ET_ABS);
   switch (op) {
     case '+': val->n += val2.n; break;

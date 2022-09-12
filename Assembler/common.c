@@ -123,7 +123,7 @@ bool valid_byte_expr(int type) {
 }
 
 bool valid_word_expr(int type) {
-  return type == ET_UNDEF || type == ET_ABS || type == ET_STR || type == ET_REL || type == ET_OFFSET || type == ET_SEG || type == ET_SEC;
+  return type == ET_UNDEF || type == ET_ABS || type == ET_STR || type == ET_REL || type == ET_REL_DIFF || type == ET_OFFSET || type == ET_SEG || type == ET_SEC;
 }
 
 bool valid_dword_expr(int type) {

@@ -76,8 +76,8 @@ static DATA_NODE* parse_datum(STATE* state, IFILE* ifile, LEX* lex, bool valid_t
   if (lex_token(lex) == TOK_DUP) {
     if (type == ET_ABS) {
       VALUE count;
-      eval(state, ifile, ast, &count);
-      return parse_dup(state, ifile, lex, valid_type, descrip, count.n);
+      if (eval(state, ifile, ast, &count) == ET_ABS)
+        return parse_dup(state, ifile, lex, valid_type, descrip, count.n);
     }
     error2(state, lex, "invalid DUP expression");
     delete_ast(ast);
@@ -93,28 +93,6 @@ static DATA_NODE* parse_datum(STATE* state, IFILE* ifile, LEX* lex, bool valid_t
 
   error2(state, lex, "invalid expression for %s data", descrip);
   return NULL;
-}
-
-static DATA_NODE* word_expr(STATE* state, LEX* lex, int type, AST* ast) {
-  DATA_NODE* node = NULL;
-
-  switch (type) {
-    case ET_UNDEF:
-    case ET_ABS:
-    case ET_REL:
-    case ET_OFFSET:
-    case ET_SEG:
-    case ET_SEC:
-      node = new_data_node(DB_EXPR);
-      node->u.expr.ast = ast;
-      node->u.expr.type = type;
-      break;
-    default:
-      error2(state, lex, "invalid expression for word data");
-      break;
-  }
-
-  return node;
 }
 
 static struct db_node * parse_dup(STATE* state, IFILE* ifile, LEX* lex, bool valid_type(int), const char* descrip, unsigned long long count) {

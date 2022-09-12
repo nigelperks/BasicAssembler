@@ -559,11 +559,13 @@ static DWORD generate_data(STATE* state, IFILE* ifile, OFILE* ofile, const DATA_
     else {
       VALUE val;
       int type = eval(state, ifile, node->u.expr.ast, &val);
-      assert(type == node->u.expr.type);
-      DWORD sz = emit_expr(state, ifile, ofile, type, &val);
-      if (sz == 0)
-        error(state, ifile, "unexpected expression type");
-      size += sz;
+      if (type != ET_ERR) {
+        assert(type == node->u.expr.type);
+        DWORD sz = emit_expr(state, ifile, ofile, type, &val);
+        if (sz == 0)
+          error(state, ifile, "unexpected expression type");
+        size += sz;
+      }
     }
   }
 
@@ -601,6 +603,7 @@ static DWORD emit_word_expr(STATE* state, IFILE* ifile, OFILE* ofile, int type, 
       size = 2;
       break;
     case ET_ABS:
+    case ET_REL_DIFF:
       emit_object_word(ofile, OBJ_DW, (WORD) val->n);
       size = 2;
       break;

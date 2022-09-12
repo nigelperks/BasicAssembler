@@ -902,6 +902,7 @@ static size_t word_expr_size(int type, VALUE* val, BOOL *init) {
     case ET_SEC:
     case ET_SEG:
     case ET_OFFSET:
+    case ET_REL_DIFF:
       *init = INIT;
       size = 2;
       break;
