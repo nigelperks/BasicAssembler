@@ -185,15 +185,6 @@ static void do_org(STATE*, IFILE*, LEX*);
 static void do_public(STATE*, IFILE*, LEX*);
 static void do_segment(STATE*, IFILE*, LEX*);
 static void do_udataseg(STATE*, IFILE*, LEX*);
-
-typedef size_t EXPR_SIZE(int type, VALUE*, BOOL *init);
-
-static size_t byte_expr_size(int expr_type, VALUE*, BOOL *init);
-static size_t word_expr_size(int expr_type, VALUE*, BOOL *init);
-static size_t dword_expr_size(int expr_type, VALUE*, BOOL *init);
-static size_t qword_expr_size(int expr_type, VALUE*, BOOL *init);
-static size_t tbyte_expr_size(int expr_type, VALUE*, BOOL *init);
-
 static void define_data(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*);
 
 static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
@@ -774,7 +765,7 @@ static void check_initialization_consistent(STATE* state, IFILE* ifile, LEX* lex
   }
 }
 
-static size_t data_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*, BOOL *init);
+size_t data_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*, BOOL *init);
 
 static void define_data(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE* expr_size) {
   assert(state != NULL);
@@ -794,14 +785,14 @@ static void define_data(STATE* state, IFILE* ifile, LEX* lex, const char* descri
 
   lex_next(lex);
   BOOL init;
-  irec->size += data_size(state, ifile, lex, descrip, expr_size, &init);
+  irec->size = data_size(state, ifile, lex, descrip, expr_size, &init);
   check_initialization_consistent(state, ifile, lex, init);
   inc_segment_pc(ifile, state->curseg, irec->size);
 }
 
 static size_t datum_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*, BOOL *init);
 
-static size_t data_size(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE* expr_size, BOOL *init) {
+size_t data_size(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE* expr_size, BOOL *init) {
   size_t size = datum_size(state, ifile, lex, descrip, expr_size, init);
 
   bool reported = false;
@@ -835,9 +826,10 @@ static size_t datum_size(STATE* state, IFILE* ifile, LEX* lex, const char* descr
     return 0;
 
   if (lex_token(lex) == TOK_DUP) {
-    if (type == ET_ABS)
+    if (type == ET_ABS || type == ET_REL_DIFF)
       return dup_size(state, ifile, lex, val.n, descrip, expr_size, init);
     error2(state, lex, "invalid DUP expression");
+    lex_discard_line(lex);
     return 0;
   }
 
@@ -866,104 +858,6 @@ static size_t dup_size(STATE* state, IFILE* ifile, LEX* lex, long long count, co
     else
       error2(state, lex, "closing parenthesis expected");
     return size;
-}
-
-static size_t byte_expr_size(int type, VALUE* val, BOOL *init) {
-  if (type == ET_UNDEF) {
-    *init = UNINIT;
-    return 1;
-  }
-
-  if (type == ET_ABS) {
-    *init = INIT;
-    return 1;
-  }
-
-  if (type == ET_STR) {
-    *init = INIT;
-    return val->string.len;
-  }
-
-  return 0;
-}
-
-static size_t word_expr_size(int type, VALUE* val, BOOL *init) {
-  size_t size = 0;
-
-  switch (type) {
-    case ET_ERR:
-      break;
-    case ET_UNDEF:
-      *init = UNINIT;
-      size = 2;
-      break;
-    case ET_ABS:
-    case ET_REL:
-    case ET_SEC:
-    case ET_SEG:
-    case ET_OFFSET:
-    case ET_REL_DIFF:
-      *init = INIT;
-      size = 2;
-      break;
-    case ET_STR:
-      if (make_absolute(type, val)) {
-        *init = INIT;
-        size = 2;
-      }
-      break;
-    default:
-      assert(0 && "unknown ET");
-  }
-
-  return size;
-}
-
-static size_t dword_expr_size(int type, VALUE* val, BOOL *init) {
-  size_t size = 0;
-
-  if (type == ET_UNDEF) {
-    *init = UNINIT;
-    size = 4;
-  }
-  else if (make_absolute(type, val)) {
-    *init = INIT;
-    size = 4;
-  }
-
-  return size;
-}
-
-static size_t qword_expr_size(int type, VALUE* val, BOOL *init) {
-  size_t size = 0;
-
-  if (type == ET_UNDEF) {
-    *init = UNINIT;
-    size = 8;
-  }
-  else if (make_absolute(type, val)) {
-    *init = INIT;
-    size = 8;
-  }
-
-  return size;
-}
-
-static size_t tbyte_expr_size(int type, VALUE* val, BOOL *init) {
-  size_t size = 0;
-
-  // TODO: allow some kind of "long hex" value, not just long or even long long values
-
-  if (type == ET_UNDEF) {
-    *init = UNINIT;
-    size = 10;
-  }
-  else if (make_absolute(type, val)) {
-    *init = INIT;
-    size = 10;
-  }
-
-  return size;
 }
 
 static void public_symbol(STATE*, IFILE*, LEX*);

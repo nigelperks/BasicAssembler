@@ -32,4 +32,11 @@ bool valid_dword_expr(int type);
 bool valid_qword_expr(int type);
 bool valid_tbyte_expr(int type);
 
+typedef size_t EXPR_SIZE(int type, VALUE*, BOOL *init);
+size_t byte_expr_size(int expr_type, VALUE*, BOOL *init);
+size_t word_expr_size(int expr_type, VALUE*, BOOL *init);
+size_t dword_expr_size(int expr_type, VALUE*, BOOL *init);
+size_t qword_expr_size(int expr_type, VALUE*, BOOL *init);
+size_t tbyte_expr_size(int expr_type, VALUE*, BOOL *init);
+
 #endif // COMMON_H

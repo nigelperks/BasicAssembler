@@ -74,9 +74,9 @@ static DATA_NODE* parse_datum(STATE* state, IFILE* ifile, LEX* lex, bool valid_t
   }
 
   if (lex_token(lex) == TOK_DUP) {
-    if (type == ET_ABS) {
+    if (type == ET_ABS || type == ET_REL_DIFF) {
       VALUE count;
-      if (eval(state, ifile, ast, &count) == ET_ABS)
+      if (eval(state, ifile, ast, &count) == type)
         return parse_dup(state, ifile, lex, valid_type, descrip, count.n);
     }
     error2(state, lex, "invalid DUP expression");

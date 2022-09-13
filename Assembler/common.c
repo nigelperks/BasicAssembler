@@ -137,3 +137,101 @@ bool valid_qword_expr(int type) {
 bool valid_tbyte_expr(int type) {
   return type == ET_UNDEF || type == ET_ABS || type == ET_STR;
 }
+
+size_t byte_expr_size(int type, VALUE* val, BOOL *init) {
+  if (type == ET_UNDEF) {
+    *init = UNINIT;
+    return 1;
+  }
+
+  if (type == ET_ABS) {
+    *init = INIT;
+    return 1;
+  }
+
+  if (type == ET_STR) {
+    *init = INIT;
+    return val->string.len;
+  }
+
+  return 0;
+}
+
+size_t word_expr_size(int type, VALUE* val, BOOL *init) {
+  size_t size = 0;
+
+  switch (type) {
+    case ET_ERR:
+      break;
+    case ET_UNDEF:
+      *init = UNINIT;
+      size = 2;
+      break;
+    case ET_ABS:
+    case ET_REL:
+    case ET_SEC:
+    case ET_SEG:
+    case ET_OFFSET:
+    case ET_REL_DIFF:
+      *init = INIT;
+      size = 2;
+      break;
+    case ET_STR:
+      if (make_absolute(type, val)) {
+        *init = INIT;
+        size = 2;
+      }
+      break;
+    default:
+      assert(0 && "unknown ET");
+  }
+
+  return size;
+}
+
+size_t dword_expr_size(int type, VALUE* val, BOOL *init) {
+  size_t size = 0;
+
+  if (type == ET_UNDEF) {
+    *init = UNINIT;
+    size = 4;
+  }
+  else if (make_absolute(type, val)) {
+    *init = INIT;
+    size = 4;
+  }
+
+  return size;
+}
+
+size_t qword_expr_size(int type, VALUE* val, BOOL *init) {
+  size_t size = 0;
+
+  if (type == ET_UNDEF) {
+    *init = UNINIT;
+    size = 8;
+  }
+  else if (make_absolute(type, val)) {
+    *init = INIT;
+    size = 8;
+  }
+
+  return size;
+}
+
+size_t tbyte_expr_size(int type, VALUE* val, BOOL *init) {
+  size_t size = 0;
+
+  // TODO: allow some kind of "long hex" value, not just long or even long long values
+
+  if (type == ET_UNDEF) {
+    *init = UNINIT;
+    size = 10;
+  }
+  else if (make_absolute(type, val)) {
+    *init = INIT;
+    size = 10;
+  }
+
+  return size;
+}

@@ -50,7 +50,7 @@ BOOL resize_pass(IFILE* ifile, const Options* options) {
 
 static void define_label(STATE*, IFILE*, IREC*, LEX*);
 
-static void perform_directive(STATE*, IFILE*, IREC*, LEX*);
+static BOOL perform_directive(STATE*, IFILE*, IREC*, LEX*);
 static BOOL process_instruction(STATE*, IFILE*, IREC*, LEX*);
 
 // TRUE if record resized.
@@ -64,10 +64,8 @@ static BOOL process_irec(STATE* state, IFILE* ifile, LEX* lex) {
   if (irec->label != NULL)
     define_label(state, ifile, irec, lex);
 
-  if (token_is_directive(irec->op)) {
-    perform_directive(state, ifile, irec, lex);
-    return FALSE;
-  }
+  if (token_is_directive(irec->op))
+    return perform_directive(state, ifile, irec, lex);
 
   if (irec->op == TOK_NONE)
     return FALSE;
@@ -107,13 +105,15 @@ static void do_assume(STATE*, IFILE*, IREC*, LEX*);
 static void do_ends(STATE*, IFILE*, IREC*, LEX*);
 static void do_org(STATE*, IFILE*, IREC*, LEX*);
 static void do_segment(STATE*, IFILE*, IREC*, LEX*);
+static void define_data(STATE*, IFILE*, IREC*, LEX*, const char* descrip, EXPR_SIZE*);
 
-static void do_data(STATE*, IFILE*, IREC*, LEX*);
-
-static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
+// TRUE if record resized
+static BOOL perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   assert(state != NULL);
   assert(irec != NULL);
   assert(token_is_directive(irec->op));
+
+  const unsigned provisional_record_size = irec->size;
 
   switch (irec->op) {
     case TOK_ALIGN: do_align(state, ifile, irec, lex); break;
@@ -125,14 +125,11 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
     case TOK_ORG: do_org(state, ifile, irec, lex); break;
     case TOK_SEGMENT: do_segment(state, ifile, irec, lex); break;
     case TOK_UDATASEG: perform_udataseg(state, ifile, lex); break;
-    // data: just increment PC
-    case TOK_DB:
-    case TOK_DW:
-    case TOK_DD:
-    case TOK_DQ:
-    case TOK_DT:
-      do_data(state, ifile, irec, lex);
-      break;
+    case TOK_DB: define_data(state, ifile, irec, lex, "byte", byte_expr_size); break;
+    case TOK_DW: define_data(state, ifile, irec, lex, "word", word_expr_size); break;
+    case TOK_DD: define_data(state, ifile, irec, lex, "dword", dword_expr_size); break;
+    case TOK_DQ: define_data(state, ifile, irec, lex, "qword", qword_expr_size); break;
+    case TOK_DT: define_data(state, ifile, irec, lex, "tbyte", tbyte_expr_size); break;
     // select processor
     case TOK_P8086:
     case TOK_P8087:
@@ -152,20 +149,22 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
     default:
       error(state, ifile, "directive not implemented: %s", token_name(irec->op));
   }
+
+  return irec->size != provisional_record_size;
 }
 
-static void do_data(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
+size_t data_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*, BOOL *init);
+
+static void define_data(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, const char* descrip, EXPR_SIZE* expr_size) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(irec != NULL);
-  assert(irec->op == TOK_DB || irec->op == TOK_DW || irec->op == TOK_DD ||
-         irec->op == TOK_DQ || irec->op == TOK_DT);
+  assert(lex != NULL);
+  assert(descrip != NULL);
+  assert(expr_size != NULL);
 
-  if (state->curseg == NO_SEG) {
-    error(state, ifile, "data outside segment");
-    return;
-  }
-
+  BOOL init;
+  irec->size = data_size(state, ifile, lex, descrip, expr_size, &init);
   inc_segment_pc(ifile, state->curseg, irec->size);
 }
 
