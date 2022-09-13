@@ -844,7 +844,9 @@ static int binary_type(STATE* state, IFILE* ifile, int op, AST* lhs, AST* rhs) {
     return ET_ERR;
   if (t1 == ET_ABS && t2 == ET_ABS)
     return ET_ABS;
-  if (t1 == ET_REL && t2 == ET_REL)
+  if (t1 == ET_REL && t2 == ET_REL && op == '-')
+    return ET_REL_DIFF;
+  if (t1 == ET_ABS && t2 == ET_REL_DIFF && op == '-')
     return ET_REL_DIFF;
   error(state, ifile, "invalid expression");
   return ET_ERR;
@@ -934,6 +936,10 @@ static int eval_binary(STATE* state, IFILE* ifile, int op, AST* lhs, AST* rhs, V
       return ET_ERR;
     }
     val->n = sym_relative_value(val->label) - sym_relative_value(val2.label);
+    return ET_REL_DIFF;
+  }
+  if (t1 == ET_ABS && t2 == ET_REL_DIFF && op == '-') {
+    val->n -= val2.n;
     return ET_REL_DIFF;
   }
   assert(t1 == ET_ABS && t2 == ET_ABS);

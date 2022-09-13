@@ -19,5 +19,6 @@ dest:
 	dd	(pad - ages) dup (0)
 	dq	(pad - ages) dup (0)
 	dt	(pad - ages) dup (0)
+	db	(400-($-start)) dup (0FFh)
 	ENDS	MAIN
 	END	start
