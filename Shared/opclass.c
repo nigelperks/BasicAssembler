@@ -51,6 +51,7 @@ const char* operand_flag_name(int flag) {
     // immediate
     case OF_IMM: s = "OF_IMM"; break;
     case OF_IMM8: s = "OF_IMM8"; break;
+    case OF_IMM8U: s = "OF_IMM8U"; break;
     case OF_1: s = "OF_1"; break;
     case OF_3: s = "OF_3"; break;
     // jump

@@ -20,7 +20,7 @@ void perform_udataseg(STATE*, IFILE*, LEX*);
 
 bool parse_alignment(STATE*, LEX*, unsigned *p2);
 
-void select_cpu(STATE*, LEX*);
+void select_cpu(STATE*, int token);
 
 bool wait_precedes(const IFILE*);
 

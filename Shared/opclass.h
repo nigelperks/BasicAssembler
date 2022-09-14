@@ -55,6 +55,7 @@ enum operand_flag {
   // immediate
   OF_IMM,
   OF_IMM8,
+  OF_IMM8U,
   OF_1,
   OF_3,
   // jump

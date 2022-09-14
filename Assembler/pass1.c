@@ -218,10 +218,12 @@ static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
     case TOK_SEGMENT: do_segment(state, ifile, lex); break;
     case TOK_UDATASEG: do_udataseg(state, ifile, lex); break;
     // select processor
+    case TOK_P286N:
     case TOK_P8086:
     case TOK_P8087:
     case TOK_PNO87:
-      select_cpu(state, lex);
+      select_cpu(state, irec->op);
+      lex_next(lex);
       break;
     default:
       error2(state, lex, "directive not implemented: %s", token_name(irec->op));
@@ -1045,8 +1047,8 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  assert(irec->def->imm1 == 0 || irec->def->oper1 == OF_IMM || irec->def->oper1 == OF_IMM8 || irec->def->oper1 == OF_JUMP || irec->def->oper1 == OF_FAR);
-  assert(irec->def->imm2 == 0 || irec->def->oper2 == OF_IMM || irec->def->oper2 == OF_IMM8);
+  assert(irec->def->imm1 == 0 || irec->def->oper1 == OF_IMM || irec->def->oper1 == OF_IMM8 || irec->def->oper1 == OF_IMM8U || irec->def->oper1 == OF_JUMP || irec->def->oper1 == OF_FAR);
+  assert(irec->def->imm2 == 0 || irec->def->oper2 == OF_IMM || irec->def->oper2 == OF_IMM8 || irec->def->oper2 == OF_IMM8U);
 
   if (!cpu_enabled(state->cpu, irec->def->cpu)) {
     error2(state, lex, "instruction not supported on selected processor");

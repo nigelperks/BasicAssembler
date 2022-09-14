@@ -303,10 +303,11 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     case TOK_SEGMENT: do_segment(state, ifile, irec, lex, ofile); break;
     case TOK_UDATASEG: do_udataseg(state, ifile, lex, ofile); break;
     // select processor
+    case TOK_P286N:
     case TOK_P8086:
     case TOK_P8087:
     case TOK_PNO87:
-      select_cpu(state, lex);
+      select_cpu(state, irec->op);
       break;
     default:
       error(state, ifile, "directive not implemented: %s", token_name(irec->op));

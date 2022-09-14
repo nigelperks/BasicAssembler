@@ -376,13 +376,14 @@ static void set_immediate_absolute(OPERAND* op, long n) {
   op->val.imm.label = NULL;
   op->opclass.nflag = 0;
   add_flag(op, OF_IMM);
-  if (n >= -0x80 && n < 0x80) {
+  if (n >= -0x80 && n < 0x80)
     add_flag(op, OF_IMM8);
-    if (n == 1)
-      add_flag(op, OF_1);
-    if (n == 3)
-      add_flag(op, OF_3);
-  }
+  if (n >= 0 && n < 0x100)
+    add_flag(op, OF_IMM8U);
+  if (n == 1)
+    add_flag(op, OF_1);
+  if (n == 3)
+    add_flag(op, OF_3);
 }
 
 static BOOL size_override_token(int tok, unsigned *size, int *rm_flag, int *mem_flag);
@@ -1145,7 +1146,8 @@ static void test_set_immediate_absolute(CuTest* tc) {
   CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
-  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM8U, op.opclass.flags[2]);
+  CuAssertIntEquals(tc, 3, op.opclass.nflag);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, 0, op.val.imm.sval);
   CuAssertTrue(tc, op.val.imm.label == NULL);
@@ -1155,8 +1157,9 @@ static void test_set_immediate_absolute(CuTest* tc) {
   CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
-  CuAssertIntEquals(tc, OF_1, op.opclass.flags[2]);
-  CuAssertIntEquals(tc, 3, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM8U, op.opclass.flags[2]);
+  CuAssertIntEquals(tc, OF_1, op.opclass.flags[3]);
+  CuAssertIntEquals(tc, 4, op.opclass.nflag);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, 1, op.val.imm.sval);
   CuAssertTrue(tc, op.val.imm.label == NULL);
@@ -1175,7 +1178,8 @@ static void test_set_immediate_absolute(CuTest* tc) {
   set_immediate_absolute(&op, 0x80);
   CuAssertIntEquals(tc, OT_IMM, op.opclass.type);
   CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
-  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, OF_IMM8U, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, 0x80, op.val.imm.sval);
   CuAssertTrue(tc, op.val.imm.label == NULL);
@@ -2273,9 +2277,10 @@ static void test_parse_operand_immediate(CuTest* tc) {
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, 0x7f, op.val.imm.sval);
   CuAssertTrue(tc, op.val.imm.label == NULL);
-  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, 3, op.opclass.nflag);
   CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_IMM8U, op.opclass.flags[2]);
 
   CuAssertIntEquals(tc, ',', lex_token(lex));
   lex_next(lex);
@@ -2311,9 +2316,10 @@ static void test_parse_operand_immediate(CuTest* tc) {
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, '*', op.val.imm.sval);
   CuAssertTrue(tc, op.val.imm.label == NULL);
-  CuAssertIntEquals(tc, 2, op.opclass.nflag);
+  CuAssertIntEquals(tc, 3, op.opclass.nflag);
   CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
+  CuAssertIntEquals(tc, OF_IMM8U, op.opclass.flags[2]);
 
   init_operand(&op);
   CuAssertIntEquals(tc, 0, state.errors);
@@ -2395,10 +2401,11 @@ static void test_parse_operand_label(CuTest* tc) {
   CuAssertIntEquals(tc, IMM_ABS, op.val.imm.type);
   CuAssertIntEquals(tc, 3, op.val.imm.sval);
   CuAssertTrue(tc, op.val.imm.label == NULL);
-  CuAssertIntEquals(tc, 3, op.opclass.nflag);
+  CuAssertIntEquals(tc, 4, op.opclass.nflag);
   CuAssertIntEquals(tc, OF_IMM, op.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_IMM8, op.opclass.flags[1]);
-  CuAssertIntEquals(tc, OF_3, op.opclass.flags[2]);
+  CuAssertIntEquals(tc, OF_IMM8U, op.opclass.flags[2]);
+  CuAssertIntEquals(tc, OF_3, op.opclass.flags[3]);
 
   // newlabel
   init_operand(&op);
@@ -2710,8 +2717,9 @@ static void test_parse_operands(CuTest* tc) {
   CuAssertIntEquals(tc, IMM_ABS, op2.val.imm.type);
   CuAssertIntEquals(tc, 0x99, op2.val.imm.sval);
   CuAssertTrue(tc, op2.val.imm.label == NULL);
-  CuAssertIntEquals(tc, 1, op2.opclass.nflag);
+  CuAssertIntEquals(tc, 2, op2.opclass.nflag);
   CuAssertIntEquals(tc, OF_IMM, op2.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_IMM8U, op2.opclass.flags[1]);
 
   // Invalid operand
   lex_begin(lex, source_text(src, 4), source_lineno(src, 4), 0);

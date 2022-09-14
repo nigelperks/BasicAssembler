@@ -385,6 +385,7 @@ static unsigned implicit_rm_size(const INSDEF* def) {
   return size;
 }
 
+// R/M operand size when flag occurs in instruction table
 static unsigned operand_flag_size(int flag) {
   static const struct {
     int flag;
@@ -425,6 +426,7 @@ static unsigned operand_flag_size(int flag) {
     // immediate
     { OF_IMM, 0 },
     { OF_IMM8, 1 },
+    { OF_IMM8U, 1 },
     { OF_1, 0 },
     { OF_3, 0 },
     // jump
@@ -534,6 +536,9 @@ static void print_operand(int opno, int flag, unsigned rm_size, int sreg_overrid
     break;
   case OF_IMM8:
     print_signed_hex_byte(imm_value);
+    break;
+  case OF_IMM8U:
+    print_hex_bytes(imm_value, 1);
     break;
   case OF_1:
     putchar('1');

@@ -85,6 +85,8 @@ const INSDEF instable[] = {
   { TOK_DIV,     OF_RM8,   OF_NONE,  1, NOPR, 0xF6, 0x00, 0,  RMC, 6,  0,  0,   P86 },
   { TOK_DIV,     OF_RM16,  OF_NONE,  1, NOPR, 0xF7, 0x00, 0,  RMC, 6,  0,  0,   P86 },
 
+  { TOK_ENTER,   OF_IMM,   OF_IMM8U, 1, NOPR, 0xC8, 0x00, 0,  RMN, 0,  2,  1,   P286N },
+
   { TOK_FABS,    OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xE1, 0,  RMN, 0,  0,  0,   P87 },
 
   { TOK_FADD,    OF_NONE,  OF_NONE,  1, WAIT, 0xDE, 0x00, 0,  STK, 0,  0,  0,   P87 },
