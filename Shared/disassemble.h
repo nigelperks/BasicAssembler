@@ -57,8 +57,8 @@ typedef struct {
   BYTE sreg_override;
   RM_OPERAND oper1;
   RM_OPERAND oper2;
-  unsigned imm_bytes;
-  DWORD imm_value;
+  DWORD imm1;
+  DWORD imm2;
   unsigned len;
 } DECODED;
 

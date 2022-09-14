@@ -114,15 +114,20 @@ int fetch_instruction(const DECODER* dec, FILE* fp, bool waiting, bool print_hex
 
     if (def->oper1 == OF_INDIR || def->oper2 == OF_INDIR) {
       assert(def->modrm == RMN);
-      assert(def->imm == 0);
+      assert(def->imm1 == 0 && def->imm2 == 0);
       if (nobyte(fp, "indirect", print_hex, &buf[i++]))
         return FETCH_ERR_EOF;
       if (nobyte(fp, "indirect", print_hex, &buf[i++]))
         return FETCH_ERR_EOF;
     }
 
-    for (int j = 0; j < def->imm; j++) {
-      if (nobyte(fp, "immediate", print_hex, &buf[i++]))
+    for (int j = 0; j < def->imm1; j++) {
+      if (nobyte(fp, "immediate 1", print_hex, &buf[i++]))
+        return FETCH_ERR_EOF;
+    }
+
+    for (int j = 0; j < def->imm2; j++) {
+      if (nobyte(fp, "immediate 2", print_hex, &buf[i++]))
         return FETCH_ERR_EOF;
     }
 

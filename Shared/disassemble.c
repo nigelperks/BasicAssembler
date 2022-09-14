@@ -11,13 +11,13 @@
 #include "token.h"
 
 static const INSDEF short_jmp = {
-//  instruc  oper1    oper2    opcodes            +opc R/M reg imm cpu
-    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xEB, 0x00, 0, RMN, 0,  1, P86
+//  instruc  oper1    oper2    opcodes            +opc R/M reg imm1 imm2 cpu
+    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xEB, 0x00, 0, RMN, 0,  1,   0,  P86
 };
 
 static const INSDEF near_jmp = {
-//  instruc  oper1    oper2    opcodes            +opc R/M reg imm cpu
-    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xE9, 0x00, 0, RMN, 0,  2, P86
+//  instruc  oper1    oper2    opcodes            +opc R/M reg imm1 imm2 cpu
+    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xE9, 0x00, 0, RMN, 0,  2,   0,  P86
 };
 
 //"some fetched bytes were not decoded"
@@ -47,11 +47,13 @@ static void init_decoded(DECODED* dec) {
   dec->sreg_override = 0;
   dec->oper1.type = OT_NONE;
   dec->oper2.type = OT_NONE;
-  dec->imm_bytes = 0;
+  dec->imm1 = 0;
+  dec->imm2 = 0;
   dec->len = 0;
 }
 
 static void decode_modrm_operands(int modrm_type, const MODRM*, RM_OPERAND* oper1, RM_OPERAND* oper2);
+static bool read_immediate(const BYTE* buf, const unsigned bufsz, unsigned i, unsigned bytes, DWORD *val);
 
 // Return error code, 0 on success.
 int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned count, bool waiting, DECODED* dec) {
@@ -78,8 +80,7 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
   if (opcode1 == SHORT_JMP) {
     if (i + 1 > count)
       return DECODE_ERR_NO_IMMEDIATE;
-    dec->imm_bytes = 1;
-    dec->imm_value = buf[i++];
+    dec->imm1 = buf[i++];
     dec->def = &short_jmp;
     dec->len = i;
     return DECODE_ERR_NONE;
@@ -88,8 +89,7 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
   if (opcode1 == NEAR_JMP) {
     if (i + 2 > count)
       return DECODE_ERR_NO_IMMEDIATE;
-    dec->imm_bytes = 2;
-    dec->imm_value = buf[i] | (buf[i+1] << 8);
+    dec->imm1 = buf[i] | (buf[i+1] << 8);
     dec->def = &near_jmp;
     dec->len = i+2;
     return DECODE_ERR_NONE;
@@ -147,8 +147,8 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
     dec->def = info->defs->def;
   }
 
-  dec->imm_value = 0;
-  dec->imm_bytes = 0;
+  dec->imm1 = 0;
+  dec->imm2 = 0;
 
   assert(dec->def != NULL);
 
@@ -166,17 +166,30 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
     }
   }
 
-  dec->imm_bytes = dec->def->imm;
-  if (dec->def->imm) {
-    if (i + dec->def->imm > count)
+  if (dec->def->imm1) {
+    if (!read_immediate(buf, count, i, dec->def->imm1, &dec->imm1))
       return DECODE_ERR_NO_IMMEDIATE;
-    dec->imm_value = 0;
-    for (int j = 0; j < dec->def->imm; j++)
-      dec->imm_value |= (buf[i++] << j*8);
+    i += dec->def->imm1;
+  }
+
+  if (dec->def->imm2) {
+    if (!read_immediate(buf, count, i, dec->def->imm2, &dec->imm2))
+      return DECODE_ERR_NO_IMMEDIATE;
+    i += dec->def->imm2;
   }
 
   dec->len = i;
   return DECODE_ERR_NONE;
+}
+
+static bool read_immediate(const BYTE* buf, const unsigned bufsz, unsigned i, unsigned bytes, DWORD *val) {
+  assert(bytes != 0);
+  if (i + bytes > bufsz)
+    return false;
+  *val = 0;
+  for (unsigned j = 0; j < bytes; j++)
+    *val |= (buf[i++] << j*8);
+  return true;
 }
 
 static void decode_modrm_operands(int type, const MODRM* modrm, RM_OPERAND* oper1, RM_OPERAND* oper2) {
@@ -350,11 +363,11 @@ void print_assembly(const DWORD addr, const DECODED* dec) {
       const unsigned rm_size = implicit_rm_size(dec->def);
 
       putchar(' ');
-      print_operand(1, dec->def->oper1, rm_size, dec->sreg_override, &dec->oper1, dec->imm_bytes, dec->imm_value, addr + dec->len);
+      print_operand(1, dec->def->oper1, rm_size, dec->sreg_override, &dec->oper1, dec->def->imm1, dec->imm1, addr + dec->len);
       if (dec->def->oper2 != OF_NONE) {
         putchar(',');
         putchar(' ');
-        print_operand(2, dec->def->oper2, rm_size, dec->sreg_override, &dec->oper2, dec->imm_bytes, dec->imm_value, addr + dec->len);
+        print_operand(2, dec->def->oper2, rm_size, dec->sreg_override, &dec->oper2, dec->def->imm2, dec->imm2, addr + dec->len);
       }
     }
 }

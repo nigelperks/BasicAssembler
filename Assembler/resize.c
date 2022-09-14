@@ -503,7 +503,8 @@ static bool expand_short_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
 
   assert(irec->def->oper1 == OF_JUMP);
   assert(irec->def->oper2 == OF_NONE);
-  assert(irec->def->imm == 1);
+  assert(irec->def->imm1 == 1);
+  assert(irec->def->imm2 == 0);
 
   if (state->errors != previous_errors)
     return false;
@@ -653,10 +654,9 @@ static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
   else if (irec->def->oper2 == OF_INDIR)
     irec->size += 2;
 
-  irec->size += irec->def->imm;
-
+  irec->size += irec->def->imm1;
+  irec->size += irec->def->imm2;
 }
-
 
 static unsigned operand_sreg_override_size(STATE*, IFILE*, LEX*, const struct mem *);
 

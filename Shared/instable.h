@@ -28,7 +28,7 @@ BYTE opcode_prefix_code(int opcode_prefix);
 
 #define WAIT_OPCODE (0x9B)
 
-enum cpu { P86, P87 };
+enum cpu { P86, P87, P286N };
 
 bool cpu_enabled(unsigned mask, int cpu);
 
@@ -43,7 +43,8 @@ typedef struct {
   char opcode_inc;  // the register operand to add to opcode1 to get the opcode value (0 neither)
   char modrm;       // ModR/M arrangement as enumerated above
   char reg;         // reg field value in a ModR/M byte of type RMC
-  char imm;         // number of immediate or OF_JUMP displacement bytes
+  char imm1;        // number of immediate or OF_JUMP displacement bytes in first operand
+  char imm2;        // number of immediate or OF_JUMP displacement bytes in second operand
   char cpu;         // processor (ISA)
 } INSDEF;
 

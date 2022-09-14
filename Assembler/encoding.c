@@ -1196,7 +1196,7 @@ static DWORD displacement_code(IFILE*, const struct mem * const, RELOC_REQ*);
 
 static BOOL compute_sreg_override(STATE*, IFILE*, IREC*, LEX*, const OPERAND* oper1, const OPERAND* oper2, BYTE *code);
 
-static long immediate_value(IFILE*, const struct imm *, RELOC_REQ*);
+static void encode_immediate(IFILE*, const OPERAND*, unsigned bytes, BYTE* buf, unsigned i, RELOC_LIST*);
 
 static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
                                    const OPERAND* oper1, const OPERAND* oper2,
@@ -1245,7 +1245,7 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
   rel.type = RT_NONE;
 
   if (irec->def->oper1 == OF_JUMP)
-    return encode_relative(state, ifile, irec, lex, oper1, irec->def->imm, buf, i, relocs);
+    return encode_relative(state, ifile, irec, lex, oper1, irec->def->imm1, buf, i, relocs);
 
   if (irec->def->oper1 == OF_FAR)
     return encode_far(ifile, oper1, buf, i, relocs);
@@ -1326,33 +1326,44 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
       buf[i++] = (disp_code >> 8) & 0xff;
   }
 
-  if (irec->def->imm) {
-    long val = 0;
-    WORD w = 0;
+  if (irec->def->imm1) {
+    encode_immediate(ifile, oper1, irec->def->imm1, buf, i, relocs);
+    i += irec->def->imm1;
+  }
 
-    rel.type = RT_NONE;
-
-    if (oper1->opclass.type == OT_IMM)
-      val = immediate_value(ifile, &oper1->val.imm, &rel);
-    else if (oper2->opclass.type == OT_IMM)
-      val = immediate_value(ifile, &oper2->val.imm, &rel);
-    else
-      error2(state, lex, "internal error: no immediate");
-
-    if (rel.type != RT_NONE) {
-      if (irec->def->imm != 2)
-        fatal("internal error: relocation length %u\n", (unsigned) irec->def->imm);
-      add_reloc(relocs, &rel, DATA_RELOC, i);
-    }
-
-    w = (WORD) encode_long(val);
-
-    buf[i++] = w & 0xff;
-    if (irec->def->imm > 1)
-      buf[i++] = (w >> 8) & 0xff;
+  if (irec->def->imm2) {
+    encode_immediate(ifile, oper2, irec->def->imm2, buf, i, relocs);
+    i += irec->def->imm2;
   }
 
   return i;
+}
+
+static long immediate_value(IFILE*, const struct imm *, RELOC_REQ*);
+
+static void encode_immediate(IFILE* ifile, const OPERAND* oper, unsigned bytes, BYTE* buf, unsigned i, RELOC_LIST* relocs) {
+  assert(bytes != 0);
+
+  long val = 0;
+  WORD w = 0;
+
+  RELOC_REQ rel;
+  rel.type = RT_NONE;
+
+  if (oper->opclass.type == OT_IMM)
+    val = immediate_value(ifile, &oper->val.imm, &rel);
+
+  if (rel.type != RT_NONE) {
+    if (bytes != 2)
+      fatal("internal error: relocation length %u\n", bytes);
+    add_reloc(relocs, &rel, DATA_RELOC, i);
+  }
+
+  w = (WORD) encode_long(val);
+
+  buf[i++] = w & 0xff;
+  if (bytes > 1)
+    buf[i++] = (w >> 8) & 0xff;
 }
 
 static long relative_symbol_value(IFILE*, const SYMBOL*, RELOC_REQ*);

@@ -1045,6 +1045,9 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
+  assert(irec->def->imm1 == 0 || irec->def->oper1 == OF_IMM || irec->def->oper1 == OF_IMM8 || irec->def->oper1 == OF_JUMP || irec->def->oper1 == OF_FAR);
+  assert(irec->def->imm2 == 0 || irec->def->oper2 == OF_IMM || irec->def->oper2 == OF_IMM8);
+
   if (!cpu_enabled(state->cpu, irec->def->cpu)) {
     error2(state, lex, "instruction not supported on selected processor");
     lex_discard_line(lex);
@@ -1092,7 +1095,8 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
   else if (irec->def->oper2 == OF_INDIR)
     irec->size += 2;
 
-  irec->size += irec->def->imm;
+  irec->size += irec->def->imm1;
+  irec->size += irec->def->imm2;
 
   inc_segment_pc(ifile, state->curseg, irec->size);
 }
