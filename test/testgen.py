@@ -97,8 +97,7 @@ def emit_tail(out):
 # INSTRUCTION TABLES #
 ######################
 
-instructions_without_operands = [
-# 8086
+instructions_without_operands_8086 = [
     "AAA",
     "AAD",
     "AAM",
@@ -152,7 +151,9 @@ instructions_without_operands = [
     "STOSW",
     "WAIT",
     "XLATB",
-# 8087
+]
+
+instructions_without_operands_8087 = [
     "F2XM1",
     "FABS",
     "FADD",
@@ -208,8 +209,12 @@ instructions_without_operands = [
     "FWAIT",
 ]
 
-instructions_with_operands = [
-# 8086
+instruction_sets_without_operands = [
+  instructions_without_operands_8086,
+  instructions_without_operands_8087,
+]
+
+instructions_with_operands_8086 = [
     # ADC
     ("ADC",    "r/m8",    "r8"),
     ("ADC",    "r/m16",   "r16"),
@@ -454,7 +459,9 @@ instructions_with_operands = [
     ("XOR",    "r/m16",   "r16"),
     ("XOR",    "r8",      "r/m8"),
     ("XOR",    "r16",     "r/m16"),
-# 8087
+]
+
+instructions_with_operands_8087 = [
     # FADD
     ("FADD",   "ST",      "stack"),
     ("FADD",   "stack",   "ST"),
@@ -564,8 +571,11 @@ instructions_with_operands = [
     ("FSUBRP", "stack",   "ST"),
     # FXCH
     ("FXCH",   "stack",   None),
-# end marker
-    (None,     None,      None)
+];
+
+instruction_sets_with_operands = [
+    instructions_with_operands_8086,
+    instructions_with_operands_8087,
 ];
 
 
@@ -578,23 +588,24 @@ def list_tests(name):
     if name is None:
         print("   0 instructions with no operand")
 
-    for ins in instructions_with_operands:
-        opcode, operand1, operand2 = ins[0], ins[1], ins[2]
-        n += 1
+    for instruction_set in instruction_sets_with_operands:
+        for ins in instruction_set:
+            opcode, operand1, operand2 = ins[0], ins[1], ins[2]
+            n += 1
 
-        if opcode is None:
-            break
+            if opcode is None:
+                break
 
-        if name is not None and opcode.lower() != name.lower():
-            continue;
+            if name is not None and opcode.lower() != name.lower():
+                continue;
 
-        if operand1 is None:
-            fatal("operand1 missing from table")
+            if operand1 is None:
+                fatal("operand1 missing from table")
 
-        if operand2 is None:
-            print("%4d %-8s %-6s" % (n, opcode, operand1))
-        else:
-            print("%4d %-8s %-6s %s" % (n, opcode, operand1 + ",", operand2))
+            if operand2 is None:
+                print("%4d %-8s %-6s" % (n, opcode, operand1))
+            else:
+                print("%4d %-8s %-6s %s" % (n, opcode, operand1 + ",", operand2))
 
 
 def generate_mem_addr16(opSize):
@@ -823,16 +834,17 @@ def generate_no_operand_instructions(pattern, files):
     try:
         emit_head(out)
         written = 0
-        for opcode in instructions_without_operands:
-            if pattern is not None:
-                if pattern[0] == '^':
-                    if not opcode.startswith(pattern[1:]):
+        for instruction_set in instruction_sets_without_operands:
+            for opcode in instruction_set:
+                if pattern is not None:
+                    if pattern[0] == '^':
+                        if not opcode.startswith(pattern[1:]):
+                            continue
+                    elif opcode != pattern:
                         continue
-                elif opcode != pattern:
-                    continue
-            out.write("    %s\n" % opcode)
-            written += 1
-            insCount += 1
+                out.write("    %s\n" % opcode)
+                written += 1
+                insCount += 1
         emit_tail(out)
     finally:
         out.close()
@@ -844,25 +856,32 @@ def generate_instructions_with_operands(files):
     # cannot put entire opcode in one source file - exceeds 64K machine code
     current_opcode = None
     n = 0
-    for ins in instructions_with_operands:
-        opcode = ins[0]
-        if opcode != current_opcode:
-            n = 1
-            current_opcode = opcode
-        else:
-            n += 1
-        if opcode is not None:
-            generate_instruction(ins, n, files)
+    for instruction_set in instruction_sets_with_operands:
+        for ins in instruction_set:
+            opcode = ins[0]
+            if opcode != current_opcode:
+                n = 1
+                current_opcode = opcode
+            else:
+                n += 1
+            if opcode is not None:
+                generate_instruction(ins, n, files)
 
 
 def generate_test_number(testNo, ordinal, files):
+    if testNo < 0:
+        fatal("invalid test number: %d" % testNo)
     if testNo == 0:
         generate_no_operand_instructions(None, files)
-    elif testNo >= 1 and testNo < len(instructions_with_operands):
-        ins = instructions_with_operands[testNo-1]
-        generate_instruction(ins, ordinal, files)
-    else:
-        fatal("unknown test number %d" % testNo)
+        return
+    n = testNo - 1
+    for instruction_set in instruction_sets_with_operands:
+        if n < len(instruction_set):
+            ins = instruction_set[n]
+            generate_instruction(ins, ordinal, files)
+            return
+        n -= len(instruction_set)
+    fatal("unknown test number %d" % testNo)
 
 
 
@@ -880,12 +899,13 @@ def generate_test_named(pattern, files):
     generate_no_operand_instructions(pattern, files)
 
     n = 0
-    for ins in instructions_with_operands:
-        if ins[0] is None:
-            break
-        if ins[0] == pattern or (pattern[0] == '^' and ins[0].startswith(pattern[1:])):
-            n += 1
-            generate_instruction(ins, n, files)
+    for instruction_set in instruction_sets_with_operands:
+        for ins in instruction_set:
+            if ins[0] is None:
+                break
+            if ins[0] == pattern or (pattern[0] == '^' and ins[0].startswith(pattern[1:])):
+                n += 1
+                generate_instruction(ins, n, files)
 
     if files == []:
         fatal("Found no tests matching %s" % pattern)
@@ -991,7 +1011,7 @@ def main(argv):
   keepDosBox = False
 
   argc = len(argv)
-  for i, arg in enumerate(argv[1:]):
+  for i, arg in enumerate(argv):
     if arg in ["list", "-list"]:
       if i+1 < argc:
         list_tests(argv[i+1])
@@ -1056,4 +1076,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-  main(sys.argv)
+  main(sys.argv[1:])
