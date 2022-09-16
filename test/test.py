@@ -159,7 +159,7 @@ def test_com(tools, config, sources, force_ref, getRefOnly, keepDosBox, verbose)
   refName = get_ref_com(config, sources, force_ref, keepDosBox)
   compare_raw(refName, test_com)
   if config_on(config, "mapfile"):
-    compare_map("a.map", "test.map")
+    compare_map("a.ma_", "test.map")
 
 
 def get_ref_com(config, sources, force_ref, keepDosBox):
@@ -311,7 +311,7 @@ def test_source(tools, config, source, force_ref, getRefOnly, keepDosBox, verbos
 
 def clean_file(name, verbose):
   ext = extension(name).lower()
-  if ext in ["bin","com","exe","obj"] or name in ["err"]:
+  if ext in ["bin","com","exe","map","obj"] or name in ["err"]:
     print("Remove:", name)
     os.remove(name)
   elif verbose:
