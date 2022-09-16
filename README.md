@@ -48,11 +48,14 @@ where ..\Debug holds the builds to be tested.
 -------------
 No user documentation yet.
 
-Executables in x64\Debug.
+Executables in Debug (32-bit) and x64\Debug (64-bit).
 
 ### Basic Assembler and Linker (driver)
 
-    basl file.asm file.obj ...
+Assemble given ASM files to OBJ. Link together with given OBJ files.
+Driver program, invoking bas and blink to assemble and link.
+
+    basl file1.asm file2.obj ...
 
       -f format     -- output format: bin, com (default), exe
       -m            -- report dynamic memory allocations (for debugging)
