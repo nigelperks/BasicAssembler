@@ -361,6 +361,8 @@ const INSDEF instable[] = {
   { TOK_LEA,     OF_REG16, OF_INDIR, 1, NOPR, 0xB8, 0x00, 1,  RMN, 0,  0,  0,   P86 },
   { TOK_LEA,     OF_REG16, OF_MEM,   1, NOPR, 0x8D, 0x00, 0,  RRM, 0,  0,  0,   P86 },
 
+  { TOK_LEAVE,   OF_NONE,  OF_NONE,  1, NOPR, 0xC9, 0x00, 0,  RMN, 0,  0,  0,   P286N },
+
   { TOK_LOCK,    OF_NONE,  OF_NONE,  1, NOPR, 0xF0, 0x00, 0,  RMN, 0,  0,  0,   P86 },
 
   { TOK_LODSB,   OF_NONE,  OF_NONE,  1, NOPR, 0xAC, 0x00, 0,  RMN, 0,  0,  0,   P86 },

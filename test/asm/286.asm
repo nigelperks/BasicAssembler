@@ -11,6 +11,9 @@ start:
 	enter	0, 255
 	enter	1, 255
 	enter	0FFFFh, 255
+
+        leave
+
 	int	20h
 	ENDS	MAIN
 	END	start

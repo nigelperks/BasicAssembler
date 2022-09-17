@@ -204,6 +204,7 @@ enum {
   TOK_JMP,
   TOK_LAHF,
   TOK_LEA,
+  TOK_LEAVE,
   TOK_LDS,
   TOK_LES,
   TOK_LOCK,

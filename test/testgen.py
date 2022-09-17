@@ -209,9 +209,14 @@ instructions_without_operands_8087 = [
     "FWAIT"
 ]
 
+instructions_without_operands_286 = [
+    "LEAVE"
+]
+
 instruction_sets_without_operands = [
-  instructions_without_operands_8086,
-  instructions_without_operands_8087,
+  (instructions_without_operands_8086, None),
+  (instructions_without_operands_8087, None),
+  (instructions_without_operands_286, "P286N")
 ]
 
 instructions_with_operands_8086 = [
@@ -846,7 +851,9 @@ def generate_no_operand_instructions(pattern, files):
     try:
         emit_head(out)
         written = 0
-        for instruction_set in instruction_sets_without_operands:
+        cpu = None
+        for t in instruction_sets_without_operands:
+            instruction_set = t[0]
             for opcode in instruction_set:
                 if pattern is not None:
                     if pattern[0] == '^':
@@ -854,6 +861,9 @@ def generate_no_operand_instructions(pattern, files):
                             continue
                     elif opcode != pattern:
                         continue
+                if t[1] != cpu:
+                    cpu = t[1]
+                    out.write("    %s\n" % cpu)
                 out.write("    %s\n" % opcode)
                 written += 1
                 insCount += 1
@@ -861,7 +871,7 @@ def generate_no_operand_instructions(pattern, files):
     finally:
         out.close()
     if written > 0:
-        files.append(("gen", None))
+        files.append(("gen", cpu)) # assume latest cpu handles all instructions
 
 
 def generate_instructions_with_operands(files):

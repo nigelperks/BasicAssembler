@@ -201,6 +201,7 @@ static const struct keyword {
   { TOK_JMP,    "JMP" },
   { TOK_LAHF,   "LAHF" },
   { TOK_LEA,    "LEA" },
+  { TOK_LEAVE,  "LEAVE" },
   { TOK_LDS,    "LDS" },
   { TOK_LES,    "LES" },
   { TOK_LOCK,   "LOCK" },
