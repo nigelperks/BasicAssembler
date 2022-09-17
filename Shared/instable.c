@@ -44,6 +44,8 @@ const INSDEF instable[] = {
   { TOK_AND,     OF_REG16, OF_RM,    1, NOPR, 0x23, 0x00, 0,  RRM, 0,  0,  0,   P86 },
   { TOK_AND,     OF_RM,    OF_REG16, 1, NOPR, 0x21, 0x00, 0,  RMR, 0,  0,  0,   P86 },
 
+  { TOK_BOUND,   OF_REG16, OF_RM16,  1, NOPR, 0x62, 0x00, 0,  RRM, 0,  0,  0,   P286N },
+
   { TOK_CALL,    OF_JUMP,  OF_NONE,  1, NOPR, 0xE8, 0x00, 0,  RMN, 0,  2,  0,   P86 },
   { TOK_CALL,    OF_RM16,  OF_NONE,  1, NOPR, 0xFF, 0x00, 0,  RMC, 2,  0,  0,   P86 },
   { TOK_CALL,    OF_RM32,  OF_NONE,  1, NOPR, 0xFF, 0x00, 0,  RMC, 3,  0,  0,   P86 },
@@ -434,6 +436,9 @@ const INSDEF instable[] = {
 
   { TOK_PUSH,    OF_MEM16, OF_NONE,  1, NOPR, 0xFF, 0x00, 0,  RMC, 6,  0,  0,   P86 },
   { TOK_PUSH,    OF_REG16, OF_NONE,  1, NOPR, 0x50, 0x00, 1,  RMN, 0,  0,  0,   P86 },
+  { TOK_PUSH,    OF_IMM8,  OF_NONE,  1, NOPR, 0x6A, 0x00, 0,  RMN, 0,  1,  0,   P286N },
+  { TOK_PUSH,    OF_IMM,   OF_NONE,  1, NOPR, 0x68, 0x00, 0,  RMN, 0,  2,  0,   P286N },
+  { TOK_PUSHA,   OF_NONE,  OF_NONE,  1, NOPR, 0x60, 0x00, 0,  RMN, 0,  0,  0,   P286N },
   { TOK_PUSHF,   OF_NONE,  OF_NONE,  1, NOPR, 0x9C, 0x00, 0,  RMN, 0,  0,  0,   P86 },
   { TOK_PUSHFW,  OF_NONE,  OF_NONE,  1, NOPR, 0x9C, 0x00, 0,  RMN, 0,  0,  0,   P86 },
 

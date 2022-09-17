@@ -210,7 +210,8 @@ instructions_without_operands_8087 = [
 ]
 
 instructions_without_operands_286 = [
-    "LEAVE"
+    "LEAVE",
+    "PUSHA"
 ]
 
 instruction_sets_without_operands = [
@@ -580,7 +581,10 @@ instructions_with_operands_8087 = [
 
 instructions_with_operands_286N = [
     # ENTER
-    ("ENTER",  "imm16",   "imm8u")
+    ("BOUND",  "r16",     "m16"),
+    ("ENTER",  "imm16",   "imm8u"),
+    ("PUSH",   "imm16",   None),
+    ("PUSH",   "imm8",    None)
 ];
 
 instruction_sets_with_operands = [

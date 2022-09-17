@@ -14,6 +14,18 @@ start:
 
         leave
 
+bounds	dw	1
+	dw	8
+
+	bound	dx, [bounds]
+
+	pusha
+
+	push	1234h
+	push	7fh
+	push	80h
+	push	-1
+
 	int	20h
 	ENDS	MAIN
 	END	start
