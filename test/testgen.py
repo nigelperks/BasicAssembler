@@ -150,7 +150,7 @@ instructions_without_operands_8086 = [
     "STOSB",
     "STOSW",
     "WAIT",
-    "XLATB",
+    "XLATB"
 ]
 
 instructions_without_operands_8087 = [
@@ -206,7 +206,7 @@ instructions_without_operands_8087 = [
     "FXTRACT",
     "FYL2X",
     "FYL2XP1",
-    "FWAIT",
+    "FWAIT"
 ]
 
 instruction_sets_without_operands = [
@@ -458,7 +458,7 @@ instructions_with_operands_8086 = [
     ("XOR",    "r/m8",    "r8"),
     ("XOR",    "r/m16",   "r16"),
     ("XOR",    "r8",      "r/m8"),
-    ("XOR",    "r16",     "r/m16"),
+    ("XOR",    "r16",     "r/m16")
 ]
 
 instructions_with_operands_8087 = [
@@ -570,12 +570,18 @@ instructions_with_operands_8087 = [
     ("FSUBR",  "qword",   None),
     ("FSUBRP", "stack",   "ST"),
     # FXCH
-    ("FXCH",   "stack",   None),
+    ("FXCH",   "stack",   None)
+];
+
+instructions_with_operands_286N = [
+    # ENTER
+    ("ENTER",  "imm16",   "imm8u")
 ];
 
 instruction_sets_with_operands = [
-    instructions_with_operands_8086,
-    instructions_with_operands_8087,
+    (instructions_with_operands_8086, None),
+    (instructions_with_operands_8087, None),
+    (instructions_with_operands_286N, "P286N")
 ];
 
 
@@ -588,7 +594,8 @@ def list_tests(name):
     if name is None:
         print("   0 instructions with no operand")
 
-    for instruction_set in instruction_sets_with_operands:
+    for t in instruction_sets_with_operands:
+        instruction_set = t[0]
         for ins in instruction_set:
             opcode, operand1, operand2 = ins[0], ins[1], ins[2]
             n += 1
@@ -691,6 +698,8 @@ def generate_operands(spec):
         result = [spec]
     elif spec == "imm8":
         result = ["7fh"]
+    elif spec == "imm8u":
+        result = ["0","1","0ffh"]
     elif spec == "imm16":
         result = ["7fffh"]
     elif spec == "rel16":
@@ -736,7 +745,7 @@ def multi_file_operand(op):
     return op in ["r/m8", "r/m16", "m8", "m16", "m", "m16:16"]
 
 
-def generate_instruction(ins, n, files):
+def generate_instruction(ins, n, files, cpu):
     opcode, operand1, operand2 = ins[0], ins[1], ins[2]
 
     if operand1 is None:
@@ -745,12 +754,12 @@ def generate_instruction(ins, n, files):
     needTarget = False
 
     if operand2 is None:
-        generate_one_operand(n, opcode, operand1, files)
+        generate_one_operand(n, opcode, operand1, files, cpu)
     else:
-        generate_two_operands(n, opcode, operand1, operand2, files)
+        generate_two_operands(n, opcode, operand1, operand2, files, cpu)
 
 
-def generate_two_operands(n, opcode, operand1, operand2, files):
+def generate_two_operands(n, opcode, operand1, operand2, files, cpu):
     title = "%s %s, %s" % (opcode, operand1, operand2)
     print("Generating:", title)
 
@@ -758,32 +767,32 @@ def generate_two_operands(n, opcode, operand1, operand2, files):
         opset1 = generate_operands(operand1)
         operands2 = generate_operands(operand2)
         for i, operands1 in enumerate(opset1):
-            generate_operands_tests(opcode, n, SUFFIX[i], operands1, operands2, title, files)
+            generate_operands_tests(opcode, n, SUFFIX[i], operands1, operands2, title, files, cpu)
     elif multi_file_operand(operand2):
         operands1 = generate_operands(operand1)
         opset2 = generate_operands(operand2)
         for i, operands2 in enumerate(opset2):
-            generate_operands_tests(opcode, n, SUFFIX[i], operands1, operands2, title, files)
+            generate_operands_tests(opcode, n, SUFFIX[i], operands1, operands2, title, files, cpu)
     else:
         operands1 = generate_operands(operand1)
         operands2 = generate_operands(operand2)
-        generate_operands_tests(opcode, n, "", operands1, operands2, title, files)
+        generate_operands_tests(opcode, n, "", operands1, operands2, title, files, cpu)
 
 
-def generate_one_operand(n, opcode, operand, files):
+def generate_one_operand(n, opcode, operand, files, cpu):
     title = "%s %s" % (opcode, operand)
     print("Generating:", title)
 
     if multi_file_operand(operand):
         opset = generate_operands(operand)
         for i, operands in enumerate(opset):
-            generate_operands_tests(opcode, n, SUFFIX[i], operands, None, title, files)
+            generate_operands_tests(opcode, n, SUFFIX[i], operands, None, title, files, cpu)
     else:
         operands = generate_operands(operand)
-        generate_operands_tests(opcode, n, "", operands, None, title, files)
+        generate_operands_tests(opcode, n, "", operands, None, title, files, cpu)
 
 
-def generate_operands_tests(opcode, n, suffix, operands1, operands2, title, files):
+def generate_operands_tests(opcode, n, suffix, operands1, operands2, title, files, cpu):
     global insCount
 
     if "-" in opcode:
@@ -801,6 +810,8 @@ def generate_operands_tests(opcode, n, suffix, operands1, operands2, title, file
     emit_head(out)
     out.write("    ; %s\n" % title)
     out.write("\n")
+    if cpu is not None:
+        out.write("    %s\n" % cpu)
 
     if operands2 is None:
         for oper1 in operands1:
@@ -822,7 +833,8 @@ def generate_operands_tests(opcode, n, suffix, operands1, operands2, title, file
     emit_tail(out)
     out.close()
 
-    files.append(fileName)
+    files.append((fileName, cpu))
+
 
 def generate_no_operand_instructions(pattern, files):
     global insCount
@@ -849,14 +861,16 @@ def generate_no_operand_instructions(pattern, files):
     finally:
         out.close()
     if written > 0:
-        files.append("gen")
+        files.append(("gen", None))
 
 
 def generate_instructions_with_operands(files):
     # cannot put entire opcode in one source file - exceeds 64K machine code
     current_opcode = None
     n = 0
-    for instruction_set in instruction_sets_with_operands:
+    for t in instruction_sets_with_operands:
+        instruction_set = t[0]
+        cpu = t[1]
         for ins in instruction_set:
             opcode = ins[0]
             if opcode != current_opcode:
@@ -865,7 +879,7 @@ def generate_instructions_with_operands(files):
             else:
                 n += 1
             if opcode is not None:
-                generate_instruction(ins, n, files)
+                generate_instruction(ins, n, files, cpu)
 
 
 def generate_test_number(testNo, ordinal, files):
@@ -875,10 +889,12 @@ def generate_test_number(testNo, ordinal, files):
         generate_no_operand_instructions(None, files)
         return
     n = testNo - 1
-    for instruction_set in instruction_sets_with_operands:
+    for t in instruction_sets_with_operands:
+        instruction_set = t[0]
+        cpu = t[1]
         if n < len(instruction_set):
             ins = instruction_set[n]
-            generate_instruction(ins, ordinal, files)
+            generate_instruction(ins, ordinal, files, cpu)
             return
         n -= len(instruction_set)
     fatal("unknown test number %d" % testNo)
@@ -899,13 +915,15 @@ def generate_test_named(pattern, files):
     generate_no_operand_instructions(pattern, files)
 
     n = 0
-    for instruction_set in instruction_sets_with_operands:
+    for t in instruction_sets_with_operands:
+        instruction_set = t[0]
+        cpu = t[1]
         for ins in instruction_set:
             if ins[0] is None:
                 break
             if ins[0] == pattern or (pattern[0] == '^' and ins[0].startswith(pattern[1:])):
                 n += 1
-                generate_instruction(ins, n, files)
+                generate_instruction(ins, n, files, cpu)
 
     if files == []:
         fatal("Found no tests matching %s" % pattern)
@@ -925,7 +943,8 @@ def produce_tasm_references(config, files, keepDosBox):
   bat = open(batchName, "w")
   try:
     bat.write("cd %s\n" % config["DosBoxTestDir"])
-    for x in files:
+    for t in files:    # tuple (filename, cpu)
+      x = t[0]
       bat.write("tasm /m10 /z " + x + "\n")
       bat.write("if errorlevel 1 goto end\n")
       bat.write("tlink /t " + x + "\n")
@@ -947,7 +966,7 @@ def produce_tasm_references(config, files, keepDosBox):
 # RUN TESTS #
 #############
 
-def test_disassembler(tools, binName):
+def test_disassembler(tools, binName, cpu):
     checksys("%s -s %s > dis.out" % (tools["bdis"], binName))
 
     d = open("distest.asm", "w")
@@ -955,6 +974,8 @@ def test_disassembler(tools, binName):
     d.write("SEGMENT image\n")
     d.write("ASSUME  CS:image, DS:image, SS:image, ES:image\n")
     d.write("ORG     0100h\n")
+    if cpu is not None:
+        d.write("    %s\n" % cpu)
     d.write("start:\n")
 
     e = open("dis.out")
@@ -981,7 +1002,7 @@ def test_disassembler(tools, binName):
     check("fc /b %s distest.bin" % binName)
 
 
-def test_file(config, tools, name):
+def test_file(config, tools, name, cpu):
   print()
   banner(name)
   print()
@@ -992,11 +1013,12 @@ def test_file(config, tools, name):
   check("%s %s.asm" % (tools["bas"], name))
   check("%s %s.obj" % (tools["blink"], name))
   check("fc /b %s a.com" % refName)
-  test_disassembler(tools, "a.com")
+  test_disassembler(tools, "a.com", cpu)
+
 
 def test_files(config, tools, files):
-  for x in files:
-    test_file(config, tools, x)
+  for t in files:
+    test_file(config, tools, t[0], t[1])
 
 
 ########
