@@ -59,6 +59,7 @@ typedef struct {
   RM_OPERAND oper2;
   DWORD imm1;
   DWORD imm2;
+  DWORD imm3;
   unsigned len;
 } DECODED;
 

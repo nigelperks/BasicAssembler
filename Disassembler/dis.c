@@ -105,6 +105,11 @@ static unsigned instruction(STATE* state, const DECODER* decoder, FILE* fp, cons
   int err = fetch_instruction(decoder, fp, state->waiting, print_hex, buf, sizeof buf, &len);
   if (err) {
     putchar('\n');
+    fflush(stdout);
+    fprintf(stderr, "%04x: %u: ", addr, len);
+    for (unsigned i = 0; i < len; i++)
+      fprintf(stderr, "%02x ", buf[i]);
+    putc('\n', stderr);
     fatal("error fetching instruction: %s\n", fetch_error_string(err));
   }
 

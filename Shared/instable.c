@@ -301,6 +301,9 @@ const INSDEF instable[] = {
 
   { TOK_IMUL,    OF_RM8,   OF_NONE,  OF_NONE,  1, NOPR, 0xF6, 0x00, 0,  RMC, 5,  0,  0,  0, P86 },
   { TOK_IMUL,    OF_RM16,  OF_NONE,  OF_NONE,  1, NOPR, 0xF7, 0x00, 0,  RMC, 5,  0,  0,  0, P86 },
+  { TOK_IMUL,    OF_REG16, OF_IMM8,  OF_NONE,  1, NOPR, 0x6B, 0x00, 0,  REG, 0,  0,  1,  0, P286N },
+  { TOK_IMUL,    OF_REG16, OF_RM16,  OF_IMM8,  1, NOPR, 0x6B, 0x00, 0,  RRM, 0,  0,  0,  1, P286N },
+  { TOK_IMUL,    OF_REG16, OF_RM16,  OF_IMM,   1, NOPR, 0x69, 0x00, 0,  RRM, 0,  0,  0,  2, P286N },
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_IN,      OF_AL,    OF_IMM,   OF_NONE,  1, NOPR, 0xE4, 0x00, 0,  RMN, 0,  0,  1,  0, P86 },
@@ -573,12 +576,12 @@ BYTE opcode_prefix_code(int i) {
   return 0x9B;
 }
 
-const INSDEF* find_instruc(int op, const OPERAND_CLASS* op1, const OPERAND_CLASS* op2) {
+const INSDEF* find_instruc(int op, const OPERAND_CLASS* op1, const OPERAND_CLASS* op2, const OPERAND_CLASS* op3) {
   const INSDEF* p;
 
   for (p = instable; p->op != TOK_NONE; p++) {
     if (p->op == op) {
-      if (flag_matches(op1, p->oper1) && flag_matches(op2, p->oper2))
+      if (flag_matches(op1, p->oper1) && flag_matches(op2, p->oper2) && flag_matches(op3, p->oper3))
         return p;
     }
   }
@@ -656,14 +659,16 @@ static void test_find_instruc(CuTest* tc) {
   const INSDEF* def;
   OPERAND_CLASS oper1;
   OPERAND_CLASS oper2;
+  OPERAND_CLASS oper3;
 
   init_operand_class(&oper1);
   init_operand_class(&oper2);
+  init_operand_class(&oper3);
 
-  def = find_instruc(TOK_DB, &oper1, &oper2);
+  def = find_instruc(TOK_DB, &oper1, &oper2, &oper3);
   CuAssertTrue(tc, def == NULL);
 
-  def = find_instruc(TOK_NOP, &oper1, &oper2);
+  def = find_instruc(TOK_NOP, &oper1, &oper2, &oper3);
   CuAssertPtrNotNull(tc, def);
 
   oper1.type = OT_SREG;
@@ -675,12 +680,56 @@ static void test_find_instruc(CuTest* tc) {
   oper2.flags[1] = OF_RM;
   oper2.nflag = 2;
 
-  def = find_instruc(TOK_MOV, &oper1, &oper2);
+  def = find_instruc(TOK_MOV, &oper1, &oper2, &oper3);
   CuAssertPtrNotNull(tc, def);
 
   oper2.nflag = 1; // MOV SREG IMM
-  def = find_instruc(TOK_MOV, &oper1, &oper2);
+  def = find_instruc(TOK_MOV, &oper1, &oper2, &oper3);
   CuAssertTrue(tc, def == NULL);
+
+  // restore valid operands
+  oper2.nflag = 2;
+  def = find_instruc(TOK_MOV, &oper1, &oper2, &oper3);
+  CuAssertPtrNotNull(tc, def);
+
+  // adding a third operand should mean instruction not found
+  oper3.type = OT_IMM;
+  oper3.flags[0] = OF_IMM;
+  oper3.nflag = 1;
+  def = find_instruc(TOK_MOV, &oper1, &oper2, &oper3);
+  CuAssertTrue(tc, def == NULL);
+}
+
+static void test_find_instruc_3(CuTest* tc) {
+  const INSDEF* def;
+  OPERAND_CLASS oper1;
+  OPERAND_CLASS oper2;
+  OPERAND_CLASS oper3;
+
+  init_operand_class(&oper1);
+  init_operand_class(&oper2);
+  init_operand_class(&oper3);
+
+  // three valid operands
+  // { TOK_IMUL, OF_REG16, OF_RM16, OF_IMM8, ... }
+
+  oper1.type = OT_REG;
+  oper1.flags[0] = OF_REG16;
+  oper1.nflag = 1;
+
+  oper2.type = OT_MEM;
+  oper2.flags[0] = OF_RM;
+  oper2.flags[1] = OF_RM16;
+  oper2.flags[2] = OF_MEM;
+  oper2.nflag = 3;
+
+  oper3.type = OT_IMM;
+  oper3.flags[0] = OF_IMM;
+  oper3.flags[1] = OF_IMM8;
+  oper3.nflag = 3;
+
+  def = find_instruc(TOK_IMUL, &oper1, &oper2, &oper3);
+  CuAssertPtrNotNull(tc, def);
 }
 
 static void test_repeats(CuTest* tc) {
@@ -700,19 +749,21 @@ static void test_repeats(CuTest* tc) {
 
 static void test_none_flag(CuTest* tc) {
   const INSDEF* def;
-  OPERAND_CLASS op1, op2;
+  OPERAND_CLASS op1, op2, op3;
 
   init_operand_class(&op1);
   init_operand_class(&op2);
+  init_operand_class(&op3);
   op1.type = OT_IMM;
   add_class_flag(&op1, OF_IMM);
-  def = find_instruc(TOK_PUSHF, &op1, &op2);
+  def = find_instruc(TOK_PUSHF, &op1, &op2, &op3);
   CuAssertTrue(tc, def == NULL);
 }
 
 CuSuite* instable_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_find_instruc);
+  SUITE_ADD_TEST(suite, test_find_instruc_3);
   SUITE_ADD_TEST(suite, test_repeats);
   SUITE_ADD_TEST(suite, test_none_flag);
   return suite;

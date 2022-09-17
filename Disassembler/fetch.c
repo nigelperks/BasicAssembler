@@ -14,7 +14,8 @@ const char* fetch_error_string(int err) {
     case FETCH_ERR_EOF: s = "unexpected end of file: instruction incomplete"; break;
     case FETCH_ERR_BUFFER_TOO_SMALL: s = "instruction fetch buffer is too small"; break;
     case FETCH_ERR_TOO_MANY_PREFIXES: s = "instruction has too many prefixes"; break;
-    case FETCH_ERR_NO_INSTRUCTION: s = "no instruction found for encoding"; break;
+    case FETCH_ERR_UNKNOWN_OPCODE: s = "unknown opcode"; break;
+    case FETCH_ERR_NO_MODRM_MATCH: s = "no instruction matching ModR/M value"; break;
   }
 
   return s;
@@ -53,31 +54,43 @@ int fetch_instruction(const DECODER* dec, FILE* fp, bool waiting, bool print_hex
     ungetc(first_byte, fp);
     unsigned prefix_len = 0;
     int err = fetch_prefixes(fp, print_hex, buf, 2, &prefix_len, &opcode1); // prints prefixes, not opcode1
-    if (err != FETCH_OK)
-      return err;
     i += prefix_len;
+    if (err != FETCH_OK) {
+      *len = i;
+      return err;
+    }
 
     buf[i++] = opcode1;
     PRINT_BYTE(opcode1);
 
     if (opcode1 == SHORT_JMP) {
-      if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i++]))
+      if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i])) {
+        *len = i;
         return FETCH_ERR_EOF;
-      *len = i;
+      }
+      *len = i+1;
       return FETCH_OK;
     }
 
     if (opcode1 == NEAR_JMP) {
-      if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i++]))
+      if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i])) {
+        *len = i;
         return FETCH_ERR_EOF;
-      if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i++]))
+      }
+      i++;
+      if (nobyte(fp, JUMP_DISPLACEMENT, print_hex, &buf[i])) {
+        *len = i;
         return FETCH_ERR_EOF;
-      *len = i;
+      }
+      *len = i+1;
       return FETCH_OK;
     }
+
     info = opcode_info(dec, opcode1);
-    if (info == NULL)
-      return FETCH_ERR_NO_INSTRUCTION;
+    if (info == NULL) {
+      *len = i;
+      return FETCH_ERR_UNKNOWN_OPCODE;
+    }
 
     assert(info != NULL);
     assert(info->defs != NULL);
@@ -86,8 +99,10 @@ int fetch_instruction(const DECODER* dec, FILE* fp, bool waiting, bool print_hex
 
     if (info->opcode2_or_modrm) {
       BYTE c;
-      if (nobyte(fp, "second opcode or ModR/M byte", print_hex, &c))
+      if (nobyte(fp, "second opcode or ModR/M byte", print_hex, &c)) {
+        *len = i;
         return FETCH_ERR_EOF;
+      }
 
       buf[i++] = c;
 
@@ -96,13 +111,18 @@ int fetch_instruction(const DECODER* dec, FILE* fp, bool waiting, bool print_hex
         MODRM modrm;
         decode_modrm(c, &modrm);
         for (int j = 0; j < modrm.disp_size; j++) {
-          if (nobyte(fp, "displacement", print_hex, &buf[i++]))
+          if (nobyte(fp, "displacement", print_hex, &buf[i])) {
+            *len = i;
             return FETCH_ERR_EOF;
+          }
+          i++;
         }
 
-        def = find_modrm(info, waiting, modrm.mod, modrm.reg, modrm.rm);
-        if (def == NULL)
-          return FETCH_ERR_NO_INSTRUCTION;
+        def = find_modrm(opcode1, info, waiting, modrm.mod, modrm.reg, modrm.rm);
+        if (def == NULL) {
+          *len = i;
+          return FETCH_ERR_NO_MODRM_MATCH;
+        }
       }
     }
     else {
@@ -114,21 +134,41 @@ int fetch_instruction(const DECODER* dec, FILE* fp, bool waiting, bool print_hex
 
     if (def->oper1 == OF_INDIR || def->oper2 == OF_INDIR) {
       assert(def->modrm == RMN);
-      assert(def->imm1 == 0 && def->imm2 == 0);
-      if (nobyte(fp, "indirect", print_hex, &buf[i++]))
+      assert(def->imm1 == 0 && def->imm2 == 0 && def->imm3 == 0);
+      if (nobyte(fp, "indirect", print_hex, &buf[i])) {
+        *len = i;
         return FETCH_ERR_EOF;
-      if (nobyte(fp, "indirect", print_hex, &buf[i++]))
+      }
+      i++;
+      if (nobyte(fp, "indirect", print_hex, &buf[i])) {
+        *len = i;
         return FETCH_ERR_EOF;
+      }
+      i++;
     }
 
     for (int j = 0; j < def->imm1; j++) {
-      if (nobyte(fp, "immediate 1", print_hex, &buf[i++]))
+      if (nobyte(fp, "immediate 1", print_hex, &buf[i])) {
+        *len = i;
         return FETCH_ERR_EOF;
+      }
+      i++;
     }
 
     for (int j = 0; j < def->imm2; j++) {
-      if (nobyte(fp, "immediate 2", print_hex, &buf[i++]))
+      if (nobyte(fp, "immediate 2", print_hex, &buf[i])) {
+        *len = i;
         return FETCH_ERR_EOF;
+      }
+      i++;
+    }
+
+    for (int j = 0; j < def->imm3; j++) {
+      if (nobyte(fp, "immediate 3", print_hex, &buf[i])) {
+        *len = i;
+        return FETCH_ERR_EOF;
+      }
+      i++;
     }
 
     *len = i;

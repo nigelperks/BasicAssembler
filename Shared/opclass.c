@@ -78,15 +78,19 @@ void add_class_flag(OPERAND_CLASS* op, int flag) {
 BOOL has_class_flag(const OPERAND_CLASS* op, int flag) {
   assert(op != NULL);
 
-  for (int i = 0; i < op->nflag; i++)
+  for (int i = 0; i < op->nflag; i++) {
     if (op->flags[i] == flag)
       return TRUE;
+  }
 
   return FALSE;
 }
 
 BOOL flag_matches(const OPERAND_CLASS* op, int flag) {
-  return (flag == OF_NONE && op->type == OT_NONE) || has_class_flag(op, flag);
+  if (flag == OF_NONE) {
+    return op->type == OT_NONE;
+  }
+  return has_class_flag(op, flag);
 }
 
 

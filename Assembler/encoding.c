@@ -837,15 +837,13 @@ static void add_reloc(RELOC_LIST* p, const RELOC_REQ* req, BOOL jump, DWORD pos)
 static void emit_relocation(STATE*, IFILE*, const RELOC_INF*, OFILE*);
 
 static unsigned encode_instruction(STATE*, IFILE*, IREC*, LEX*,
-                                   const OPERAND* oper1, const OPERAND* oper2,
+                                   const OPERAND* oper1, const OPERAND* oper2, const OPERAND* oper3,
                                    BYTE* buf, RELOC_LIST*);
 
-static unsigned encode_near_direct_jump(STATE*, IFILE*, IREC*, LEX*,
-    const OPERAND* oper1, const OPERAND* oper2, BYTE* buf, RELOC_LIST*);
+static unsigned encode_near_direct_jump(STATE*, IFILE*, IREC*, LEX*, const OPERAND*, BYTE* buf, RELOC_LIST*);
 
 static void process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* ofile) {
   BYTE buf[16];
-  OPERAND oper1, oper2;
   unsigned encoded = 0;
 
   assert(state != NULL);
@@ -886,7 +884,8 @@ static void process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
       exit(EXIT_FAILURE);
   }
 
-  if (!parse_operands(state, ifile, lex, &oper1, &oper2)) {
+  OPERAND oper1, oper2, oper3;
+  if (!parse_operands(state, ifile, lex, &oper1, &oper2, &oper3)) {
     lex_discard_line(lex);
     return;
   }
@@ -895,10 +894,13 @@ static void process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
   RELOC_LIST relocs;
   init_reloc_list(&relocs);
 
-  if (irec->near_jump_size)
-    encoded = encode_near_direct_jump(state, ifile, irec, lex, &oper1, &oper2, buf, &relocs);
+  if (irec->near_jump_size) {
+    assert(oper2.opclass.type == OT_NONE);
+    assert(oper3.opclass.type == OT_NONE);
+    encoded = encode_near_direct_jump(state, ifile, irec, lex, &oper1, buf, &relocs);
+  }
   else
-    encoded = encode_instruction(state, ifile, irec, lex, &oper1, &oper2, buf, &relocs);
+    encoded = encode_instruction(state, ifile, irec, lex, &oper1, &oper2, &oper3, buf, &relocs);
 
   if (encoded != irec->size) {
     error2(state, lex, "internal error: instruction size discrepancy: sized %u encoded %u",
@@ -994,16 +996,14 @@ static unsigned encode_relative(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
     RELOC_LIST* relocs);
 
 static unsigned encode_near_direct_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
-    const OPERAND* oper1, const OPERAND* oper2, BYTE* buf, RELOC_LIST* relocs) {
+    const OPERAND* oper, BYTE* buf, RELOC_LIST* relocs) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(irec != NULL);
   assert(irec->op == TOK_JMP);
   assert(lex != NULL);
-  assert(oper1 != NULL);
-  assert(oper1->opclass.type == OT_JUMP);
-  assert(oper2 != NULL);
-  assert(oper2->opclass.type == OT_NONE);
+  assert(oper != NULL);
+  assert(oper->opclass.type == OT_JUMP);
   assert(buf != NULL);
   assert(relocs != NULL);
 
@@ -1015,7 +1015,7 @@ static unsigned encode_near_direct_jump(STATE* state, IFILE* ifile, IREC* irec, 
     default: assert(0 && "unexpected jump displacement size"); break;
   }
 
-  return encode_relative(state, ifile, irec, lex, oper1, irec->near_jump_size, buf, i, relocs);
+  return encode_relative(state, ifile, irec, lex, oper, irec->near_jump_size, buf, i, relocs);
 }
 
 static void encode_disp(STATE*, LEX*, DWORD dest, DWORD disp_offset, unsigned disp_size, BYTE* buf);
@@ -1200,7 +1200,7 @@ static BOOL compute_sreg_override(STATE*, IFILE*, IREC*, LEX*, const OPERAND* op
 static void encode_immediate(IFILE*, const OPERAND*, unsigned bytes, BYTE* buf, unsigned i, RELOC_LIST*);
 
 static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
-                                   const OPERAND* oper1, const OPERAND* oper2,
+                                   const OPERAND* oper1, const OPERAND* oper2, const OPERAND* oper3,
                                    BYTE* buf, RELOC_LIST* relocs) {
   assert(state != NULL);
   assert(ifile != NULL);
@@ -1209,6 +1209,9 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
   assert(buf != NULL);
   assert(relocs != NULL);
   assert(relocs->count == 0);
+
+  assert(oper3 != NULL);
+  assert(oper3->opclass.type == OT_NONE || oper3->opclass.type == OT_IMM);
 
   assert(state->curseg != NO_SEG);
   const DWORD pc = segment_pc(ifile, state->curseg);
@@ -1268,6 +1271,11 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
         compute_rm(state, ifile, oper1, &mod, &rm, &disp_len, &disp_code, &rel);
         reg = irec->def->reg;
         break;
+      case REG:
+        reg = oper1->val.reg;
+        rm = reg;
+        mod = 3;
+        break;
       case SSI:
         mod = 3;
         reg = irec->def->reg;
@@ -1299,7 +1307,7 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
         rm = 1;
         break;
       default:
-        fatal("internal error: unknown ModR/M type: %d\n", (int) irec->def->modrm);
+        fatal("internal error: %s: %d: unknown ModR/M type: %d\n", __FILE__, __LINE__, (int) irec->def->modrm);
         break;
     }
     buf[i++] = encode_modrm(mod, reg, rm);
@@ -1335,6 +1343,11 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
   if (irec->def->imm2) {
     encode_immediate(ifile, oper2, irec->def->imm2, buf, i, relocs);
     i += irec->def->imm2;
+  }
+
+  if (irec->def->imm3) {
+    encode_immediate(ifile, oper3, irec->def->imm3, buf, i, relocs);
+    i += irec->def->imm3;
   }
 
   return i;

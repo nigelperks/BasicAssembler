@@ -29,6 +29,6 @@ const OPCODE_INFO* opcode_info(const DECODER*, BYTE opcode);
 
 const INSDEF* find_unique(const OPCODE_INFO*);
 const INSDEF* find_opcode2(const OPCODE_INFO*, bool waiting, BYTE opcode2);
-const INSDEF* find_modrm(const OPCODE_INFO*, bool waiting, int mod, int reg, int rm);
+const INSDEF* find_modrm(BYTE opcode, const OPCODE_INFO*, bool waiting, int mod, int reg, int rm);
 
 #endif // DECODER_H

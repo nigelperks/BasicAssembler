@@ -987,7 +987,6 @@ static void compute_instruction_segment_override_size(STATE*, IFILE*, IREC*, LEX
 
 static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
   IREC* irec = get_irec(ifile, ifile->pos);
-  OPERAND oper1, oper2;
 
   assert(state != NULL);
   assert(ifile != NULL);
@@ -1025,12 +1024,14 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
   irec->op = lex_token(lex);
   lex_next(lex);
 
-  if (!parse_operands(state, ifile, lex, &oper1, &oper2)) {
+  OPERAND oper1, oper2, oper3;
+  if (!parse_operands(state, ifile, lex, &oper1, &oper2, &oper3)) {
     lex_discard_line(lex);
     return;
   }
 
   if (direct_near_jump(irec->op, &oper1, &oper2)) {
+    assert(oper3.opclass.type == OT_NONE);
     // assume short displacement until proven otherwise
     irec->near_jump_size = 1;
     irec->size = 2; // opcode + displacement
@@ -1039,16 +1040,17 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  irec->def = find_instruc(irec->op, &oper1.opclass, &oper2.opclass);
+  irec->def = find_instruc(irec->op, &oper1.opclass, &oper2.opclass, &oper3.opclass);
 
   if (irec->def == NULL) {
-    error2(state, lex, "instruction not supported with given operands: %s", token_name(irec->op));
+    error2(state, lex, "instruction not supported with given operands (try type override?): %s", token_name(irec->op));
     lex_discard_line(lex);
     return;
   }
 
   assert(irec->def->imm1 == 0 || irec->def->oper1 == OF_IMM || irec->def->oper1 == OF_IMM8 || irec->def->oper1 == OF_IMM8U || irec->def->oper1 == OF_JUMP || irec->def->oper1 == OF_FAR);
   assert(irec->def->imm2 == 0 || irec->def->oper2 == OF_IMM || irec->def->oper2 == OF_IMM8 || irec->def->oper2 == OF_IMM8U);
+  assert(irec->def->imm3 == 0 || irec->def->oper3 == OF_IMM || irec->def->oper3 == OF_IMM8 || irec->def->oper3 == OF_IMM8U);
 
   if (!cpu_enabled(state->cpu, irec->def->cpu)) {
     error2(state, lex, "instruction not supported on selected processor");
@@ -1079,6 +1081,7 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
       case MMC:
         irec->size += rm_disp_len(state, ifile, &oper1, &provisional);
         break;
+      case REG:
       case SSI:
       case SIS:
       case SSC:
@@ -1087,7 +1090,7 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
       case STK:
         break;
       default:
-        fatal("internal: unknown modrm type: %d\n", irec->def->modrm);
+        fatal("internal error: %s: %d: unknown modrm type: %d\n", __FILE__, __LINE__, irec->def->modrm);
     }
     if (provisional)
       ifile->provisional_sizes = TRUE;
@@ -1099,6 +1102,7 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
 
   irec->size += irec->def->imm1;
   irec->size += irec->def->imm2;
+  irec->size += irec->def->imm3;
 
   inc_segment_pc(ifile, state->curseg, irec->size);
 }

@@ -306,16 +306,14 @@ static void assume(STATE* state, IFILE* ifile, LEX* lex) {
 }
 
 static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
-                             const OPERAND* oper1, const OPERAND* oper2);
-static void size_near_jump(STATE*, IFILE*, IREC*, LEX*,
-                           const OPERAND* oper1, const OPERAND* oper2);
+                             const OPERAND* oper1, const OPERAND* oper2, const OPERAND* oper3);
+static void size_near_jump(STATE*, IFILE*, IREC*, LEX*, const OPERAND*);
 static bool expand_short_jump(STATE*, IFILE*, IREC*, LEX*,
-                              const OPERAND* oper1, const OPERAND* oper2);
+                              const OPERAND* oper1, const OPERAND* oper2, const OPERAND* oper3);
 
 // TRUE if record resized.
 static BOOL process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   const unsigned provisional_record_size = irec->size;
-  OPERAND oper1, oper2;
 
   assert(state != NULL);
   assert(ifile != NULL);
@@ -356,21 +354,25 @@ static BOOL process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
       exit(EXIT_FAILURE);
   }
 
-  if (!parse_operands(state, ifile, lex, &oper1, &oper2)) {
+  OPERAND oper1, oper2, oper3;
+  if (!parse_operands(state, ifile, lex, &oper1, &oper2, &oper3)) {
     lex_discard_line(lex);
     return FALSE;
   }
 
   if (token_is_jcc_opcode(irec->op) && state->jumps) {
-    bool resized = expand_short_jump(state, ifile, irec, lex, &oper1, &oper2);
+    bool resized = expand_short_jump(state, ifile, irec, lex, &oper1, &oper2, &oper3);
     inc_segment_pc(ifile, state->curseg, irec->size);
     return resized;
   }
 
-  if (irec->near_jump_size)
-    size_near_jump(state, ifile, irec, lex, &oper1, &oper2);
+  if (irec->near_jump_size) {
+    assert(oper2.opclass.type == OT_NONE);
+    assert(oper3.opclass.type == OT_NONE);
+    size_near_jump(state, ifile, irec, lex, &oper1);
+  }
   else
-    size_instruction(state, ifile, irec, lex, &oper1, &oper2);
+    size_instruction(state, ifile, irec, lex, &oper1, &oper2, &oper3);
 
   inc_segment_pc(ifile, state->curseg, irec->size);
 
@@ -381,17 +383,15 @@ static long signed_displacement(DWORD from, DWORD to);
 
 static BOOL jump_same_module_segment(STATE*, IFILE*, const struct jump *, DWORD *addr);
 
-static void size_near_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
-                      const OPERAND* oper1, const OPERAND* oper2) {
+static void size_near_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, const OPERAND* oper) {
   assert(irec->op == TOK_JMP);
-  assert(oper1->opclass.type == OT_JUMP);
-  assert(oper2->opclass.type == OT_NONE);
+  assert(oper->opclass.type == OT_JUMP);
 
   irec->near_jump_size = 0;
   irec->size = 1; // size of instruction except displacement
 
   DWORD dest;
-  if (jump_same_module_segment(state, ifile, &oper1->val.jump, &dest)) {
+  if (jump_same_module_segment(state, ifile, &oper->val.jump, &dest)) {
     if (dest > 0xffffL) {
       error2(state, lex, "jump address is out of 16-bit range: %05lx", (unsigned long) dest);
       return;
@@ -406,12 +406,12 @@ static void size_near_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
       return;
     }
 
-    if (oper1->val.jump.distance == SHORT) {
+    if (oper->val.jump.distance == SHORT) {
       error2(state, lex, "jump address is out of short range: displacement %ld", disp);
       return;
     }
 
-    assert(oper1->val.jump.distance == NEAR);
+    assert(oper->val.jump.distance == NEAR);
   }
 
   irec->near_jump_size = 2;
@@ -461,12 +461,13 @@ static int reverse_jcc(int token);
 //   ...
 // where rr is reverse condition of cc.
 // Return true if change made, false if nothing changed.
-static bool expand_short_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, const OPERAND* oper1, const OPERAND* oper2) {
+static bool expand_short_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, const OPERAND* oper1, const OPERAND* oper2, const OPERAND* oper3) {
   assert(state != NULL);
   assert(irec != NULL);
   assert(token_is_jcc_opcode(irec->op));
   assert(oper1->opclass.type == OT_JUMP);
   assert(oper2->opclass.type == OT_NONE);
+  assert(oper3->opclass.type == OT_NONE);
 
   unsigned previous_errors = state->errors;
 
@@ -498,14 +499,16 @@ static bool expand_short_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
   if (sym_seg(label) != state->curseg)
     error2(state, lex, "cannot expand inter-segment jump");
 
-  irec->def = find_instruc(irec->op, &oper1->opclass, &oper2->opclass);
+  irec->def = find_instruc(irec->op, &oper1->opclass, &oper2->opclass, &oper3->opclass);
   if (irec->def == NULL)
     error2(state, lex, "instruction not supported with given operands: %s", token_name(irec->op));
 
   assert(irec->def->oper1 == OF_JUMP);
   assert(irec->def->oper2 == OF_NONE);
+  assert(irec->def->oper3 == OF_NONE);
   assert(irec->def->imm1 == 1);
   assert(irec->def->imm2 == 0);
+  assert(irec->def->imm3 == 0);
 
   if (state->errors != previous_errors)
     return false;
@@ -580,7 +583,7 @@ static int reverse_jcc(int token) {
     case TOK_JPO: return TOK_JPE;
     case TOK_JS: return TOK_JNS;
   }
-  fatal("internal error: unknown Jcc token\n");
+  fatal("internal error: %s: %d: unknown Jcc token: %d\n", __FILE__, __LINE__, token);
   return TOK_NONE;
 }
 
@@ -593,13 +596,13 @@ static unsigned rm_disp_len(STATE*, IFILE*, const OPERAND*);
 static unsigned instruction_segment_override_size(STATE*, IFILE*, IREC*, LEX*, const OPERAND* oper1, const OPERAND* oper2);
 
 static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
-                             const OPERAND* oper1, const OPERAND* oper2) {
+                             const OPERAND* oper1, const OPERAND* oper2, const OPERAND* oper3) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(irec != NULL);
   assert(lex != NULL);
 
-  irec->def = find_instruc(irec->op, &oper1->opclass, &oper2->opclass);
+  irec->def = find_instruc(irec->op, &oper1->opclass, &oper2->opclass, &oper3->opclass);
 
   if (irec->def == NULL) {
     error2(state, lex, "instruction not supported with given operands: %s", token_name(irec->op));
@@ -639,6 +642,7 @@ static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
       case MMC:
         irec->size += rm_disp_len(state, ifile, oper1);
         break;
+      case REG:
       case SSI:
       case SIS:
       case SSC:
@@ -647,7 +651,7 @@ static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
       case STK:
         break;
       default:
-        fatal("internal: unknown modrm type: %d\n", irec->def->modrm);
+        fatal("internal error: %s: %d: unknown modrm type: %d\n", __FILE__, __LINE__, irec->def->modrm);
     }
   }
   else if (irec->def->oper1 == OF_INDIR)
@@ -657,6 +661,7 @@ static void size_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex,
 
   irec->size += irec->def->imm1;
   irec->size += irec->def->imm2;
+  irec->size += irec->def->imm3;
 }
 
 static unsigned operand_sreg_override_size(STATE*, IFILE*, LEX*, const struct mem *);

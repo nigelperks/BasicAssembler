@@ -26,7 +26,7 @@ void init_state(STATE*, unsigned max_errors);
 
 unsigned token_data_size(int tok);
 
-BOOL parse_operands(STATE*, IFILE*, LEX*, OPERAND* op1, OPERAND* op2);
+BOOL parse_operands(STATE*, IFILE*, LEX*, OPERAND* op1, OPERAND* op2, OPERAND* op3);
 
 enum expression_type {
   ET_ERR,    // invalid expression

@@ -26,6 +26,11 @@ bounds	dw	1
 	push	80h
 	push	-1
 
+	imul	ax, 40h
+	imul	si, -3
+	imul	bx, [WORD si-4], 39h
+	imul	dx, [WORD 4444h], 100h
+
 	int	20h
 	ENDS	MAIN
 	END	start

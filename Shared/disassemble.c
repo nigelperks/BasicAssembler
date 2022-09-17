@@ -11,13 +11,13 @@
 #include "token.h"
 
 static const INSDEF short_jmp = {
-//  instruc  oper1    oper2    opcodes            +opc R/M reg imm1 imm2 cpu
-    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xEB, 0x00, 0, RMN, 0,  1,   0,  P86
+//  instruc  oper1    oper2    oper3    opcodes            +opc R/M reg im1 im2 im3 cpu
+    TOK_JMP, OF_JUMP, OF_NONE, OF_NONE, 1, NOPR, 0xEB, 0x00, 0, RMN, 0,  1,  0,  0, P86
 };
 
 static const INSDEF near_jmp = {
-//  instruc  oper1    oper2    opcodes            +opc R/M reg imm1 imm2 cpu
-    TOK_JMP, OF_JUMP, OF_NONE, 1, NOPR, 0xE9, 0x00, 0, RMN, 0,  2,   0,  P86
+//  instruc  oper1    oper2    oper3    opcodes            +opc R/M reg im1 im2 im3 cpu
+    TOK_JMP, OF_JUMP, OF_NONE, OF_NONE, 1, NOPR, 0xE9, 0x00, 0, RMN, 0,  2,  0,  0, P86
 };
 
 //"some fetched bytes were not decoded"
@@ -49,6 +49,7 @@ static void init_decoded(DECODED* dec) {
   dec->oper2.type = OT_NONE;
   dec->imm1 = 0;
   dec->imm2 = 0;
+  dec->imm3 = 0;
   dec->len = 0;
 }
 
@@ -133,7 +134,7 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
       for (int j = 0; j < modrm.disp_size; j++)
         modrm.disp = (buf[i++] << (j * 8)) | modrm.disp;
 
-      dec->def = find_modrm(info, waiting, modrm.mod, modrm.reg, modrm.rm);
+      dec->def = find_modrm(opcode1, info, waiting, modrm.mod, modrm.reg, modrm.rm);
       if (dec->def == NULL)
         return DECODE_ERR_NO_MATCHING_INSTRUCTION;
 
@@ -149,6 +150,7 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
 
   dec->imm1 = 0;
   dec->imm2 = 0;
+  dec->imm3 = 0;
 
   assert(dec->def != NULL);
 
@@ -176,6 +178,12 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
     if (!read_immediate(buf, count, i, dec->def->imm2, &dec->imm2))
       return DECODE_ERR_NO_IMMEDIATE;
     i += dec->def->imm2;
+  }
+
+  if (dec->def->imm3) {
+    if (!read_immediate(buf, count, i, dec->def->imm3, &dec->imm3))
+      return DECODE_ERR_NO_IMMEDIATE;
+    i += dec->def->imm3;
   }
 
   dec->len = i;
@@ -209,6 +217,9 @@ static void decode_modrm_operands(int type, const MODRM* modrm, RM_OPERAND* oper
       case MMC:
         decode_rm(modrm, oper1);
         break;
+      case REG:
+        decode_reg(modrm, oper1);
+        break;
       case SSI:
         oper1->type = OT_ST;
         oper1->val.reg = 0;
@@ -232,7 +243,7 @@ static void decode_modrm_operands(int type, const MODRM* modrm, RM_OPERAND* oper
       case STK:
         break;
       default:
-        fatal("internal error: decode_instruction: unknown modrm type: %d\n", type);
+        fatal("internal error: %s: %d: unknown modrm type: %d\n", __FILE__, __LINE__, type);
         break;
     }
 }
@@ -368,6 +379,13 @@ void print_assembly(const DWORD addr, const DECODED* dec) {
         putchar(',');
         putchar(' ');
         print_operand(2, dec->def->oper2, rm_size, dec->sreg_override, &dec->oper2, dec->def->imm2, dec->imm2, addr + dec->len);
+      }
+      if (dec->def->oper3 != OF_NONE) {
+        assert(dec->def->oper2 != OF_NONE);
+        assert(dec->def->oper3 == OF_IMM || dec->def->oper3 == OF_IMM8 || dec->def->oper3 == OF_IMM8U);
+        putchar(',');
+        putchar(' ');
+        print_operand(3, dec->def->oper3, 0, 0, NULL, dec->def->imm3, dec->imm3, addr + dec->len);
       }
     }
 }
@@ -551,6 +569,7 @@ static void print_operand(int opno, int flag, unsigned rm_size, int sreg_overrid
     print_displaced_addr_word(disp_base_addr, imm_value, imm_bytes);
     break;
   case OF_STI:
+    assert(op != NULL);
     printf("ST(%d)", (int) op->val.reg);
     break;
   case OF_STT:
@@ -617,6 +636,7 @@ static void print_displaced_addr_word(DWORD disp_base_addr, const DWORD disp_wor
 }
 
 static void check_operand_type(int opno, const RM_OPERAND* op, int type) {
+  assert(op != NULL);
   if (op->type != type)
     fatal("operand %d: expected type %s: has type %s\n", opno, operand_type_name(type), operand_type_name(op->type));
 }
@@ -625,6 +645,7 @@ static const char* sreg_override_name(int byte);
 static void print_disp(const struct dis_mem *);
 
 static void print_rm_operand(const RM_OPERAND* op, int size_override, int sreg_override) {
+  assert(op != NULL);
   switch (op->type) {
     case OT_REG:
       switch (size_override) {

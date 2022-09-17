@@ -15,7 +15,8 @@ enum fetch_errors {
   FETCH_ERR_EOF,
   FETCH_ERR_BUFFER_TOO_SMALL,
   FETCH_ERR_TOO_MANY_PREFIXES,
-  FETCH_ERR_NO_INSTRUCTION,
+  FETCH_ERR_UNKNOWN_OPCODE,
+  FETCH_ERR_NO_MODRM_MATCH,
 };
 
 const char* fetch_error_string(int error);

@@ -13,6 +13,7 @@ enum modrm {
   RRM,  // reg first operand, RM second
   RMR,  // RM first operand, reg second
   RMC,  // RM first operand, reg field constant
+  REG,  // reg operand: RM == reg
   MMC,  // mem first operand: mod != 3, reg constant
   SSI,  // ST, ST(i): mod == 3, reg constant, RM = REGISTER i
   SIS,  // ST(i), ST: mod == 3, reg constant, RM = REGISTER i
@@ -59,7 +60,7 @@ extern const INSDEF instable[];
 
 BOOL opcode_lea(int opcode);
 
-const INSDEF* find_instruc(int operation, const OPERAND_CLASS* operand1, const OPERAND_CLASS* operand2);
+const INSDEF* find_instruc(int operation, const OPERAND_CLASS* operand1, const OPERAND_CLASS* operand2, const OPERAND_CLASS* operand3);
 
 void print_insdef(const INSDEF*);
 

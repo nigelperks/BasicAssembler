@@ -93,15 +93,17 @@ unsigned token_data_size(int tok) {
 
 static BOOL parse_operand(STATE*, IFILE*, LEX*, OPERAND*);
 
-BOOL parse_operands(STATE* state, IFILE* ifile, LEX* lex, OPERAND* oper1, OPERAND* oper2) {
+BOOL parse_operands(STATE* state, IFILE* ifile, LEX* lex, OPERAND* oper1, OPERAND* oper2, OPERAND* oper3) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(lex != NULL);
   assert(oper1 != NULL);
   assert(oper2 != NULL);
+  assert(oper3 != NULL);
 
   init_operand(oper1);
   init_operand(oper2);
+  init_operand(oper3);
 
   if (lex_token(lex) != TOK_EOL) {
     if (!parse_operand(state, ifile, lex, oper1))
@@ -110,13 +112,23 @@ BOOL parse_operands(STATE* state, IFILE* ifile, LEX* lex, OPERAND* oper1, OPERAN
       lex_next(lex);
       if (!parse_operand(state, ifile, lex, oper2))
         return FALSE;
+      if (lex_token(lex) == ',') {
+        lex_next(lex);
+        if (!parse_operand(state, ifile, lex, oper3))
+          return FALSE;
+      }
+      else
+        add_flag(oper3, OF_NONE);
     }
-    else
+    else {
       add_flag(oper2, OF_NONE);
+      add_flag(oper3, OF_NONE);
+    }
   }
   else {
     add_flag(oper1, OF_NONE);
     add_flag(oper2, OF_NONE);
+    add_flag(oper3, OF_NONE);
   }
 
   if (oper1->opclass.type == OT_MEM && oper2->opclass.type == OT_MEM) {
@@ -2642,16 +2654,23 @@ static void test_parse_operand_error(CuTest* tc) {
 static void test_parse_operands(CuTest* tc) {
   STATE state;
   static const char mem[] =
+    // line 0: no operands
     ";no operands\n"
+    // line 1: one operand
     "[bx+di-40h]\n"
+    // line 2: one operand followed by incorrect syntax
     "AX-2\n"
+    // line 3: two operands
     "BH,99h;comment\n"
+    // line 4: three operands
+    "40h,DX,[SI-8]\n"
+    // line 5: invalid operand
     "*p ; invalid\n"
     ;
   SOURCE* src = load_source_mem(mem);
   IFILE* ifile = new_ifile(src);
   LEX* lex = new_lex(source_name(src));
-  OPERAND op1, op2;
+  OPERAND op1, op2, op3;
   BOOL succ;
 
   source_pass(ifile, NULL);
@@ -2661,7 +2680,8 @@ static void test_parse_operands(CuTest* tc) {
   lex_begin(lex, source_text(src, 0), source_lineno(src, 0), 0);
   memset(&op1, 0xff, sizeof op1);
   memset(&op2, 0xff, sizeof op2);
-  succ = parse_operands(&state, ifile, lex, &op1, &op2);
+  memset(&op3, 0xff, sizeof op3);
+  succ = parse_operands(&state, ifile, lex, &op1, &op2, &op3);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_NONE, op1.opclass.type);
   CuAssertIntEquals(tc, 1, op1.opclass.nflag);
@@ -2669,12 +2689,16 @@ static void test_parse_operands(CuTest* tc) {
   CuAssertIntEquals(tc, OT_NONE, op2.opclass.type);
   CuAssertIntEquals(tc, 1, op2.opclass.nflag);
   CuAssertIntEquals(tc, OF_NONE, op2.opclass.flags[0]);
+  CuAssertIntEquals(tc, OT_NONE, op3.opclass.type);
+  CuAssertIntEquals(tc, 1, op3.opclass.nflag);
+  CuAssertIntEquals(tc, OF_NONE, op3.opclass.flags[0]);
 
   // One operand
   lex_begin(lex, source_text(src, 1), source_lineno(src, 1), 0);
   memset(&op1, 0xff, sizeof op1);
   memset(&op2, 0xff, sizeof op2);
-  succ = parse_operands(&state, ifile, lex, &op1, &op2);
+  memset(&op3, 0xff, sizeof op3);
+  succ = parse_operands(&state, ifile, lex, &op1, &op2, &op3);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_MEM, op1.opclass.type);
   CuAssertIntEquals(tc, 2, op1.opclass.nflag);
@@ -2683,12 +2707,16 @@ static void test_parse_operands(CuTest* tc) {
   CuAssertIntEquals(tc, OT_NONE, op2.opclass.type);
   CuAssertIntEquals(tc, 1, op2.opclass.nflag);
   CuAssertIntEquals(tc, OF_NONE, op2.opclass.flags[0]);
+  CuAssertIntEquals(tc, OT_NONE, op3.opclass.type);
+  CuAssertIntEquals(tc, 1, op3.opclass.nflag);
+  CuAssertIntEquals(tc, OF_NONE, op3.opclass.flags[0]);
 
   // One operand followed by incorrect syntax
   lex_begin(lex, source_text(src, 2), source_lineno(src, 2), 0);
   memset(&op1, 0xff, sizeof op1);
   memset(&op2, 0xff, sizeof op2);
-  succ = parse_operands(&state, ifile, lex, &op1, &op2);
+  memset(&op3, 0xff, sizeof op3);
+  succ = parse_operands(&state, ifile, lex, &op1, &op2, &op3);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_REG, op1.opclass.type);
   CuAssertIntEquals(tc, REG_AX, op1.val.reg);
@@ -2700,12 +2728,16 @@ static void test_parse_operands(CuTest* tc) {
   CuAssertIntEquals(tc, OT_NONE, op2.opclass.type);
   CuAssertIntEquals(tc, 1, op2.opclass.nflag);
   CuAssertIntEquals(tc, OF_NONE, op2.opclass.flags[0]);
+  CuAssertIntEquals(tc, OT_NONE, op3.opclass.type);
+  CuAssertIntEquals(tc, 1, op3.opclass.nflag);
+  CuAssertIntEquals(tc, OF_NONE, op3.opclass.flags[0]);
 
   // Two operands
   lex_begin(lex, source_text(src, 3), source_lineno(src, 3), 0);
   memset(&op1, 0xff, sizeof op1);
   memset(&op2, 0xff, sizeof op2);
-  succ = parse_operands(&state, ifile, lex, &op1, &op2);
+  memset(&op3, 0xff, sizeof op3);
+  succ = parse_operands(&state, ifile, lex, &op1, &op2, &op3);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_REG, op1.opclass.type);
   CuAssertIntEquals(tc, REG_BH, op1.val.reg);
@@ -2720,13 +2752,28 @@ static void test_parse_operands(CuTest* tc) {
   CuAssertIntEquals(tc, 2, op2.opclass.nflag);
   CuAssertIntEquals(tc, OF_IMM, op2.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_IMM8U, op2.opclass.flags[1]);
+  CuAssertIntEquals(tc, OT_NONE, op3.opclass.type);
+  CuAssertIntEquals(tc, 1, op3.opclass.nflag);
+  CuAssertIntEquals(tc, OF_NONE, op3.opclass.flags[0]);
 
-  // Invalid operand
+  // Three operands: line 4: 40h,DX,[SI-8]
   lex_begin(lex, source_text(src, 4), source_lineno(src, 4), 0);
   memset(&op1, 0xff, sizeof op1);
   memset(&op2, 0xff, sizeof op2);
+  memset(&op3, 0xff, sizeof op2);
+  succ = parse_operands(&state, ifile, lex, &op1, &op2, &op3);
+  CuAssertIntEquals(tc, TRUE, succ);
+  CuAssertIntEquals(tc, OT_IMM, op1.opclass.type);
+  CuAssertIntEquals(tc, OT_REG, op2.opclass.type);
+  CuAssertIntEquals(tc, OT_MEM, op3.opclass.type);
+
+  // Invalid operand
+  lex_begin(lex, source_text(src, 5), source_lineno(src, 5), 0);
+  memset(&op1, 0xff, sizeof op1);
+  memset(&op2, 0xff, sizeof op2);
+  memset(&op3, 0xff, sizeof op2);
   CuAssertIntEquals(tc, 0, state.errors);
-  succ = parse_operands(&state, ifile, lex, &op1, &op2);
+  succ = parse_operands(&state, ifile, lex, &op1, &op2, &op3);
   CuAssertIntEquals(tc, FALSE, succ);
   CuAssertIntEquals(tc, 1, state.errors);
 

@@ -358,8 +358,7 @@ static void write_record(FILE* fp, const OREC* rec) {
       fwrite(rec->u.data.buf, 1, rec->u.data.size, fp);
       break;
     default:
-      fatal("internal error: %s(%d): unknown object record type: %d\n",
-          __FILE__, __LINE__, rec->type);
+      fatal("internal error: %s: %d: unknown object record type: %d\n", __FILE__, __LINE__, rec->type);
       break;
   }
 }
@@ -411,8 +410,7 @@ static void read_record(FILE* fp, const char* filename, int type, OREC* rec) {
       rec->u.data.buf = getdata(fp, filename, rec->u.data.size);
       break;
     default:
-      fatal("internal error: %s(%d): unknown object record type: %d\n",
-          __FILE__, __LINE__, rec->type);
+      fatal("internal error: %s: %d: unknown object record type: %d\n", __FILE__, __LINE__, rec->type);
       break;
   }
 }

@@ -101,20 +101,68 @@ const INSDEF* find_opcode2(const OPCODE_INFO* i, bool waiting, BYTE opcode2) {
 static bool match_modrm(const INSDEF*, int mod, int reg, int rm);
 
 // During disassembly: find INSDEF matching ModR/M values on the opcode's list of encodings.
-const INSDEF* find_modrm(const OPCODE_INFO* i, bool waiting, int mod, int reg, int rm) {
+const INSDEF* find_modrm(BYTE opcode, const OPCODE_INFO* i, bool waiting, int mod, int reg, int rm) {
+#ifndef NDEBUG
+  const INSDEF* def = NULL;
+#endif
+
   // first take WAIT prefix into account in case there are distinct defs e.g. FSTCW, FNSTCW
   BYTE wait_prefix = waiting ? WAIT : NOPR;
   for (const struct insdef_node * p = i->defs; p; p = p->next) {
-    if (p->def->opcode_prefix == wait_prefix && match_modrm(p->def, mod, reg, rm))
+    if (p->def->opcode_prefix == wait_prefix && match_modrm(p->def, mod, reg, rm)) {
+#ifdef NDEBUG
       return p->def;
+#else
+      if (def) {
+        // OK if second is implicit form of first: IMUL AX, 3 ~ IMUL AX, AX, 3
+        if (def->oper1 == OF_REG16 && def->oper2 != OF_RM16 && def->oper3 == OF_NONE &&
+            p->def->oper1 == OF_REG16 && p->def->oper2 == OF_RM16 && p->def->oper3 == def->oper2)
+          continue;
+        // SAL and SHL are synonyms
+        if (def->op == TOK_SAL && p->def->op == TOK_SHL)
+          continue;
+        // TEST operands can be either way around
+        if (def->op == TOK_TEST && p->def->op == TOK_TEST &&
+            def->oper1 == p->def->oper2 && def->oper2 == p->def->oper1 &&
+            def->oper3 == OF_NONE && p->def->oper3 == OF_NONE)
+          continue;
+        // XCHG operands can be either way around
+        if (def->op == TOK_XCHG && p->def->op == TOK_XCHG &&
+            def->oper1 == p->def->oper2 && def->oper2 == p->def->oper1 &&
+            def->oper3 == OF_NONE && p->def->oper3 == OF_NONE)
+          continue;
+        putchar('\n');
+        fprintf(stderr, "Matching one opcode %02X, wait %s, mod %02X, rm %02X, reg %02X\n",
+                opcode, waiting ? "WAIT" : "NOPR", mod, rm, reg);
+        fatal("internal error: %s: %d: multiple opcode match\n", __FILE__, __LINE__);
+      }
+      if (p->def->cpu == P87)
+        return p->def;
+      def = p->def;
+#endif
+    }
   }
+#ifndef NDEBUG
+  if (def)
+    return def;
+#endif
 
   for (const struct insdef_node * p = i->defs; p; p = p->next) {
-    if (match_modrm(p->def, mod, reg, rm))
+    if (match_modrm(p->def, mod, reg, rm)) {
+#ifdef NDEBUG
       return p->def;
+#else
+      if (def) {
+        putchar('\n');
+        fprintf(stderr, "Matching one opcode %02X, mod %02X, rm %02X, reg %02X\n", opcode, mod, rm, reg);
+        fatal("internal error: %s: %d: multiple opcode match\n", __FILE__, __LINE__, mod, rm, reg);
+      }
+      def = p->def;
+#endif
+    }
   }
 
-  return NULL;
+  return def;
 }
 
 static bool match_modrm(const INSDEF* def, int mod, int reg, int rm) {
@@ -126,6 +174,8 @@ static bool match_modrm(const INSDEF* def, int mod, int reg, int rm) {
         return true;
       case RMC:
         return (def->reg == reg);
+      case REG:
+        return mod == 3 && rm == reg;
       case MMC:
         return (mod != 3 && def->reg == reg);
       case SSI:
@@ -138,7 +188,7 @@ static bool match_modrm(const INSDEF* def, int mod, int reg, int rm) {
       case STK:
         return (mod == 3 && def->reg == reg && rm == 1);
       default:
-        fatal("internal error: find_modrm: unexpected modrm: %d\n", def->modrm);
+        fatal("internal error: %s: %d: unexpected modrm: %d\n", __FILE__, __LINE__, def->modrm);
     }
 
     return false;

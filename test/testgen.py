@@ -581,10 +581,13 @@ instructions_with_operands_8087 = [
 
 instructions_with_operands_286N = [
     # ENTER
-    ("BOUND",  "r16",     "m16"),
-    ("ENTER",  "imm16",   "imm8u"),
-    ("PUSH",   "imm16",   None),
-    ("PUSH",   "imm8",    None)
+    ("BOUND",  "r16",     "m16",     None),
+    ("ENTER",  "imm16",   "imm8u",   None),
+    ("IMUL",   "r16",     "imm8",    None),
+    ("IMUL",   "r16",     "r/m16",   "imm8"),
+    ("IMUL",   "r16",     "r/m16",   "imm16"),
+    ("PUSH",   "imm16",   None,      None),
+    ("PUSH",   "imm8",    None,      None)
 ];
 
 instruction_sets_with_operands = [
@@ -607,6 +610,7 @@ def list_tests(name):
         instruction_set = t[0]
         for ins in instruction_set:
             opcode, operand1, operand2 = ins[0], ins[1], ins[2]
+            operand3 = ins[3] if len(ins) > 3 else None
             n += 1
 
             if opcode is None:
@@ -620,8 +624,10 @@ def list_tests(name):
 
             if operand2 is None:
                 print("%4d %-8s %-6s" % (n, opcode, operand1))
+            elif operand3 is None:
+                print("%4d %-8s %-6s %s" % (n, opcode, operand1+",", operand2))
             else:
-                print("%4d %-8s %-6s %s" % (n, opcode, operand1 + ",", operand2))
+                print("%4d %-8s %-6s %-6s %s" % (n, opcode, operand1+",", operand2+",", operand3))
 
 
 def generate_mem_addr16(opSize):
@@ -756,6 +762,7 @@ def multi_file_operand(op):
 
 def generate_instruction(ins, n, files, cpu):
     opcode, operand1, operand2 = ins[0], ins[1], ins[2]
+    operand3 = ins[3] if len(ins) > 3 else None
 
     if operand1 is None:
         fatal("Internal error: no operands")
@@ -764,8 +771,23 @@ def generate_instruction(ins, n, files, cpu):
 
     if operand2 is None:
         generate_one_operand(n, opcode, operand1, files, cpu)
-    else:
+    elif operand3 is None:
         generate_two_operands(n, opcode, operand1, operand2, files, cpu)
+    else:
+        generate_three_operands(n, opcode, operand1, operand2, operand3, files, cpu)
+
+
+def generate_one_operand(n, opcode, operand, files, cpu):
+    title = "%s %s" % (opcode, operand)
+    print("Generating:", title)
+
+    if multi_file_operand(operand):
+        opset = generate_operands(operand)
+        for i, operands in enumerate(opset):
+            generate_operands_test_file(opcode, n, SUFFIX[i], operands, None, None, title, files, cpu)
+    else:
+        operands = generate_operands(operand)
+        generate_operands_test_file(opcode, n, "", operands, None, None, title, files, cpu)
 
 
 def generate_two_operands(n, opcode, operand1, operand2, files, cpu):
@@ -776,32 +798,46 @@ def generate_two_operands(n, opcode, operand1, operand2, files, cpu):
         opset1 = generate_operands(operand1)
         operands2 = generate_operands(operand2)
         for i, operands1 in enumerate(opset1):
-            generate_operands_tests(opcode, n, SUFFIX[i], operands1, operands2, title, files, cpu)
+            generate_operands_test_file(opcode, n, SUFFIX[i], operands1, operands2, None, title, files, cpu)
     elif multi_file_operand(operand2):
         operands1 = generate_operands(operand1)
         opset2 = generate_operands(operand2)
         for i, operands2 in enumerate(opset2):
-            generate_operands_tests(opcode, n, SUFFIX[i], operands1, operands2, title, files, cpu)
+            generate_operands_test_file(opcode, n, SUFFIX[i], operands1, operands2, None, title, files, cpu)
     else:
         operands1 = generate_operands(operand1)
         operands2 = generate_operands(operand2)
-        generate_operands_tests(opcode, n, "", operands1, operands2, title, files, cpu)
+        generate_operands_test_file(opcode, n, "", operands1, operands2, None, title, files, cpu)
 
 
-def generate_one_operand(n, opcode, operand, files, cpu):
-    title = "%s %s" % (opcode, operand)
+def generate_three_operands(n, opcode, operand1, operand2, operand3, files, cpu):
+    title = "%s %s, %s, %s" % (opcode, operand1, operand2, operand3)
     print("Generating:", title)
 
-    if multi_file_operand(operand):
-        opset = generate_operands(operand)
-        for i, operands in enumerate(opset):
-            generate_operands_tests(opcode, n, SUFFIX[i], operands, None, title, files, cpu)
+    if multi_file_operand(operand3):
+        fatal("multi-file operand 3")
+    operands3 = generate_operands(operand3)
+
+    if multi_file_operand(operand1):
+        opset1 = generate_operands(operand1)
+        operands2 = generate_operands(operand2)
+        for i, operands1 in enumerate(opset1):
+            generate_operands_test_file(opcode, n, SUFFIX[i], operands1, operands2, operands3, title, files, cpu)
+    elif multi_file_operand(operand2):
+        operands1 = generate_operands(operand1)
+        opset2 = generate_operands(operand2)
+        for i, operands2 in enumerate(opset2):
+            generate_operands_test_file(opcode, n, SUFFIX[i], operands1, operands2, operands3, title, files, cpu)
     else:
-        operands = generate_operands(operand)
-        generate_operands_tests(opcode, n, "", operands, None, title, files, cpu)
+        operands1 = generate_operands(operand1)
+        operands2 = generate_operands(operand2)
+        generate_operands_test_file(opcode, n, "", operands1, operands2, operands3, title, files, cpu)
 
 
-def generate_operands_tests(opcode, n, suffix, operands1, operands2, title, files, cpu):
+
+# Generate one file with all combinations of given operands.
+# Suffix is used when all combinations of generated operands do not fit in one file.
+def generate_operands_test_file(opcode, n, suffix, operands1, operands2, operands3, title, files, cpu):
     global insCount
 
     if "-" in opcode:
@@ -826,11 +862,17 @@ def generate_operands_tests(opcode, n, suffix, operands1, operands2, title, file
         for oper1 in operands1:
             out.write("    %-6s %s\n" % (opcode, oper1))
             insCount += 1
-    else:
+    elif operands3 is None:
         for oper1 in operands1:
             for oper2 in operands2:
                 out.write("    %-6s %s, %s\n" % (opcode, oper1, oper2))
                 insCount += 1
+    else:
+        for oper1 in operands1:
+            for oper2 in operands2:
+                for oper3 in operands3:
+                    out.write("    %-6s %s, %s, %s\n" % (opcode, oper1, oper2, oper3))
+                    insCount += 1
 
 #   if needTarget:
     out.write("    nop\n");
@@ -878,21 +920,21 @@ def generate_no_operand_instructions(pattern, files):
         files.append(("gen", cpu)) # assume latest cpu handles all instructions
 
 
+last_ordinal = {}
+
 def generate_instructions_with_operands(files):
     # cannot put entire opcode in one source file - exceeds 64K machine code
     current_opcode = None
-    n = 0
     for t in instruction_sets_with_operands:
         instruction_set = t[0]
         cpu = t[1]
         for ins in instruction_set:
             opcode = ins[0]
-            if opcode != current_opcode:
-                n = 1
-                current_opcode = opcode
-            else:
-                n += 1
             if opcode is not None:
+                if opcode not in last_ordinal:
+                    last_ordinal[opcode] = 0
+                n = last_ordinal[opcode] + 1
+                last_ordinal[opcode] = n
                 generate_instruction(ins, n, files, cpu)
 
 
