@@ -36,6 +36,7 @@ typedef struct {
   short op;         // token
   short oper1;      // flag indicating type of first operand (OF_NONE if none)
   short oper2;      // flag indicating type of second operand (OF_NONE if none)
+  short oper3;      // flag indicating type of third operand (OF_NONE if none)
   char opcodes;     // number of opcode bytes
   char opcode_prefix;  // can be WAIT for FPU
   BYTE opcode1;     // first opcode byte
@@ -44,7 +45,8 @@ typedef struct {
   char modrm;       // ModR/M arrangement as enumerated above
   char reg;         // reg field value in a ModR/M byte of type RMC
   char imm1;        // number of immediate or OF_JUMP displacement bytes in first operand
-  char imm2;        // number of immediate or OF_JUMP displacement bytes in second operand
+  char imm2;        // number of immediate bytes in second operand
+  char imm3;        // number of immediate bytes in third operand
   char cpu;         // processor (ISA)
 } INSDEF;
 
