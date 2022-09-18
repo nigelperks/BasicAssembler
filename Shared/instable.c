@@ -315,6 +315,11 @@ const INSDEF instable[] = {
   { TOK_INC,     OF_RM8,   OF_NONE,  OF_NONE,  1, NOPR, 0xFE, 0x00, 0,  RMC, 0,  0,  0,  0, P86 },
   { TOK_INC,     OF_RM16,  OF_NONE,  OF_NONE,  1, NOPR, 0xFF, 0x00, 0,  RMC, 0,  0,  0,  0, P86 },
 
+  { TOK_INSB,    OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x6C, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
+  { TOK_INSW,    OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x6D, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
+  { TOK_INS,     OF_DI8,   OF_DX,    OF_NONE,  1, NOPR, 0x6C, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
+  { TOK_INS,     OF_DI16,  OF_DX,    OF_NONE,  1, NOPR, 0x6D, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
+
   { TOK_INT3,    OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0xCC, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
   { TOK_INT,     OF_3,     OF_NONE,  OF_NONE,  1, NOPR, 0xCC, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
   { TOK_INTO,    OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0xCE, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
@@ -431,6 +436,11 @@ const INSDEF instable[] = {
   { TOK_OUT,     OF_IMM,   OF_AX,    OF_NONE,  1, NOPR, 0xE7, 0x00, 0,  RMN, 0,  1,  0,  0, P86 },
   { TOK_OUT,     OF_DX,    OF_AL,    OF_NONE,  1, NOPR, 0xEE, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
   { TOK_OUT,     OF_DX,    OF_AX,    OF_NONE,  1, NOPR, 0xEF, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
+
+  { TOK_OUTSB,   OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x6E, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
+  { TOK_OUTSW,   OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x6F, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
+  { TOK_OUTS,    OF_DX,    OF_SI8,   OF_NONE,  1, NOPR, 0x6E, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
+  { TOK_OUTS,    OF_DX,    OF_SI16,  OF_NONE,  1, NOPR, 0x6F, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
 
   { TOK_POP,     OF_MEM16, OF_NONE,  OF_NONE,  1, NOPR, 0x8F, 0x00, 0,  RMC, 0,  0,  0,  0, P86 },
   { TOK_POP,     OF_REG16, OF_NONE,  OF_NONE,  1, NOPR, 0x58, 0x00, 1,  RMN, 0,  0,  0,  0, P86 },

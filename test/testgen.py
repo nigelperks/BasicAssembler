@@ -210,7 +210,11 @@ instructions_without_operands_8087 = [
 ]
 
 instructions_without_operands_286 = [
+    "INSB",
+    "INSW",
     "LEAVE",
+    "OUTSB",
+    "OUTSW",
     "PUSHA"
 ]
 

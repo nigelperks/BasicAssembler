@@ -31,6 +31,19 @@ bounds	dw	1
 	imul	bx, [WORD si-4], 39h
 	imul	dx, [WORD 4444h], 100h
 
+	insb
+	insw
+
+	; See 286X.asm
+; 	ins	[byte di], dx
+; 	ins	[word di], dx
+
+	outsb
+	outs	dx, [byte si]
+	outs	dx, [byte es:si]
+	outs	dx, [byte cs:si] ; override has no effect
+	outs	dx, [word si]
+
 	int	20h
 	ENDS	MAIN
 	END	start

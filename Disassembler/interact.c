@@ -149,6 +149,11 @@ static void disassemble_page(STATE* state) {
 static bool disassemble_one_instruction(STATE* state) {
   printf("%05x: ", state->ip);
 
+  if (state->ip >= state->mem->size) {
+    puts("EOF");
+    return false;
+  }
+
   DECODED dec;
   int err = decode_instruction(state->dec, state->mem->data + state->ip, state->mem->size - state->ip, state->waiting, &dec);
   if (err) {
