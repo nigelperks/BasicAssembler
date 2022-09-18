@@ -371,6 +371,9 @@ void print_assembly(const DWORD addr, const DECODED* dec) {
     fputs(token_name(dec->def->op), stdout);
 
     if (dec->def->oper1 != OF_NONE) {
+      // If one operand is OF_RM, an R/M operand of unspecified data size,
+      // obtain the data size implied by the other operand.
+      // If neither operand is OF_RM, rm_size = 0.
       const unsigned rm_size = implicit_rm_size(dec->def);
 
       putchar(' ');
@@ -464,7 +467,8 @@ static void print_rm_operand(const RM_OPERAND*, int size_override, int sreg_over
 static void check_operand_type(int opno, const RM_OPERAND*, int type);
 static void print_hex_bytes(DWORD val, unsigned bytes);
 static void print_signed_hex_byte(DWORD);
-static void print_displaced_addr_word(DWORD disp_base_addr, const DWORD disp_word, unsigned disp_size);
+static void print_near_relative(DWORD disp_base_addr, const DWORD disp_word, unsigned disp_size);
+static void print_far_absolute(const DWORD imm_value, unsigned imm_bytes);
 
 static void print_operand(int opno, int flag, unsigned rm_size, int sreg_override,
                           const RM_OPERAND* op, unsigned imm_bytes, DWORD imm_value,
@@ -566,7 +570,10 @@ static void print_operand(int opno, int flag, unsigned rm_size, int sreg_overrid
     break;
   // jump
   case OF_JUMP:
-    print_displaced_addr_word(disp_base_addr, imm_value, imm_bytes);
+    print_near_relative(disp_base_addr, imm_value, imm_bytes);
+    break;
+  case OF_FAR:
+    print_far_absolute(imm_value, imm_bytes);
     break;
   case OF_STI:
     assert(op != NULL);
@@ -616,7 +623,7 @@ static void print_hex_word(DWORD w) {
   fputs(buf, stdout);
 }
 
-static void print_displaced_addr_word(DWORD disp_base_addr, const DWORD disp_word, unsigned disp_size) {
+static void print_near_relative(DWORD disp_base_addr, const DWORD disp_word, unsigned disp_size) {
   assert(disp_size == 1 || disp_size == 2);
   
   DWORD dest;
@@ -633,6 +640,13 @@ static void print_displaced_addr_word(DWORD disp_base_addr, const DWORD disp_wor
     fputs("NEAR ", stdout);
   }
   print_hex_word(dest % 0x10000ul);
+}
+
+static void print_far_absolute(const DWORD val, unsigned size) {
+  if (size != 4)
+    fatal("far jump target is not 4 bytes in size\n");
+  fputs("FAR ", stdout);
+  printf("FAR %04X:%04X", (unsigned)(val >> 16), (unsigned)(val & 0xFFFF));
 }
 
 static void check_operand_type(int opno, const RM_OPERAND* op, int type) {

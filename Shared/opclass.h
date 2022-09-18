@@ -21,49 +21,41 @@ const char* operand_type_name(int);
 
 enum operand_flag {
   OF_NONE,
-  // R/M
-  OF_RM,
+  OF_RM,    // R/M
   OF_RM8,
   OF_RM16,
   OF_RM32,
   OF_RM64,
   OF_RM80,
-  // register
-  OF_AL,
+  OF_AL,    // register
   OF_CL,
   OF_AX,
   OF_DX,
   OF_REG8,
   OF_REG16,
-  // segment register
-  OF_SREG,
-  // memory
-  OF_MEM,
+  OF_SREG,  // segment register
+  OF_MEM,   // memory
   OF_MEM8,
   OF_MEM16,
   OF_MEM32,
   OF_MEM64,
   OF_MEM80,
   OF_INDIR,
-  // string
-  OF_SI,
+  OF_SI,    // string
   OF_SI8,
   OF_SI16,
   OF_DI,
   OF_DI8,
   OF_DI16,
-  // immediate
-  OF_IMM,
+  OF_IMM,   // immediate
   OF_IMM8,
   OF_IMM8U,
   OF_1,
   OF_3,
-  // jump
-  OF_JUMP,
+  OF_JUMP,  // jump
   OF_FAR,
-  // floating point stack
-  OF_STI, // ST(i)
-  OF_STT, // stack top: ST or ST(0)
+  OF_STI,   // ST(i)
+  OF_STT,   // stack top: ST or ST(0)
 };
 
 const char* operand_flag_name(int);
