@@ -20,6 +20,9 @@ bounds	dw	1
 	bound	dx, [bounds]
 
 	pusha
+	pushaw
+	popa
+	popaw
 
 	push	1234h
 	push	7fh

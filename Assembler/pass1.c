@@ -1043,7 +1043,9 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
   irec->def = find_instruc(irec->op, &oper1.opclass, &oper2.opclass, &oper3.opclass);
 
   if (irec->def == NULL) {
-    error2(state, lex, "instruction not supported with given operands (try type override?): %s", token_name(irec->op));
+    error2(state, lex, "instruction not supported with given operands: %s", token_name(irec->op));
+    if (has_flag(&oper1, OF_MEM) || has_flag(&oper2, OF_MEM))
+      error2(state, lex, "suggestion: try type override");
     lex_discard_line(lex);
     return;
   }
