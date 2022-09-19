@@ -463,12 +463,16 @@ const INSDEF instable[] = {
   { TOK_RCL,     OF_RM8,   OF_CL,    OF_NONE,  1, NOPR, 0xD2, 0x00, 0,  RMC, 2,  0,  0,  0, P86 },
   { TOK_RCL,     OF_RM16,  OF_1,     OF_NONE,  1, NOPR, 0xD1, 0x00, 0,  RMC, 2,  0,  0,  0, P86 },
   { TOK_RCL,     OF_RM16,  OF_CL,    OF_NONE,  1, NOPR, 0xD3, 0x00, 0,  RMC, 2,  0,  0,  0, P86 },
+  { TOK_RCL,     OF_RM8,   OF_IMM8,  OF_NONE,  1, NOPR, 0xC0, 0x00, 0,  RMC, 2,  0,  1,  0, P286N },
+  { TOK_RCL,     OF_RM16,  OF_IMM8,  OF_NONE,  1, NOPR, 0xC1, 0x00, 0,  RMC, 2,  0,  1,  0, P286N },
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_RCR,     OF_RM8,   OF_1,     OF_NONE,  1, NOPR, 0xD0, 0x00, 0,  RMC, 3,  0,  0,  0, P86 },
   { TOK_RCR,     OF_RM8,   OF_CL,    OF_NONE,  1, NOPR, 0xD2, 0x00, 0,  RMC, 3,  0,  0,  0, P86 },
   { TOK_RCR,     OF_RM16,  OF_1,     OF_NONE,  1, NOPR, 0xD1, 0x00, 0,  RMC, 3,  0,  0,  0, P86 },
   { TOK_RCR,     OF_RM16,  OF_CL,    OF_NONE,  1, NOPR, 0xD3, 0x00, 0,  RMC, 3,  0,  0,  0, P86 },
+  { TOK_RCR,     OF_RM8,   OF_IMM8,  OF_NONE,  1, NOPR, 0xC0, 0x00, 0,  RMC, 3,  0,  1,  0, P286N },
+  { TOK_RCR,     OF_RM16,  OF_IMM8,  OF_NONE,  1, NOPR, 0xC1, 0x00, 0,  RMC, 3,  0,  1,  0, P286N },
 
   { TOK_RET,     OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0xC3, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
   { TOK_RET,     OF_IMM,   OF_NONE,  OF_NONE,  1, NOPR, 0xC2, 0x00, 0,  RMN, 0,  2,  0,  0, P86 },
@@ -481,11 +485,15 @@ const INSDEF instable[] = {
   { TOK_ROL,     OF_RM8,   OF_CL,    OF_NONE,  1, NOPR, 0xD2, 0x00, 0,  RMC, 0,  0,  0,  0, P86 },
   { TOK_ROL,     OF_RM16,  OF_1,     OF_NONE,  1, NOPR, 0xD1, 0x00, 0,  RMC, 0,  0,  0,  0, P86 },
   { TOK_ROL,     OF_RM16,  OF_CL,    OF_NONE,  1, NOPR, 0xD3, 0x00, 0,  RMC, 0,  0,  0,  0, P86 },
+  { TOK_ROL,     OF_RM8,   OF_IMM8,  OF_NONE,  1, NOPR, 0xC0, 0x00, 0,  RMC, 0,  0,  1,  0, P286N },
+  { TOK_ROL,     OF_RM16,  OF_IMM8,  OF_NONE,  1, NOPR, 0xC1, 0x00, 0,  RMC, 0,  0,  1,  0, P286N },
 
   { TOK_ROR,     OF_RM8,   OF_1,     OF_NONE,  1, NOPR, 0xD0, 0x00, 0,  RMC, 1,  0,  0,  0, P86 },
   { TOK_ROR,     OF_RM8,   OF_CL,    OF_NONE,  1, NOPR, 0xD2, 0x00, 0,  RMC, 1,  0,  0,  0, P86 },
   { TOK_ROR,     OF_RM16,  OF_1,     OF_NONE,  1, NOPR, 0xD1, 0x00, 0,  RMC, 1,  0,  0,  0, P86 },
   { TOK_ROR,     OF_RM16,  OF_CL,    OF_NONE,  1, NOPR, 0xD3, 0x00, 0,  RMC, 1,  0,  0,  0, P86 },
+  { TOK_ROR,     OF_RM8,   OF_IMM8,  OF_NONE,  1, NOPR, 0xC0, 0x00, 0,  RMC, 1,  0,  1,  0, P286N },
+  { TOK_ROR,     OF_RM16,  OF_IMM8,  OF_NONE,  1, NOPR, 0xC1, 0x00, 0,  RMC, 1,  0,  1,  0, P286N },
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_SAHF,    OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x9E, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
@@ -494,11 +502,15 @@ const INSDEF instable[] = {
   { TOK_SAL,     OF_RM8,   OF_CL,    OF_NONE,  1, NOPR, 0xD2, 0x00, 0,  RMC, 4,  0,  0,  0, P86 },
   { TOK_SAL,     OF_RM16,  OF_1,     OF_NONE,  1, NOPR, 0xD1, 0x00, 0,  RMC, 4,  0,  0,  0, P86 },
   { TOK_SAL,     OF_RM16,  OF_CL,    OF_NONE,  1, NOPR, 0xD3, 0x00, 0,  RMC, 4,  0,  0,  0, P86 },
+  { TOK_SAL,     OF_RM8,   OF_IMM8,  OF_NONE,  1, NOPR, 0xC0, 0x00, 0,  RMC, 4,  0,  1,  0, P286N },
+  { TOK_SAL,     OF_RM16,  OF_IMM8,  OF_NONE,  1, NOPR, 0xC1, 0x00, 0,  RMC, 4,  0,  1,  0, P286N },
 
   { TOK_SAR,     OF_RM8,   OF_1,     OF_NONE,  1, NOPR, 0xD0, 0x00, 0,  RMC, 7,  0,  0,  0, P86 },
   { TOK_SAR,     OF_RM8,   OF_CL,    OF_NONE,  1, NOPR, 0xD2, 0x00, 0,  RMC, 7,  0,  0,  0, P86 },
   { TOK_SAR,     OF_RM16,  OF_1,     OF_NONE,  1, NOPR, 0xD1, 0x00, 0,  RMC, 7,  0,  0,  0, P86 },
   { TOK_SAR,     OF_RM16,  OF_CL,    OF_NONE,  1, NOPR, 0xD3, 0x00, 0,  RMC, 7,  0,  0,  0, P86 },
+  { TOK_SAR,     OF_RM8,   OF_IMM8,  OF_NONE,  1, NOPR, 0xC0, 0x00, 0,  RMC, 7,  0,  1,  0, P286N },
+  { TOK_SAR,     OF_RM16,  OF_IMM8,  OF_NONE,  1, NOPR, 0xC1, 0x00, 0,  RMC, 7,  0,  1,  0, P286N },
 
   { TOK_SBB,     OF_AL,    OF_IMM,   OF_NONE,  1, NOPR, 0x1C, 0x00, 0,  RMN, 0,  0,  1,  0, P86 },
   { TOK_SBB,     OF_AX,    OF_IMM,   OF_NONE,  1, NOPR, 0x1D, 0x00, 0,  RMN, 0,  0,  2,  0, P86 },
@@ -520,11 +532,15 @@ const INSDEF instable[] = {
   { TOK_SHL,     OF_RM8,   OF_CL,    OF_NONE,  1, NOPR, 0xD2, 0x00, 0,  RMC, 4,  0,  0,  0, P86 },
   { TOK_SHL,     OF_RM16,  OF_1,     OF_NONE,  1, NOPR, 0xD1, 0x00, 0,  RMC, 4,  0,  0,  0, P86 },
   { TOK_SHL,     OF_RM16,  OF_CL,    OF_NONE,  1, NOPR, 0xD3, 0x00, 0,  RMC, 4,  0,  0,  0, P86 },
+  { TOK_SHL,     OF_RM8,   OF_IMM8,  OF_NONE,  1, NOPR, 0xC0, 0x00, 0,  RMC, 4,  0,  1,  0, P286N },
+  { TOK_SHL,     OF_RM16,  OF_IMM8,  OF_NONE,  1, NOPR, 0xC1, 0x00, 0,  RMC, 4,  0,  1,  0, P286N },
 
   { TOK_SHR,     OF_RM8,   OF_1,     OF_NONE,  1, NOPR, 0xD0, 0x00, 0,  RMC, 5,  0,  0,  0, P86 },
   { TOK_SHR,     OF_RM8,   OF_CL,    OF_NONE,  1, NOPR, 0xD2, 0x00, 0,  RMC, 5,  0,  0,  0, P86 },
   { TOK_SHR,     OF_RM16,  OF_1,     OF_NONE,  1, NOPR, 0xD1, 0x00, 0,  RMC, 5,  0,  0,  0, P86 },
   { TOK_SHR,     OF_RM16,  OF_CL,    OF_NONE,  1, NOPR, 0xD3, 0x00, 0,  RMC, 5,  0,  0,  0, P86 },
+  { TOK_SHR,     OF_RM8,   OF_IMM8,  OF_NONE,  1, NOPR, 0xC0, 0x00, 0,  RMC, 5,  0,  1,  0, P286N },
+  { TOK_SHR,     OF_RM16,  OF_IMM8,  OF_NONE,  1, NOPR, 0xC1, 0x00, 0,  RMC, 5,  0,  1,  0, P286N },
 
   { TOK_STC,     OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0xF9, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
   { TOK_STD,     OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0xFD, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
@@ -617,8 +633,12 @@ static const struct rep {
   int prefix;
   int op;
 } repeats[] = {
+  { TOK_REP,   TOK_INSB },
+  { TOK_REP,   TOK_INSW },
   { TOK_REP,   TOK_MOVSB },
   { TOK_REP,   TOK_MOVSW },
+  { TOK_REP,   TOK_OUTSB },
+  { TOK_REP,   TOK_OUTSW },
   { TOK_REP,   TOK_STOSB },
   { TOK_REP,   TOK_STOSW },
   { TOK_REPE,  TOK_CMPSB },

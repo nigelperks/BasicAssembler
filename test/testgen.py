@@ -215,7 +215,11 @@ instructions_without_operands_286 = [
     "LEAVE",
     "OUTSB",
     "OUTSW",
-    "PUSHA"
+    "PUSHA",
+    "REP INSB",
+    "REP INSW",
+    "REP OUTSB",
+    "REP OUTSW"
 ]
 
 instruction_sets_without_operands = [
@@ -591,7 +595,23 @@ instructions_with_operands_286N = [
     ("IMUL",   "r16",     "r/m16",   "imm8"),
     ("IMUL",   "r16",     "r/m16",   "imm16"),
     ("PUSH",   "imm16",   None,      None),
-    ("PUSH",   "imm8",    None,      None)
+    ("PUSH",   "imm8",    None,      None),
+    ("RCL",    "r/m8",    "imm8",    None),
+    ("RCL",    "r/m16",   "imm8",    None),
+    ("RCR",    "r/m8",    "imm8",    None),
+    ("RCR",    "r/m16",   "imm8",    None),
+    ("ROL",    "r/m8",    "imm8",    None),
+    ("ROL",    "r/m16",   "imm8",    None),
+    ("ROR",    "r/m8",    "imm8",    None),
+    ("ROR",    "r/m16",   "imm8",    None),
+    ("SAL",    "r/m8",    "imm8",    None),
+    ("SAL",    "r/m16",   "imm8",    None),
+    ("SAR",    "r/m8",    "imm8",    None),
+    ("SAR",    "r/m16",   "imm8",    None),
+    ("SHL",    "r/m8",    "imm8",    None),
+    ("SHL",    "r/m16",   "imm8",    None),
+    ("SHR",    "r/m8",    "imm8",    None),
+    ("SHR",    "r/m16",   "imm8",    None)
 ];
 
 instruction_sets_with_operands = [
