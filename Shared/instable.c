@@ -106,7 +106,7 @@ const INSDEF instable[] = {
   { TOK_FBLD,    OF_MEM80, OF_NONE,  OF_NONE,  1, WAIT, 0xDF, 0x00, 0,  MMC, 4,  0,  0,  0, P87 },
   { TOK_FBSTP,   OF_MEM80, OF_NONE,  OF_NONE,  1, WAIT, 0xDF, 0x00, 0,  MMC, 6,  0,  0,  0, P87 },
   { TOK_FCHS,    OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xE0, 0,  RMN, 0,  0,  0,  0, P87 },
-  { TOK_FCLEX,   OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xDB, 0xE2, 0,  RMN, 0,  0,  0,  0, P87 },
+  { TOK_FCLEX,   OF_NONE,  OF_NONE,  OF_NONE,  2, W286, 0xDB, 0xE2, 0,  RMN, 0,  0,  0,  0, P87 },
   { TOK_FNCLEX,  OF_NONE,  OF_NONE,  OF_NONE,  2, NOPR, 0xDB, 0xE2, 0,  RMN, 0,  0,  0,  0, P87 },
 
   { TOK_FCOM,    OF_STI,   OF_NONE,  OF_NONE,  1, WAIT, 0xD8, 0x00, 0,  SIC, 2,  0,  0,  0, P87 },
@@ -124,7 +124,7 @@ const INSDEF instable[] = {
   { TOK_FCOMPP,  OF_NONE,  OF_NONE,  OF_NONE,  1, WAIT, 0xDE, 0x00, 0,  STK, 3,  0,  0,  0, P87 },
 
   { TOK_FDECSTP, OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xF6, 0,  RMN, 0,  0,  0,  0, P87 },
-  { TOK_FDISI,   OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xDB, 0xE1, 0,  RMN, 0,  0,  0,  0, P87 },
+  { TOK_FDISI,   OF_NONE,  OF_NONE,  OF_NONE,  2, W286, 0xDB, 0xE1, 0,  RMN, 0,  0,  0,  0, P87 },
   { TOK_FNDISI,  OF_NONE,  OF_NONE,  OF_NONE,  2, NOPR, 0xDB, 0xE1, 0,  RMN, 0,  0,  0,  0, P87 },
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
@@ -149,7 +149,7 @@ const INSDEF instable[] = {
   { TOK_FDIVRP,  OF_NONE,  OF_NONE,  OF_NONE,  1, WAIT, 0xDE, 0x00, 0,  STK, 6,  0,  0,  0, P87 },
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
-  { TOK_FENI,    OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xDB, 0xE0, 0,  RMN, 0,  0,  0,  0, P87 },
+  { TOK_FENI,    OF_NONE,  OF_NONE,  OF_NONE,  2, W286, 0xDB, 0xE0, 0,  RMN, 0,  0,  0,  0, P87 },
   { TOK_FNENI,   OF_NONE,  OF_NONE,  OF_NONE,  2, NOPR, 0xDB, 0xE0, 0,  RMN, 0,  0,  0,  0, P87 },
 
   { TOK_FFREE,   OF_STI,   OF_NONE,  OF_NONE,  1, WAIT, 0xDD, 0x00, 0,  SIC, 0,  0,  0,  0, P87 },
@@ -180,7 +180,7 @@ const INSDEF instable[] = {
   { TOK_FIMUL,   OF_MEM32, OF_NONE,  OF_NONE,  1, WAIT, 0xDA, 0x00, 0,  MMC, 1,  0,  0,  0, P87 },
 
   { TOK_FINCSTP, OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xF7, 0,  RMN, 0,  0,  0,  0, P87 },
-  { TOK_FINIT,   OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xDB, 0xE3, 0,  RMN, 0,  0,  0,  0, P87 },
+  { TOK_FINIT,   OF_NONE,  OF_NONE,  OF_NONE,  2, W286, 0xDB, 0xE3, 0,  RMN, 0,  0,  0,  0, P87 },
   { TOK_FNINIT,  OF_NONE,  OF_NONE,  OF_NONE,  2, NOPR, 0xDB, 0xE3, 0,  RMN, 0,  0,  0,  0, P87 },
 
   { TOK_FIST,    OF_MEM16, OF_NONE,  OF_NONE,  1, WAIT, 0xDF, 0x00, 0,  MMC, 2,  0,  0,  0, P87 },
@@ -204,7 +204,7 @@ const INSDEF instable[] = {
   { TOK_FLD,     OF_NONE,  OF_NONE,  OF_NONE,  1, WAIT, 0xD9, 0x00, 0,  STK, 0,  0,  0,  0, P87 },
 
   { TOK_FLDCW,   OF_MEM16, OF_NONE,  OF_NONE,  1, WAIT, 0xD9, 0x00, 0,  MMC, 5,  0,  0,  0, P87 },
-  { TOK_FLDENV,  OF_MEM,   OF_NONE,  OF_NONE,  1, WAIT, 0xD9, 0x00, 0,  MMC, 4,  0,  0,  0, P87 },
+  { TOK_FLDENV,  OF_MEM,   OF_NONE,  OF_NONE,  1, WAI2, 0xD9, 0x00, 0,  MMC, 4,  0,  0,  0, P87 },
   { TOK_FLDLG2,  OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xEC, 0,  RMN, 0,  0,  0,  0, P87 },
   { TOK_FLDLN2,  OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xED, 0,  RMN, 0,  0,  0,  0, P87 },
   { TOK_FLDL2E,  OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xEA, 0,  RMN, 0,  0,  0,  0, P87 },
@@ -230,9 +230,11 @@ const INSDEF instable[] = {
   { TOK_FPTAN,   OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xF2, 0,  RMN, 0,  0,  0,  0, P87 },
   { TOK_FRNDINT, OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xFC, 0,  RMN, 0,  0,  0,  0, P87 },
 
-  { TOK_FRSTOR,  OF_MEM,   OF_NONE,  OF_NONE,  1, WAIT, 0xDD, 0x00, 0,  MMC, 4,  0,  0,  0, P87 },
-  { TOK_FSAVE,   OF_MEM,   OF_NONE,  OF_NONE,  1, WAIT, 0xDD, 0x00, 0,  MMC, 6,  0,  0,  0, P87 },
+  { TOK_FRSTOR,  OF_MEM,   OF_NONE,  OF_NONE,  1, WAI2, 0xDD, 0x00, 0,  MMC, 4,  0,  0,  0, P87 },
+
+  // FNSAVE to be found before FSAVE when decoding, when the WAIT has been decoded explicitly
   { TOK_FNSAVE,  OF_MEM,   OF_NONE,  OF_NONE,  1, NOPR, 0xDD, 0x00, 0,  MMC, 6,  0,  0,  0, P87 },
+  { TOK_FSAVE,   OF_MEM,   OF_NONE,  OF_NONE,  1, WAI2, 0xDD, 0x00, 0,  MMC, 6,  0,  0,  0, P87 },
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_FSCALE,  OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xFD, 0,  RMN, 0,  0,  0,  0, P87 },
@@ -253,8 +255,10 @@ const INSDEF instable[] = {
   { TOK_FSTCW,   OF_MEM16, OF_NONE,  OF_NONE,  1, WAIT, 0xD9, 0x00, 0,  MMC, 7,  0,  0,  0, P87 },
   { TOK_FNSTCW,  OF_MEM16, OF_NONE,  OF_NONE,  1, NOPR, 0xD9, 0x00, 0,  MMC, 7,  0,  0,  0, P87 },
 
-  { TOK_FSTENV,  OF_MEM,   OF_NONE,  OF_NONE,  1, WAIT, 0xD9, 0x00, 0,  MMC, 6,  0,  0,  0, P87 },
+  // no-wait form first so it is found first in decoding
+  // so FSTENV is decoded as explicit WAIT then FNSTENV
   { TOK_FNSTENV, OF_MEM,   OF_NONE,  OF_NONE,  1, NOPR, 0xD9, 0x00, 0,  MMC, 6,  0,  0,  0, P87 },
+  { TOK_FSTENV,  OF_MEM,   OF_NONE,  OF_NONE,  1, WAI2, 0xD9, 0x00, 0,  MMC, 6,  0,  0,  0, P87 },
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_FSTSW,   OF_MEM16, OF_NONE,  OF_NONE,  1, WAIT, 0xDD, 0x00, 0,  MMC, 7,  0,  0,  0, P87 },

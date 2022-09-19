@@ -23,9 +23,13 @@ enum modrm {
   STK,  // classic stack: FADD = FADDP ST(1), ST: mod = 3, reg constant, rm constant 1
 };
 
-enum wait_prefix { NOPR, WAIT, WAIT_PREFIXES };
-
-BYTE opcode_prefix_code(int opcode_prefix);
+enum wait_prefix {
+  NOPR,  // no WAIT prefix
+  WAIT,  // WAIT prefix for 8086
+  W286,  // WAIT prefix for 286 also
+  WAI2,  // 2 WAIT for 8086
+  WAIT_PREFIXES  // count
+};
 
 #define WAIT_OPCODE (0x9B)
 
@@ -39,7 +43,7 @@ typedef struct {
   short oper2;      // flag indicating type of second operand (OF_NONE if none)
   short oper3;      // flag indicating type of third operand (OF_NONE if none)
   char opcodes;     // number of opcode bytes
-  char opcode_prefix;  // can be WAIT for FPU
+  char wait_prefix;
   BYTE opcode1;     // first opcode byte
   BYTE opcode2;     // second opcode byte, if any
   char opcode_inc;  // the register operand to add to opcode1 to get the opcode value (0 neither)

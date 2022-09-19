@@ -1219,11 +1219,8 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
   unsigned i = 0;
   BYTE sreg_code;
 
-  // The WAIT pre-opcode comes first: it is really a separate instruction.
-  if (irec->def->opcode_prefix) {
-    if (!wait_precedes(ifile))
-      buf[i++] = opcode_prefix_code(irec->def->opcode_prefix);
-  }
+  for (unsigned j = 0; j < wait_needed(state, irec->def); j++)
+    buf[i++] = WAIT_OPCODE;
 
   if (irec->rep != TOK_NONE)
     buf[i++] = repeat_code(irec->rep);

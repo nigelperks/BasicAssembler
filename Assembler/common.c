@@ -106,11 +106,6 @@ void select_cpu(STATE* state, int op) {
   }
 }
 
-bool wait_precedes(const IFILE* ifile) {
-  int op;
-  return ifile->pos > 0 && ((op = ifile->recs[ifile->pos - 1].op) == TOK_WAIT || op == TOK_FWAIT);
-}
-
 void define_dollar(STATE* state, IFILE* ifile) {
   SYMBOL* sym = sym_lookup(ifile->st, "$");
   assert(sym != NULL);
@@ -234,4 +229,17 @@ size_t tbyte_expr_size(int type, VALUE* val, BOOL *init) {
   }
 
   return size;
+}
+
+unsigned wait_needed(STATE* state, const INSDEF* def) {
+  assert(state != NULL);
+  assert(def != NULL);
+  switch (def->wait_prefix) {
+    case NOPR: return 0;
+    case W286: return 1;
+    case WAIT: return cpu_enabled(state->cpu, P286N) ? 0 : 1;
+    case WAI2: return cpu_enabled(state->cpu, P286N) ? 1 : 2;
+  }
+  fatal("internal error: %s: %d: unknown WAIT prefix category: %d\n", __FILE__, __LINE__, def->wait_prefix);
+  return false;
 }

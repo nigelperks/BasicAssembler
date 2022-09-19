@@ -1046,42 +1046,6 @@ def produce_tasm_references(config, files, keepDosBox):
 # RUN TESTS #
 #############
 
-def test_disassembler(tools, binName, cpu):
-    checksys("%s -s %s > dis.out" % (tools["bdis"], binName))
-
-    d = open("distest.asm", "w")
-    d.write("IDEAL\n")
-    d.write("SEGMENT image\n")
-    d.write("ASSUME  CS:image, DS:image, SS:image, ES:image\n")
-    d.write("ORG     0100h\n")
-    if cpu is not None:
-        d.write("    %s\n" % cpu)
-    d.write("start:\n")
-
-    e = open("dis.out")
-    dislines = e.readlines()
-    i = 0
-    while i < len(dislines):
-        line = dislines[i]
-#       lo = line.strip().lower()
-#       if "xchg" in lo and "ax, ax" in lo:
-#           line = "nop\n"
-#       elif lo == "rep" or lo == "repe" or lo == "repne":
-#           i += 1
-#           line = lo + " " + dislines[i]
-        d.write(line)
-        i += 1
-    e.close()
-
-    d.write("ENDS\n")
-    d.write("END     start\n")
-    d.close()
-
-    check("%s distest.asm" % tools["bas"])
-    check("%s distest.obj -o distest.bin" % tools["blink"])
-    check("fc /b %s distest.bin" % binName)
-
-
 def test_file(config, tools, name, cpu):
   print()
   banner(name)
@@ -1093,7 +1057,6 @@ def test_file(config, tools, name, cpu):
   check("%s %s.asm" % (tools["bas"], name))
   check("%s %s.obj" % (tools["blink"], name))
   check("fc /b %s a.com" % refName)
-  test_disassembler(tools, "a.com", cpu)
 
 
 def test_files(config, tools, files):
@@ -1139,7 +1102,7 @@ def main(argv):
   if executables is None or not os.path.isdir(executables):
     fatal("Usage: testgen.py executables-directory [pattern]")
 
-  tools = find_tools(executables, ["bas","blink","bdis"])
+  tools = find_tools(executables, ["bas","blink"])
   print_tools(tools)
   config = load_root_config(CONFIG_NAME)
 

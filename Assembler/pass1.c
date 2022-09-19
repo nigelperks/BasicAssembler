@@ -1062,10 +1062,7 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
 
   compute_instruction_segment_override_size(state, ifile, irec, lex, &oper1, &oper2);
 
-  if (irec->def->opcode_prefix) {
-    if (!wait_precedes(ifile))
-      irec->size += 1;
-  }
+  irec->size += wait_needed(state, irec->def);
 
   irec->size += irec->def->opcodes;
 
