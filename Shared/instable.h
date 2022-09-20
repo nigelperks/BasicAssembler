@@ -33,7 +33,7 @@ enum wait_prefix {
 
 #define WAIT_OPCODE (0x9B)
 
-enum cpu { P86, P87, P286N };
+enum cpu { P86, P87, P286N, P286P };
 
 bool cpu_enabled(unsigned mask, int cpu);
 

@@ -209,7 +209,7 @@ instructions_without_operands_8087 = [
     "FWAIT"
 ]
 
-instructions_without_operands_286 = [
+instructions_without_operands_286N = [
     "INSB",
     "INSW",
     "LEAVE",
@@ -222,10 +222,15 @@ instructions_without_operands_286 = [
     "REP OUTSW"
 ]
 
+instructions_without_operands_286P = [
+    "CLTS"
+]
+
 instruction_sets_without_operands = [
   (instructions_without_operands_8086, None),
   (instructions_without_operands_8087, None),
-  (instructions_without_operands_286, "P286N")
+  (instructions_without_operands_286N, "P286N"),
+  (instructions_without_operands_286P, "P286")
 ]
 
 instructions_with_operands_8086 = [
@@ -588,7 +593,6 @@ instructions_with_operands_8087 = [
 ];
 
 instructions_with_operands_286N = [
-    # ENTER
     ("BOUND",  "r16",     "m16",     None),
     ("ENTER",  "imm16",   "imm8u",   None),
     ("IMUL",   "r16",     "imm8",    None),
@@ -612,13 +616,32 @@ instructions_with_operands_286N = [
     ("SHL",    "r/m16",   "imm8",    None),
     ("SHR",    "r/m8",    "imm8",    None),
     ("SHR",    "r/m16",   "imm8",    None)
-];
+]
+
+instructions_with_operands_286P = [
+    ("ARPL",   "r/m16",   "r16",     None),
+    ("LAR",    "r16",     "r/m16",   None),
+    ("LGDT",   "m16:32",  None,      None),
+    ("LIDT",   "m16:32",  None,      None),
+    ("LLDT",   "r/m16",   None,      None),
+    ("LMSW",   "r/m16",   None,      None),
+    ("LSL",    "r16",     "r/m16",   None),
+    ("LTR",    "r/m16",   None,      None),
+    ("SGDT",   "m16:32",  None,      None),
+    ("SIDT",   "m16:32",  None,      None),
+    ("SLDT",   "r/m16",   None,      None),
+    ("SMSW",   "r/m16",   None,      None),
+    ("STR",    "r/m16",   None,      None),
+    ("VERR",   "r/m16",   None,      None),
+    ("VERW",   "r/m16",   None,      None)
+]
 
 instruction_sets_with_operands = [
     (instructions_with_operands_8086, None),
     (instructions_with_operands_8087, None),
-    (instructions_with_operands_286N, "P286N")
-];
+    (instructions_with_operands_286N, "P286N"),
+    (instructions_with_operands_286P, "P286")
+]
 
 
 ##################
@@ -723,8 +746,8 @@ def generate_operands(spec):
         result = generate_mem("word")
     elif spec == "m":
         result = generate_mem("")
-    elif spec == "m16:16":
-        result = generate_mem("")
+    elif spec == "m16:32":
+        result = generate_mem_addr16("fword")
     elif spec == "r/m8":
         result = generate_rm("byte")
     elif spec == "r/m16":
@@ -781,7 +804,7 @@ def generate_operands(spec):
 # which operands generate so many combinations
 # that instructions using them exceed a 64K segment
 def multi_file_operand(op):
-    return op in ["r/m8", "r/m16", "m8", "m16", "m", "m16:16"]
+    return op in ["r/m8", "r/m16", "m8", "m16", "m"]
 
 
 def generate_instruction(ins, n, files, cpu):

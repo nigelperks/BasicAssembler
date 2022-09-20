@@ -213,7 +213,7 @@ int lex_next(LEX* lex) {
     lex->lexeme[i++] = '\'';
     lex->lexeme[i] = '\0';
     lex->pos++;
-    return lex->token = TOK_STR;
+    return lex->token = TOK_STRING;
   }
 
   if (strchr(":+-*/,()[]?=", c)) {
@@ -229,7 +229,7 @@ size_t lex_string_len(LEX* lex) {
   size_t len;
 
   assert(lex != NULL);
-  assert(lex->token == TOK_STR);
+  assert(lex->token == TOK_STRING);
   assert(lex->lexeme[0] == '\'');
 
   len = strlen(lex->lexeme);
@@ -374,8 +374,8 @@ static void test_get_token(CuTest* tc) {
   CuAssertIntEquals(tc, TOK_SREG, lex->token);
   CuAssertIntEquals(tc, SR_DS, lex->val.reg);
 
-  CuAssertIntEquals(tc, TOK_STR, lex_next(lex));
-  CuAssertIntEquals(tc, TOK_STR, lex->token);
+  CuAssertIntEquals(tc, TOK_STRING, lex_next(lex));
+  CuAssertIntEquals(tc, TOK_STRING, lex->token);
   CuAssertStrEquals(tc, "'sam smith'", lex->lexeme);
 
   CuAssertIntEquals(tc, TOK_EOL, lex_next(lex));
@@ -395,7 +395,7 @@ static void test_string(CuTest* tc) {
   size_t len = 0;
 
   sprintf(lex.lexeme, "'%s'", STRING);
-  lex.token = TOK_STR;
+  lex.token = TOK_STRING;
 
   CuAssertIntEquals(tc, LEN, lex_string_len(&lex));
 

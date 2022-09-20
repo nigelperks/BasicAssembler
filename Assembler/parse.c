@@ -574,6 +574,7 @@ static const struct data_size {
   { TOK_BYTE,   1, OF_RM8,  OF_MEM8 },
   { TOK_WORD,   2, OF_RM16, OF_MEM16 },
   { TOK_DWORD,  4, OF_RM32, OF_MEM32 },
+  { TOK_FWORD,  6, OF_RM48, OF_MEM48 },
   { TOK_QWORD,  8, OF_RM64, OF_MEM64 },
   { TOK_TBYTE, 10, OF_RM80, OF_MEM80 },
   // end marker
@@ -795,7 +796,7 @@ static AST* primitive_expr(STATE* state, IFILE* ifile, LEX* lex) {
         node->u.label = sym_insert_unknown(ifile->st, lex_lexeme(lex));
       lex_next(lex);
       break;
-    case TOK_STR:
+    case TOK_STRING:
       node = new_ast(AST_STRING);
       node->u.string.content = lex_string_content(lex, &node->u.string.len);
       assert(node->u.string.content != NULL || node->u.string.len == 0);

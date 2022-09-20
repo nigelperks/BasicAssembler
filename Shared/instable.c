@@ -44,6 +44,8 @@ const INSDEF instable[] = {
   { TOK_AND,     OF_REG16, OF_RM,    OF_NONE,  1, NOPR, 0x23, 0x00, 0,  RRM, 0,  0,  0,  0, P86 },
   { TOK_AND,     OF_RM,    OF_REG16, OF_NONE,  1, NOPR, 0x21, 0x00, 0,  RMR, 0,  0,  0,  0, P86 },
 
+  { TOK_ARPL,    OF_RM16,  OF_REG16, OF_NONE,  1, NOPR, 0x63, 0x00, 0,  RMR, 0,  0,  0,  0, P286P },
+
   { TOK_BOUND,   OF_REG16, OF_RM16,  OF_NONE,  1, NOPR, 0x62, 0x00, 0,  RRM, 0,  0,  0,  0, P286N },
 
   { TOK_CALL,    OF_JUMP,  OF_NONE,  OF_NONE,  1, NOPR, 0xE8, 0x00, 0,  RMN, 0,  2,  0,  0, P86 },
@@ -56,6 +58,8 @@ const INSDEF instable[] = {
   { TOK_CLD,     OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0xFC, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
   { TOK_CLI,     OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0xFA, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
   { TOK_CMC,     OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0xF5, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
+
+  { TOK_CLTS,    OF_NONE,  OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x06, 0,  RMN, 0,  0,  0,  0, P286P },
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_CMP,     OF_AL,    OF_IMM,   OF_NONE,  1, NOPR, 0x3C, 0x00, 0,  RMN, 0,  0,  1,  0, P86 },
@@ -371,11 +375,20 @@ const INSDEF instable[] = {
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_LAHF,    OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x9F, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
 
+  { TOK_LAR,     OF_REG16, OF_RM,    OF_NONE,  2, NOPR, 0x0F, 0x02, 0,  RRM, 0,  0,  0,  0, P286P },
+
   // Optimize LEA r16, [addr] to MOV r16, OFFSET addr
   { TOK_LEA,     OF_REG16, OF_INDIR, OF_NONE,  1, NOPR, 0xB8, 0x00, 1,  RMN, 0,  0,  0,  0, P86 },
   { TOK_LEA,     OF_REG16, OF_MEM,   OF_NONE,  1, NOPR, 0x8D, 0x00, 0,  RRM, 0,  0,  0,  0, P86 },
 
   { TOK_LEAVE,   OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0xC9, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
+
+  { TOK_LGDT,    OF_MEM48, OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x01, 0,  RMC, 2,  0,  0,  0, P286P },
+  { TOK_LIDT,    OF_MEM48, OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x01, 0,  RMC, 3,  0,  0,  0, P286P },
+  { TOK_LLDT,    OF_RM16,  OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x00, 0,  RMC, 2,  0,  0,  0, P286P },
+  { TOK_LMSW,    OF_RM16,  OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x01, 0,  RMC, 6,  0,  0,  0, P286P },
+  { TOK_LSL,     OF_REG16, OF_RM,    OF_NONE,  2, NOPR, 0x0F, 0x03, 0,  RRM, 0,  0,  0,  0, P286P },
+  { TOK_LTR,     OF_RM16,  OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x00, 0,  RMC, 3,  0,  0,  0, P286P },
 
   { TOK_LOCK,    OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0xF0, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
 
@@ -539,6 +552,12 @@ const INSDEF instable[] = {
   { TOK_SHL,     OF_RM8,   OF_IMM8,  OF_NONE,  1, NOPR, 0xC0, 0x00, 0,  RMC, 4,  0,  1,  0, P286N },
   { TOK_SHL,     OF_RM16,  OF_IMM8,  OF_NONE,  1, NOPR, 0xC1, 0x00, 0,  RMC, 4,  0,  1,  0, P286N },
 
+  { TOK_SGDT,    OF_MEM48, OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x01, 0,  RMC, 0,  0,  0,  0, P286P },
+  { TOK_SIDT,    OF_MEM48, OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x01, 0,  RMC, 1,  0,  0,  0, P286P },
+  { TOK_SLDT,    OF_RM16,  OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x00, 0,  RMC, 0,  0,  0,  0, P286P },
+  { TOK_SMSW,    OF_RM16,  OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x01, 0,  RMC, 4,  0,  0,  0, P286P },
+  { TOK_STR,     OF_RM16,  OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x00, 0,  RMC, 1,  0,  0,  0, P286P },
+
   { TOK_SHR,     OF_RM8,   OF_1,     OF_NONE,  1, NOPR, 0xD0, 0x00, 0,  RMC, 5,  0,  0,  0, P86 },
   { TOK_SHR,     OF_RM8,   OF_CL,    OF_NONE,  1, NOPR, 0xD2, 0x00, 0,  RMC, 5,  0,  0,  0, P86 },
   { TOK_SHR,     OF_RM16,  OF_1,     OF_NONE,  1, NOPR, 0xD1, 0x00, 0,  RMC, 5,  0,  0,  0, P86 },
@@ -574,6 +593,9 @@ const INSDEF instable[] = {
   { TOK_TEST,    OF_REG16, OF_RM,    OF_NONE,  1, NOPR, 0x85, 0x00, 0,  RRM, 0,  0,  0,  0, P86 },
   { TOK_TEST,    OF_RM,    OF_REG8,  OF_NONE,  1, NOPR, 0x84, 0x00, 0,  RMR, 0,  0,  0,  0, P86 },
   { TOK_TEST,    OF_RM,    OF_REG16, OF_NONE,  1, NOPR, 0x85, 0x00, 0,  RMR, 0,  0,  0,  0, P86 },
+
+  { TOK_VERR,    OF_RM16,  OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x00, 0,  RMC, 4,  0,  0,  0, P286P },
+  { TOK_VERW,    OF_RM16,  OF_NONE,  OF_NONE,  2, NOPR, 0x0F, 0x00, 0,  RMC, 5,  0,  0,  0, P286P },
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_WAIT,    OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x9B, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },

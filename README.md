@@ -156,6 +156,8 @@ Directives:
 - JUMPS    -- expand conditional jumps when out of short range
 - MODEL    -- set memory model
 - ORG      -- set segment origin (use 100h for main segment of COM program)
+- P286     -- select 80286 instructions including protected mode and 8087
+- P286N    -- select 80286 non-protected instructions including 8087
 - P8086    -- select 8086 instructions including 8087
 - P8087    -- re-enable 8087 instructions after PNO87
 - PNO87    -- disable 8087 instructions
@@ -209,6 +211,7 @@ and Loaders_.
 - Borland _Turbo Assembler Quick Reference_, version 4.0, 1993
 - Borland _Turbo Assembler User's Guide_, version 4.0, 1993
 - Intel _iAPX 86/88, 186/188 User's Manual: Programmer's Reference_, 1983
+- Intel _80286 and 80287 Programmer's Reference Manual_, 1987
 - Intel _80387 Programmer's Reference Manual_, 1987
 - Kusswurm, Daniel _Modern X86 Assembly Language Programming_, 2014
 - Levine, John R. _Linkers & Loaders_, 2000

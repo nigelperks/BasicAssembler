@@ -218,6 +218,7 @@ static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
     case TOK_SEGMENT: do_segment(state, ifile, lex); break;
     case TOK_UDATASEG: do_udataseg(state, ifile, lex); break;
     // select processor
+    case TOK_P286:
     case TOK_P286N:
     case TOK_P8086:
     case TOK_P8087:
@@ -1043,9 +1044,10 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
   irec->def = find_instruc(irec->op, &oper1.opclass, &oper2.opclass, &oper3.opclass);
 
   if (irec->def == NULL) {
-    error2(state, lex, "instruction not supported with given operands: %s", token_name(irec->op));
+    const char* hint = "";
     if (has_flag(&oper1, OF_MEM) || has_flag(&oper2, OF_MEM))
-      error2(state, lex, "suggestion: try type override");
+      hint = " (type override?)";
+    error2(state, lex, "instruction not supported with given operands%s: %s", hint, token_name(irec->op));
     lex_discard_line(lex);
     return;
   }

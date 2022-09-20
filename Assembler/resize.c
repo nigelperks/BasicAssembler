@@ -131,6 +131,7 @@ static BOOL perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
     case TOK_DQ: define_data(state, ifile, irec, lex, "qword", qword_expr_size); break;
     case TOK_DT: define_data(state, ifile, irec, lex, "tbyte", tbyte_expr_size); break;
     // select processor
+    case TOK_P286:
     case TOK_P286N:
     case TOK_P8086:
     case TOK_P8087:

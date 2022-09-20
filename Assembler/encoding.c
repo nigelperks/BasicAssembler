@@ -303,6 +303,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     case TOK_SEGMENT: do_segment(state, ifile, irec, lex, ofile); break;
     case TOK_UDATASEG: do_udataseg(state, ifile, lex, ofile); break;
     // select processor
+    case TOK_P286:
     case TOK_P286N:
     case TOK_P8086:
     case TOK_P8087:

@@ -25,6 +25,7 @@ enum operand_flag {
   OF_RM8,
   OF_RM16,
   OF_RM32,
+  OF_RM48,
   OF_RM64,
   OF_RM80,
   OF_AL,    // register
@@ -38,6 +39,7 @@ enum operand_flag {
   OF_MEM8,
   OF_MEM16,
   OF_MEM32,
+  OF_MEM48,
   OF_MEM64,
   OF_MEM80,
   OF_INDIR,

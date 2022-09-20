@@ -418,6 +418,7 @@ static unsigned operand_flag_size(int flag) {
     { OF_RM8, 1 },
     { OF_RM16, 2 },
     { OF_RM32, 4 },
+    { OF_RM48, 6 },
     { OF_RM64, 8 },
     { OF_RM80, 10 },
     // register
@@ -434,6 +435,7 @@ static unsigned operand_flag_size(int flag) {
     { OF_MEM8, 1 },
     { OF_MEM16, 2 },
     { OF_MEM32, 4 },
+    { OF_MEM48, 6 },
     { OF_MEM64, 8 },
     { OF_MEM80, 10 },
     { OF_INDIR, 0 },
@@ -491,6 +493,9 @@ static void print_operand(int opno, int flag, unsigned rm_size, int sreg_overrid
   case OF_RM32:
     print_rm_operand(op, 4, sreg_override);
     break;
+  case OF_RM48:
+    print_rm_operand(op, 6, sreg_override);
+    break;
   case OF_RM64:
     print_rm_operand(op, 8, sreg_override);
     break;
@@ -539,6 +544,10 @@ static void print_operand(int opno, int flag, unsigned rm_size, int sreg_overrid
   case OF_MEM32:
     check_operand_type(opno, op, OT_MEM);
     print_rm_operand(op, 4, sreg_override);
+    break;
+  case OF_MEM48:
+    check_operand_type(opno, op, OT_MEM);
+    print_rm_operand(op, 6, sreg_override);
     break;
   case OF_MEM64:
     check_operand_type(opno, op, OT_MEM);
