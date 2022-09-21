@@ -1,5 +1,5 @@
-BASIC INTEL 8086 ASSEMBLER AND LINKER
-=====================================
+# BASIC INTEL 8086/286 ASSEMBLER AND LINKER
+
 Basic assembler and related tools written for self-education.
 
 Please see LICENSE.
@@ -14,7 +14,7 @@ Please see LICENSE.
 
 
 ## 1. How to build
----------------
+
 I am using **autocrlf=true** (CRLF on disk, LF committed).
 Developed on Windows with Microsoft Visual Studio Community Edition.
 Visual Studio solution file is included.
@@ -24,7 +24,7 @@ and for unit-testing.
 
 
 ## 2. How to test
---------------
+
 Unit tests:
 
     bas -unittest
@@ -45,10 +45,10 @@ where ..\Debug holds the builds to be tested.
 
 
 ## 3. How to use
--------------
+
 No user documentation yet.
 
-Executables in Debug (32-bit) and x64\Debug (64-bit).
+Executables in Debug, Release (32-bit); x64\Debug, x64\Release (64-bit).
 
 ### Basic Assembler and Linker (driver)
 
@@ -122,8 +122,9 @@ Enter '?' in interactive mode for help; d = dump, s = disassemble.
 
 
 ## 4. Language supported
----------------------
-All 8086 and 8087 instructions.
+
+All 80286 and 80287 instructions.
+The default mode is 8086/87 only.
 
 A line is free format: no fixed column for labels.
 Instruction names and directives are reserved, not available for labels.
@@ -156,8 +157,9 @@ Directives:
 - JUMPS    -- expand conditional jumps when out of short range
 - MODEL    -- set memory model
 - ORG      -- set segment origin (use 100h for main segment of COM program)
-- P286     -- select 80286 instructions including protected mode and 8087
-- P286N    -- select 80286 non-protected instructions including 8087
+- P286     -- select 80286 instructions including protected mode and 80287
+- P286N    -- select 80286 non-protected instructions including 80287
+- P287     -- enable 80287 instructions
 - P8086    -- select 8086 instructions including 8087
 - P8087    -- re-enable 8087 instructions after PNO87
 - PNO87    -- disable 8087 instructions
@@ -170,7 +172,7 @@ Predefined symbols:
 
 
 ## 5. Memory model
----------------
+
 (1) Simplified model:
 
 MODEL TINY
@@ -193,7 +195,7 @@ GROUP group_name  segment1, segment2, ...
 
 
 ## 6. Design choices
------------------
+
 1. The aim was to write my own assembler and linker from scratch.
 2. Target 16-bit MS-DOS to get something simple working.
 3. Implemented in C so that a future C compiler can compile itself.
@@ -204,7 +206,7 @@ GROUP group_name  segment1, segment2, ...
 
 
 ## 7. References
--------------
+
 The single most instructive and inspiring text was David Salomon's _Assemblers
 and Loaders_.
 

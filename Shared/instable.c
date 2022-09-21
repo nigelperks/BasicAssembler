@@ -242,6 +242,7 @@ const INSDEF instable[] = {
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_FSCALE,  OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xFD, 0,  RMN, 0,  0,  0,  0, P87 },
+  { TOK_FSETPM,  OF_NONE,  OF_NONE,  OF_NONE,  2, W286, 0xDB, 0xE4, 0,  RMN, 0,  0,  0,  0, P287 },
   { TOK_FSQRT,   OF_NONE,  OF_NONE,  OF_NONE,  2, WAIT, 0xD9, 0xFA, 0,  RMN, 0,  0,  0,  0, P87 },
 
   { TOK_FST,     OF_MEM32, OF_NONE,  OF_NONE,  1, WAIT, 0xD9, 0x00, 0,  MMC, 2,  0,  0,  0, P87 },

@@ -226,11 +226,16 @@ instructions_without_operands_286P = [
     "CLTS"
 ]
 
+instructions_without_operands_287 = [
+    "FSETPM"
+]
+
 instruction_sets_without_operands = [
   (instructions_without_operands_8086, None),
   (instructions_without_operands_8087, None),
   (instructions_without_operands_286N, "P286N"),
-  (instructions_without_operands_286P, "P286")
+  (instructions_without_operands_286P, "P286"),
+  (instructions_without_operands_287, "P286N")
 ]
 
 instructions_with_operands_8086 = [

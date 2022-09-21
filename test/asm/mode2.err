@@ -1,0 +1,19 @@
+Error: mode2.asm: 12: instruction not supported on selected processor:
+    fsetpm      ; 287 ERROR
+                ^
+Error: mode2.asm: 16: instruction not supported on selected processor:
+    fadd        ; ERROR
+                ^
+Error: mode2.asm: 17: instruction not supported on selected processor:
+    fsetpm      ; ERROR
+                ^
+Error: mode2.asm: 26: instruction not supported on selected processor:
+    fadd        ; ERROR
+                ^
+Error: mode2.asm: 27: instruction not supported on selected processor:
+    fsetpm      ; ERROR
+                ^
+Error: mode2.asm: 30: instruction not supported on selected processor:
+    fsetpm      ; 287 ERROR
+                ^
+Errors: 6

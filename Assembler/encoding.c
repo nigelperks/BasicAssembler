@@ -305,6 +305,7 @@ static void perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     // select processor
     case TOK_P286:
     case TOK_P286N:
+    case TOK_P287:
     case TOK_P8086:
     case TOK_P8087:
     case TOK_PNO87:
