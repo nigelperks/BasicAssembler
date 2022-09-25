@@ -30,6 +30,7 @@ Unit tests:
     bas -unittest
     blink -unittest
     basl -unittest
+    bdis -unittest
 
 Functional & system tests:
 
@@ -40,6 +41,11 @@ Generated tests (if suitable reference assembler & linker are installed):
 
     cd test
     testgen.py ..\Debug
+
+Generated tests of disassembler (do not require reference assembler):
+
+    cd test
+    testdis.py ..\Debug
 
 where ..\Debug holds the builds to be tested.
 
@@ -100,6 +106,7 @@ Driver program, invoking bas and blink to assemble and link.
       -b            -- raw binary, not COM
       -i            -- interactive mode
       -s            -- show assembly source only, not offsets or machine code
+      -unittest     -- run unit tests (using CuTest) and quit
 
 Interactive disassembly allows user-controlled interleaving
 of disassembly and hex dump, to view code and data in a COM file.

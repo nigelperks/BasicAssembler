@@ -7,28 +7,54 @@
 
 #include "instable.h"
 
+typedef struct {
+  short rm;
+  short reg;
+  short mod;
+  short disp_size;
+  WORD disp;
+} MODRM;
+
+void decode_modrm(BYTE, MODRM*);
+
+// One INSDEF in a list.
 struct insdef_node {
   const INSDEF* def;
   struct insdef_node * next;
 };
 
+// List of INSDEF having same second opcode, or all having no second opcode,
+// for the same first opcode.
+typedef struct opcode2_node {
+  BYTE opcode2;
+  bool has_modrm;
+  struct insdef_node * first_def;
+  struct insdef_node * last_def; // to add on the end in order of instable
+  struct opcode2_node * next;
+} OPCODE2_INFO;
+
+// Lists of INSDEF having same first opcode.
+// The opcode is not a field: this structure will be in an array indexed by opcode.
 typedef struct {
   char opcode_inc;
   BYTE opcode_base;
-  bool opcode2_or_modrm;
-  struct insdef_node * defs;
-} OPCODE_INFO;
+  bool has_opcode2;
+  OPCODE2_INFO* first_opcode2;
+} OPCODE1_INFO;
 
+// Decoding information indexed by first opcode.
 typedef struct {
-  OPCODE_INFO opcodes[0x100];
+  OPCODE1_INFO opcodes[0x100];
 } DECODER;
 
-const DECODER* build_decoder(void);
+DECODER* build_decoder(void);
+void delete_decoder(DECODER*);
 
-const OPCODE_INFO* opcode_info(const DECODER*, BYTE opcode);
+const OPCODE1_INFO* opcode1_info(const DECODER*, BYTE opcode1);
+const OPCODE2_INFO* opcode2_info(const OPCODE1_INFO*, BYTE opcode2);
+const OPCODE2_INFO* no_opcode2_info(const OPCODE1_INFO*);
 
-const INSDEF* find_unique(const OPCODE_INFO*);
-const INSDEF* find_opcode2(const OPCODE_INFO*, bool waiting, BYTE opcode2);
-const INSDEF* find_modrm(BYTE opcode, const OPCODE_INFO*, bool waiting, int mod, int reg, int rm);
+const INSDEF* opcode2_no_modrm(int opcode1, const OPCODE2_INFO*);
+const INSDEF* opcode2_find_modrm(const OPCODE2_INFO*, BYTE modrm);
 
 #endif // DECODER_H

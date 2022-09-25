@@ -1090,6 +1090,7 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
       case SIC:
       case STC:
       case STK:
+      case CCC:
         break;
       default:
         fatal("internal error: %s: %d: unknown modrm type: %d\n", __FILE__, __LINE__, irec->def->modrm);

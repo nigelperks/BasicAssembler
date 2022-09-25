@@ -17,7 +17,7 @@
 #include "object.h"
 
 #ifdef UNIT_TEST
-void RunAllTests(void);
+static void RunAllTests(void);
 #endif
 
 static char* default_object_name(const char* source);
@@ -147,7 +147,7 @@ extern CuSuite* operand_class_test_suite(void);
 extern CuSuite* parse_test_suite(void);
 extern CuSuite* encoding_test_suite(void);
 
-void RunAllTests(void) {
+static void RunAllTests(void) {
   CuString *output = CuStringNew();
   CuSuite* suite = CuSuiteNew();
 

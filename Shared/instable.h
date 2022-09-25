@@ -21,6 +21,7 @@ enum modrm {
   SIC,  // ST(i):     mod == 3, reg constant, RM = REGISTER i
   STC,  // ST:        mod == 3, reg constant, RM = REGISTER 0
   STK,  // classic stack: FADD = FADDP ST(1), ST: mod = 3, reg constant, rm constant 1
+  CCC,  // constant ModR/M (in opcode2 field)
 };
 
 enum wait_prefix {
@@ -43,7 +44,7 @@ enum cpu_mask {
   M_287 = 1 << P287,
 };
 
-bool cpu_enabled(unsigned mask, int cpu);
+bool cpu_enabled(unsigned state_mask, int cpu);
 
 typedef struct {
   short op;         // token

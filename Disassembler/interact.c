@@ -47,7 +47,6 @@ typedef struct {
   MEMORY* mem;
   DWORD ip;
   int mode;
-  bool waiting;
 } STATE;
 
 #define PAGE (16)
@@ -63,7 +62,6 @@ void interact(const DECODER* dec, const char* fileName, DWORD origin) {
   state.mem = load_image(fileName, origin);
   state.ip = origin;
   state.mode = DISASSEMBLING;
-  state.waiting = false;
 
   disassemble_page(&state);
 
@@ -135,7 +133,6 @@ static void set_ip(STATE* state, const char* inp) {
   if (val > state->mem->size)
     val = state->mem->size;
   state->ip = val;
-  state->waiting = false;
 }
 
 static bool disassemble_one_instruction(STATE*);
@@ -155,7 +152,7 @@ static bool disassemble_one_instruction(STATE* state) {
   }
 
   DECODED dec;
-  int err = decode_instruction(state->dec, state->mem->data + state->ip, state->mem->size - state->ip, state->waiting, &dec);
+  int err = decode_instruction(state->dec, state->mem->data + state->ip, state->mem->size - state->ip, &dec);
   if (err) {
     puts(decoding_error(err));
     return false;
@@ -169,7 +166,6 @@ static bool disassemble_one_instruction(STATE* state) {
 
   print_assembly(state->ip, &dec);
   putchar('\n');
-  state->waiting = (dec.def->opcode1 == WAIT_OPCODE);
   state->ip += dec.len;
   return true;
 }
@@ -177,7 +173,6 @@ static bool disassemble_one_instruction(STATE* state) {
 static void dump_one_line(STATE*);
 
 static void dump_page(STATE* state) {
-  state->waiting = false;
   for (unsigned i = 0; i < PAGE; i++) {
     dump_one_line(state);
     if (state->ip >= state->mem->size) {

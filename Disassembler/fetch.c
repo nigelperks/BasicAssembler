@@ -15,6 +15,7 @@ const char* fetch_error_string(int err) {
     case FETCH_ERR_BUFFER_TOO_SMALL: s = "instruction fetch buffer is too small"; break;
     case FETCH_ERR_TOO_MANY_PREFIXES: s = "instruction has too many prefixes"; break;
     case FETCH_ERR_UNKNOWN_OPCODE: s = "unknown opcode"; break;
+    case FETCH_ERR_UNKNOWN_OPCODE2: s = "unknown second opcode"; break;
     case FETCH_ERR_NO_MODRM_MATCH: s = "no instruction matching ModR/M value"; break;
   }
 
@@ -30,7 +31,7 @@ static bool nobyte(FILE*, const char* descrip, bool print_hex, BYTE *val);
 // Fetch a complete encoded instruction from file into buffer.
 // On exit: *len == number of bytes fetched (decoded).
 // Return FETCH_ error code.
-int fetch_instruction(const DECODER* dec, FILE* fp, bool waiting, bool print_hex, BYTE* buf, size_t bufsz, unsigned *len) {
+int fetch_instruction(const DECODER* dec, FILE* fp, bool print_hex, BYTE* buf, size_t bufsz, unsigned *len) {
     assert(dec != NULL);
     assert(fp != NULL);
     assert(buf != NULL);
@@ -45,7 +46,7 @@ int fetch_instruction(const DECODER* dec, FILE* fp, bool waiting, bool print_hex
     if (nobyte(fp, "opcode or prefix", false, &first_byte))
       return FETCH_ERR_EOF;
 
-    const OPCODE_INFO* info = NULL;
+    const OPCODE1_INFO* info = NULL;
     BYTE opcode1;
     unsigned i = 0;
 
@@ -86,51 +87,59 @@ int fetch_instruction(const DECODER* dec, FILE* fp, bool waiting, bool print_hex
       return FETCH_OK;
     }
 
-    info = opcode_info(dec, opcode1);
+    info = opcode1_info(dec, opcode1);
     if (info == NULL) {
       *len = i;
       return FETCH_ERR_UNKNOWN_OPCODE;
     }
 
-    assert(info != NULL);
-    assert(info->defs != NULL);
-
-    const INSDEF* def = NULL;
-
-    if (info->opcode2_or_modrm) {
+    const OPCODE2_INFO* opcode2 = NULL;
+    if (info->has_opcode2) {
       BYTE c;
-      if (nobyte(fp, "second opcode or ModR/M byte", print_hex, &c)) {
+      if (nobyte(fp, "second opcode", print_hex, &c)) {
         *len = i;
         return FETCH_ERR_EOF;
       }
 
       buf[i++] = c;
 
-      def = find_opcode2(info, waiting, c);
-      if (def == NULL) {
-        MODRM modrm;
-        decode_modrm(c, &modrm);
-        for (int j = 0; j < modrm.disp_size; j++) {
-          if (nobyte(fp, "displacement", print_hex, &buf[i])) {
-            *len = i;
-            return FETCH_ERR_EOF;
-          }
-          i++;
-        }
+      opcode2 = opcode2_info(info, c);
+    }
+    else
+      opcode2 = no_opcode2_info(info);
+    if (opcode2 == NULL) {
+      *len = i;
+      return FETCH_ERR_UNKNOWN_OPCODE2;
+    }
 
-        def = find_modrm(opcode1, info, waiting, modrm.mod, modrm.reg, modrm.rm);
-        if (def == NULL) {
-          *len = i;
-          return FETCH_ERR_NO_MODRM_MATCH;
-        }
+    const INSDEF* def = NULL;
+    if (opcode2->has_modrm) {
+      BYTE c;
+      if (nobyte(fp, "ModR/M byte", print_hex, &c)) {
+        *len = i;
+        return FETCH_ERR_EOF;
       }
-    }
-    else {
-      assert(info->defs->next == NULL);
-      def = info->defs->def;
-    }
 
-    assert(def != NULL);
+      buf[i++] = c;
+
+      MODRM modrm;
+      decode_modrm(c, &modrm);
+      for (int j = 0; j < modrm.disp_size; j++) {
+        if (nobyte(fp, "displacement", print_hex, &buf[i])) {
+          *len = i;
+          return FETCH_ERR_EOF;
+        }
+        i++;
+      }
+
+      def = opcode2_find_modrm(opcode2, c);
+    }
+    else
+      def = opcode2_no_modrm(opcode1, opcode2);
+    if (def == NULL) {
+      *len = i;
+      return FETCH_ERR_NO_MODRM_MATCH;
+    }
 
     if (def->oper1 == OF_INDIR || def->oper2 == OF_INDIR) {
       assert(def->modrm == RMN);

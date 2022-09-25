@@ -88,12 +88,10 @@ static void dump_file(const char* filename) {
 
 static void decode_record(const DECODER* decoder, const OREC* orec, DWORD pc) {
   DECODED dec;
-  bool waiting = false;
   for (unsigned count = 0; count < orec->u.data.size; count += dec.len) {
-    if (decode_instruction(decoder, orec->u.data.buf + count, orec->u.data.size - count, waiting, &dec) != DECODE_ERR_NONE)
+    if (decode_instruction(decoder, orec->u.data.buf + count, orec->u.data.size - count, &dec) != DECODE_ERR_NONE)
       break;
     fputs(": ", stdout);
     print_assembly(pc, &dec);
-    waiting = (dec.def->opcode1 == WAIT_OPCODE);
   }
 }

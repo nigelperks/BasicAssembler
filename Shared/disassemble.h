@@ -14,7 +14,8 @@ enum {
   DECODE_ERR_MULTIPLE_REPEAT_PREFIX,
   DECODE_ERR_MULTIPLE_SREG_PREFIX,
   DECODE_ERR_NO_OPCODE,
-  DECODE_ERR_NO_OPCODE2_OR_MODRM,
+  DECODE_ERR_NO_OPCODE2,
+  DECODE_ERR_NO_MODRM,
   DECODE_ERR_NO_DISP,
   DECODE_ERR_NO_IMMEDIATE,
   DECODE_ERR_NO_MATCHING_INSTRUCTION,
@@ -25,16 +26,6 @@ const char* decoding_error(int);
 bool instruction_prefix(int byte);
 bool repeat_prefix(int byte);
 bool sreg_prefix(int byte);
-
-typedef struct {
-  short rm;
-  short reg;
-  short mod;
-  short disp_size;
-  WORD disp;
-} MODRM;
-
-void decode_modrm(BYTE, MODRM*);
 
 typedef struct {
   int type;
@@ -63,7 +54,7 @@ typedef struct {
   unsigned len;
 } DECODED;
 
-int decode_instruction(const DECODER*, const BYTE* buf, const unsigned len, bool waiting, DECODED*);
+int decode_instruction(const DECODER*, const BYTE* buf, const unsigned len, DECODED*);
 
 void print_assembly(const DWORD addr, const DECODED* dec);
 

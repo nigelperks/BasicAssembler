@@ -27,7 +27,8 @@ const char* decoding_error(int err) {
     case DECODE_ERR_MULTIPLE_REPEAT_PREFIX: return "multiple repeat prefixes";
     case DECODE_ERR_MULTIPLE_SREG_PREFIX: return "multiple segment overrides";
     case DECODE_ERR_NO_OPCODE: return "opcode missing";
-    case DECODE_ERR_NO_OPCODE2_OR_MODRM: return "ModR/M or second opcode missing";
+    case DECODE_ERR_NO_OPCODE2: return "second opcode missing";
+    case DECODE_ERR_NO_MODRM: return "ModR/M missing";
     case DECODE_ERR_NO_DISP: return "displacement missing or incomplete";
     case DECODE_ERR_NO_IMMEDIATE: return "immediate value missing or incomplete";
     case DECODE_ERR_NO_MATCHING_INSTRUCTION: return "no instruction matches the encoding";
@@ -57,14 +58,14 @@ static void decode_modrm_operands(int modrm_type, const MODRM*, RM_OPERAND* oper
 static bool read_immediate(const BYTE* buf, const unsigned bufsz, unsigned i, unsigned bytes, DWORD *val);
 
 // Return error code, 0 on success.
-int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned count, bool waiting, DECODED* dec) {
+int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned count, DECODED* dec) {
   init_decoded(dec);
 
   if (count == 0)
     return DECODE_ERR_NO_OPCODE;
 
   int opcode1;
-  const OPCODE_INFO* info = NULL;
+  const OPCODE1_INFO* info = NULL;
   unsigned i = 0;
 
   unsigned prefixes = 0;
@@ -96,7 +97,7 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
     return DECODE_ERR_NONE;
   }
 
-  info = opcode_info(decoder, opcode1);
+  info = opcode1_info(decoder, opcode1);
   if (info == NULL)
     return DECODE_ERR_NO_MATCHING_INSTRUCTION;
 
@@ -115,38 +116,37 @@ int decode_instruction(const DECODER* decoder, const BYTE* buf, const unsigned c
       assert(0 && "invalid opcode_inc operand number");
   }
 
-  assert(info != NULL);
-  if (info->defs == NULL)
-    fatal("no instruction definition found: opcode 0x%02x\n", opcode1);
-
-  if (info->opcode2_or_modrm) {
+  const OPCODE2_INFO* info2 = NULL;
+  if (info->has_opcode2) {
     if (i + 1 > count)
-      return DECODE_ERR_NO_OPCODE2_OR_MODRM;
-
+      return DECODE_ERR_NO_OPCODE2;
     int c = buf[i++];
-
-    dec->def = find_opcode2(info, waiting, c);
-    if (dec->def == NULL) {
-      MODRM modrm;
-      decode_modrm(c, &modrm);
-      if (i + modrm.disp_size > count)
-        return DECODE_ERR_NO_DISP;
-      for (int j = 0; j < modrm.disp_size; j++)
-        modrm.disp = (buf[i++] << (j * 8)) | modrm.disp;
-
-      dec->def = find_modrm(opcode1, info, waiting, modrm.mod, modrm.reg, modrm.rm);
-      if (dec->def == NULL)
-        return DECODE_ERR_NO_MATCHING_INSTRUCTION;
-
-      decode_modrm_operands(dec->def->modrm, &modrm, &dec->oper1, &dec->oper2);
-    }
+    info2 = opcode2_info(info, c);
   }
-  else {
-    // no second opcode or ModR/M byte so only one choice
-    // CHECK: what about wait prefix / no prefix?
-    assert(info->defs->next == NULL);
-    dec->def = info->defs->def;
+  else
+    info2 = no_opcode2_info(info);
+  if (info2 == NULL)
+    return DECODE_ERR_NO_MATCHING_INSTRUCTION;
+
+  if (info2->has_modrm) {
+    if (i + 1 > count)
+      return DECODE_ERR_NO_MODRM;
+    int c = buf[i++];
+    MODRM modrm;
+    decode_modrm(c, &modrm);
+    if (i + modrm.disp_size > count)
+      return DECODE_ERR_NO_DISP;
+    for (int j = 0; j < modrm.disp_size; j++)
+      modrm.disp = (buf[i++] << (j * 8)) | modrm.disp;
+
+    dec->def = opcode2_find_modrm(info2, c);
+    if (dec->def == NULL)
+      return DECODE_ERR_NO_MATCHING_INSTRUCTION;
+
+    decode_modrm_operands(dec->def->modrm, &modrm, &dec->oper1, &dec->oper2);
   }
+  else
+    dec->def = opcode2_no_modrm(opcode1, info2);
 
   dec->imm1 = 0;
   dec->imm2 = 0;
@@ -241,6 +241,7 @@ static void decode_modrm_operands(int type, const MODRM* modrm, RM_OPERAND* oper
         oper1->val.reg = 0;
         break;
       case STK:
+      case CCC:
         break;
       default:
         fatal("internal error: %s: %d: unknown modrm type: %d\n", __FILE__, __LINE__, type);
@@ -280,21 +281,6 @@ static int decode_prefixes(const BYTE* buf, unsigned count, BYTE *rep, BYTE *sre
 
   *decoded = i;
   return DECODE_ERR_NONE;
-}
-
-void decode_modrm(BYTE val, MODRM* p) {
-  p->rm = val & 0x07;
-  p->reg = (val >> 3) & 0x07;
-  p->mod = (val >> 6) & 0x03;
-
-  switch (p->mod) {
-  case 0: p->disp_size = (p->rm == 6) ? 2 : 0; break;
-  case 1: p->disp_size = 1; break;
-  case 2: p->disp_size = 2; break;
-  case 3: p->disp_size = 0; break;
-  }
-
-  p->disp = 0;
 }
 
 static void decode_reg(const MODRM* modrm, RM_OPERAND* op) {
@@ -597,24 +583,19 @@ static void print_operand(int opno, int flag, unsigned rm_size, int sreg_overrid
 static void print_hex_bytes(DWORD val, unsigned bytes) {
   char buf[10];
 
-  sprintf(buf, "%0*lX", bytes * 2, (unsigned long) val);
+  sprintf(buf, "%lX", (unsigned long) val);
   printf("%s%sh", isdigit(buf[0]) ? "" : "0", buf);
 }
 
 static void print_signed_hex_byte(DWORD w) {
   char buf[6];
-  BOOL neg = FALSE;
-  SBYTE disp = (SBYTE) w;
-  assert(w <= 0xFF);
-  if (disp < 0) {
-    neg = TRUE;
-    sprintf(buf, "%02Xh", -disp);
-  }
-  else
-    sprintf(buf, "%02Xh", disp);
-
-  if (neg)
+  char* p = buf;
+  BYTE b = (BYTE) w;
+  if (b >= 0x80) {
     putchar('-');
+    b = 0x100 - b;
+  }
+  sprintf(buf, "%Xh", b);
   if (isalpha(buf[0]))
     putchar('0');
   fputs(buf, stdout);
@@ -625,7 +606,7 @@ static void print_hex_word(DWORD w) {
 
   assert(w <= 0xFFFF);
   buf[0] = '\0';
-  sprintf(buf, "%04Xh", w);
+  sprintf(buf, "%Xh", w);
   assert(buf[0] != '\0');
   if (isalpha(buf[0]))
     putchar('0');
@@ -685,6 +666,7 @@ static void print_rm_operand(const RM_OPERAND* op, int size_override, int sreg_o
           case 1: fputs("BYTE ", stdout); break;
           case 2: fputs("WORD ", stdout); break;
           case 4: fputs("DWORD ", stdout); break;
+          case 6: fputs("FWORD ", stdout); break;
           case 8: fputs("QWORD ", stdout); break;
           case 10: fputs("TBYTE ", stdout); break;
           default: assert(0 && "unexpected size override"); break;

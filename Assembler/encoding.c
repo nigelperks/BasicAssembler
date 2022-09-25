@@ -1254,7 +1254,9 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
     return encode_far(ifile, oper1, buf, i, relocs);
 
   // ModR/M byte
-  if (irec->def->modrm != RMN) {
+  if (irec->def->modrm == CCC)
+    buf[i++] = irec->def->opcode2;
+  else if (irec->def->modrm != RMN) {
     unsigned mod, rm, reg;
     switch (irec->def->modrm) {
       case RRM:

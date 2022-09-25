@@ -253,7 +253,7 @@ static bool disassemble_one_instruction(STATE* state) {
   }
 
   DECODED dec;
-  int err = decode_instruction(state->decoder, state->exe->image + addr, state->exe->image_size - addr, state->waiting, &dec);
+  int err = decode_instruction(state->decoder, state->exe->image + addr, state->exe->image_size - addr, &dec);
   if (err) {
     putchar('\n');
     puts(decoding_error(err));
