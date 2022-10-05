@@ -3,6 +3,85 @@
 // The logic for processing one object module,
 // using the mechanisms of OFILE and SEGMENTS.
 
+/*
+
+OBJECT MODULE STRUCTURE
+-----------------------
+
+OBJ_BEGIN_GROUP         ; begin group definition
+    OBJ_ORDINAL byte    ; group number
+    NAME string         ; group name
+OBJ_END_GROUP           ; end group definition
+
+OBJ_BEGIN_SEGMENT       ; begin segment definition
+    OBJ_ORDINAL byte    ; segment number
+    OBJ_NAME string     ; segment name
+    OBJ_GROUPNO byte    ; (optional) segment's group number
+    OBJ_PUBLIC          ; (optional) the segment is public
+    OBJ_STACK           ; (optional) the segment is a stack segment
+    OBJ_P2ALIGN byte    ; (optional) alignment of segment in image
+OBJ_END_SEGMENT         ; end segment definition
+
+OBJ_OPEN_SEGMENT        ; open segment to add code and data to it
+
+    OBJ_CODE data           ; segment code (usually one instruction)
+    OBJ_DS data             ; segment data
+    OBJ_DB byte             ; segment data byte
+    OBJ_DW word             ; segment data word
+    OBJ_DD dword            ; segment data dword
+    OBJ_DQ qword            ; segment data qword
+    OBJ_DT qword            ; segment data qword (sic)
+    OBJ_SPACE word          ; allocate uninitialised space in segment
+    OBJ_ORG word            ; set segment location counter
+    OBJ_P2ALIGN byte        ; align next code/data on given power of 2
+
+    OBJ_BEGIN_OFFSET        ; begin offset fixup
+        OBJ_POS word        ; position in segment of offset to be fixed up
+        OBJ_SEGNO byte      ; segment to which the offset belongs
+    OBJ_END_OFFSET          ; end offset fixup
+
+    OBJ_BEGIN_EXTRN_USE     ; EXTRN requirement
+        OBJ_POS word        ; position in segment where external's offset should be placed
+        OBJ_ID word         ; external symbol ID appearing in EXTRN_DEF object
+        OBJ_JUMP            ; (optional) the use of the external is a jump to it: fix up with relative displacement
+    OBJ_END_EXTRN_USE       ; end EXTRN requirement
+
+    OBJ_BEGIN_GROUP_ABS_JUMP    ; begin fixup of jump to numeric offset in group
+        OBJ_POS word            ; position in segment of jump offset to be fixed up
+        OBJ_GROUPNO byte        ; group to which the offset belongs
+    OBJ_END_GROUP_ABS_JUMP      ; end absolute group jump fixup
+
+    OBJ_BEGIN_SEG_ADDR      ; begin fixup of segment address of segment
+        OBJ_POS word        ; position in segment where segment address should be placed
+        OBJ_SEGNO byte      ; segment number whose segment address to use
+    OBJ_END_SEG_ADDR        ; end fixup of segment address
+
+    OBJ_BEGIN_GROUP_ADDR    ; begin fixup of segment address of group
+        OBJ_POS word        ; position in segment where segment address should be placed
+        OBJ_GROUPNO byte    ; group number whose segment address to use
+    OBJ_END_GROUP_ADDR      ; end fixup of group segment address
+
+OBJ_CLOSE_SEGMENT       ; close segment
+
+OBJ_BEGIN_EXTRN_DEF     ; begin definition of external symbol to be imported
+    OBJ_ID word         ; external symbol ID
+    OBJ_NAME string     ; symbol name
+    OBJ_SEGNO byte      ; segment to which symbol belongs
+OBJ_END_EXTRN_DEF       ; end definition of external symbol to be imported
+
+OBJ_BEGIN_PUBLIC        ; begin public symbol (public symbol table entry)
+    OBJ_NAME string     ; symbol name
+    OBJ_SEGNO byte      ; segment containing the label
+    OBJ_OFFSET word     ; offset in segment: value of label
+OBJ_END_PUBLIC          ; end public symbol
+
+OBJ_BEGIN_START         ; begin specification of program start (entry point)
+    OBJ_SEGNO byte      ; starting segment
+    OBJ_OFFSET word     ; starting offset
+OBJ_END_START           ; end specification of program start
+
+*/
+
 #include <string.h>
 #include <assert.h>
 #include "module.h"

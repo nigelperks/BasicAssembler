@@ -9,17 +9,22 @@
 #include "object.h"
 #include "utils.h"
 
-static const BYTE SIG[] = { 0x43, 0xD0, 0xAB, 0x1F };
-static const BYTE VER[] = { 0x00, 0x00 };
+// Arbitrary signature for this type of object file.
+static const BYTE SIGNATURE[] = { 0x43, 0xD0, 0xAB, 0x1F };
 
+// Bytes indicating object file compatibility version.
+// Not used because this is an educational tool undergoing constant change.
+static const BYTE VERSION[] = { 0x00, 0x00 };
+
+// The kinds of object record: what kind of data follows the type byte.
 enum object_kind {
   OK_INVALID,
-  OK_SIGNAL,
-  OK_BYTE,
-  OK_WORD,
-  OK_DWORD,
-  OK_QWORD,
-  OK_DATA
+  OK_SIGNAL,    // the object type byte signals its whole meaning: no data follows
+  OK_BYTE,      // one byte of data follows
+  OK_WORD,      // one word (2 bytes) of data follows (little-endian)
+  OK_DWORD,     // one dword (4 bytes) of data follows (little-endian)
+  OK_QWORD,     // one quadword (8 bytes) of data follows (little-endian)
+  OK_DATA       // the type byte is followed by a length byte, and then that many bytes of data
 };
 
 static const struct {
@@ -300,30 +305,30 @@ OFILE* load_object_file(const char* filename) {
 }
 
 static void write_sig(FILE* fp) {
-  fwrite(SIG, 1, sizeof SIG, fp);
+  fwrite(SIGNATURE, 1, sizeof SIGNATURE, fp);
 }
 
 static void write_ver(FILE* fp) {
-  fwrite(VER, 1, sizeof VER, fp);
+  fwrite(VERSION, 1, sizeof VERSION, fp);
 }
 
 static void read_sig(FILE* fp, const char* filename) {
-  BYTE buf[sizeof SIG];
+  BYTE buf[sizeof SIGNATURE];
 
   if (fread(buf, 1, sizeof buf, fp) != sizeof buf)
     fatal("error reading object file signature: %s\n", filename);
 
-  if (memcmp(buf, SIG, sizeof SIG) != 0)
+  if (memcmp(buf, SIGNATURE, sizeof SIGNATURE) != 0)
     fatal("not a recognised object file: %s\n", filename);
 }
 
 static void read_ver(FILE* fp, const char* filename) {
-  BYTE buf[sizeof VER];
+  BYTE buf[sizeof VERSION];
 
   if (fread(buf, 1, sizeof buf, fp) != sizeof buf)
     fatal("error reading object file version: %s\n", filename);
 
-  if (memcmp(buf, VER, sizeof VER) != 0)
+  if (memcmp(buf, VERSION, sizeof VERSION) != 0)
     fatal("incompatible object file version: %s\n", filename);
 }
 
@@ -366,6 +371,7 @@ static void write_record(FILE* fp, const OREC* rec) {
 static BYTE getbyte(FILE*, const char* filename);
 static BYTE* getdata(FILE*, const char* filename, size_t);
 
+// Write number little-endian.
 static void putnum(FILE* fp, QWORD val, unsigned size) {
   while (size--) {
     fputc(val & 0xff, fp);
@@ -373,6 +379,7 @@ static void putnum(FILE* fp, QWORD val, unsigned size) {
   }
 }
 
+// Read number little-endian.
 static QWORD getnum(FILE* fp, const char* filename, unsigned size) {
   QWORD val = 0;
   for (unsigned i = 0; i < size; i++) {
