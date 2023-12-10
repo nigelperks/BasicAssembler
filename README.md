@@ -4,7 +4,7 @@ Basic assembler and related tools written for self-education.
 
 Please see LICENSE.
 
-1. How to build
+1. How to build on Windows
 2. How to test
 3. How to use
 4. Language supported
@@ -13,48 +13,53 @@ Please see LICENSE.
 7. References
 
 
-## 1. How to build
+## 1. How to build on Windows
 
-I am using **autocrlf=true** (CRLF on disk, LF committed).
-Developed on Windows with Microsoft Visual Studio Community Edition.
-Visual Studio solution file is included.
+Clone the repo using **autocrlf=true** (CRLF on disk, LF committed).
 The recommend build is Debug for Win32 (x86),
 to avoid compile-warnings about type sizes, for debugging,
 and for unit-testing.
+
+In the top-level directory of the repo:
+
+
+```
+md Build
+cmake -S . -B Build -G "Visual Studio 17 2022" -A Win32
+cmake --build Build --config Debug
+```
 
 
 ## 2. How to test
 
 Unit tests:
 
-    bas -unittest
-    blink -unittest
-    basl -unittest
-    bdis -unittest
+```
+ctest --test-dir Build -C Debug
+```
+
+The following scripts take the location of the executables being tested
+as a parameter.
 
 Functional & system tests:
 
     cd test
-    test.py ..\Debug
+    test.py ..\Build\Debug\bin
 
 Generated tests (if suitable reference assembler & linker are installed):
 
     cd test
-    testgen.py ..\Debug
+    testgen.py ..\Build\Debug\bin
 
 Generated tests of disassembler (do not require reference assembler):
 
     cd test
-    testdis.py ..\Debug
-
-where ..\Debug holds the builds to be tested.
+    testdis.py ..\Build\Debug\bin
 
 
 ## 3. How to use
 
-No user documentation yet.
-
-Executables in Debug, Release (32-bit); x64\Debug, x64\Release (64-bit).
+No user manual yet.
 
 ### Basic Assembler and Linker (driver)
 
