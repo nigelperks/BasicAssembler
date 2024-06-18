@@ -4,5 +4,8 @@ test.com
 test.exe
 __pycache__
 .vs
+*.sln
 *.swp
+*.vcxproj
+*.vcxproj.*
 temp
