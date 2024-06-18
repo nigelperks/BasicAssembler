@@ -162,6 +162,7 @@ Directives:
 - DW       -- define word (2 bytes)
 - END      -- end program; optionally specify start label
 - ENDS     -- end segment
+- EQU      -- set symbol to absolute value, rather than address; can be written "="
 - EXTRN    -- list symbols to be found outside current segment and their types
             (BYTE, WORD, DWORD, PROC)
 - GROUP    -- define a group and list its segments
@@ -177,6 +178,24 @@ Directives:
 - PNO87    -- disable 8087 instructions
 - PUBLIC   -- make specified symbols public
 - SEGMENT  -- open named segment
+
+Operators:
+
+- BYTE     -- force data to byte size: MOV AL, [BYTE addr]
+- DUP      -- duplicate data n times: n DUP (val)
+= DWORD    -- force data to dword size, 4 bytes
+- FAR      -- far jump address: FAR 1234H:5678H, FAR addr
+- FWORD    -- force data to far word size, 6 bytes
+- NEAR     -- force near (2-byte signed offset) jump: NEAR addr
+- OFFSET   -- offset of label in segment or group: OFFSET addr
+- PAGE     -- 256-byte segment alignment: SEGMENT main PAGE
+- PARA     -- 16-byte segment alignment: SEGMENT main PARA
+- PTR      -- the following symbol is an address: MOV AL, [BYTE PTR addr]
+- QWORD    -- force data to 8-byte size
+- SEG      -- segment address of label: SEG addr
+- SHORT    -- force short (1-byte signed offset) jump
+- TBYTE    -- force data to 10-byte size
+- WORD     -- force data to word size: MOV AX, [WORD addr]
 
 Predefined symbols:
 
