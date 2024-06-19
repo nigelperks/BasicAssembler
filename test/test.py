@@ -2,7 +2,7 @@
 # Python 3.
 # Currently specialised in how reference outputs are obtained.
 # Currently not documented.
-# Copyright (c) 2021-2 Nigel Perks
+# Copyright (c) 2021-2,24 Nigel Perks
 
 import os
 import sys
@@ -341,7 +341,12 @@ def clean(names, verbose):
 
 def help():
   print("Usage: test.py --clean [sources]")
-  print("       test.py executables-directory [sources]")
+  print("       test.py executables-directory [sources] [options]")
+  print()
+  print("Options:")
+  print("  -f  --force-ref     force recreation of reference files")
+  print("  -k  --keep-dosbox   keep DosBox open after running reference assembler")
+  print("  -r  --get-ref-only  get new reference files only; do not test bas")
   sys.exit(1)
 
 def main(argv):

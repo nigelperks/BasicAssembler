@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Operand-parsing common to passes
 
 #include <stdlib.h>
@@ -154,7 +154,8 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
 
   if (lex_token(lex) == TOK_REG8) {
     op->opclass.type = OT_REG;
-    op->val.reg = lex_reg(lex);
+    op->val.reg.no = lex_reg(lex);
+    op->val.reg.size = 1;
     add_flag(op, OF_RM);
     add_flag(op, OF_RM8);
     add_flag(op, OF_REG8);
@@ -168,7 +169,8 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
 
   if (lex_token(lex) == TOK_REG16) {
     op->opclass.type = OT_REG;
-    op->val.reg = lex_reg(lex);
+    op->val.reg.no = lex_reg(lex);
+    op->val.reg.size = 2;
     add_flag(op, OF_RM);
     add_flag(op, OF_RM16);
     add_flag(op, OF_REG16);
@@ -182,7 +184,8 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
 
   if (lex_token(lex) == TOK_SREG) {
     op->opclass.type = OT_SREG;
-    op->val.reg = lex_reg(lex);
+    op->val.reg.no = lex_reg(lex);
+    op->val.reg.size = 2;
     add_flag(op, OF_SREG);
     lex_next(lex);
     return TRUE;
@@ -190,13 +193,14 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
 
   if (lex_token(lex) == TOK_ST) {
     op->opclass.type = OT_ST;
-    op->val.reg = 0;
+    op->val.reg.no = 0;
+    op->val.reg.size = 0;
     if (lex_next(lex) == '(') {
       if (lex_next(lex) == TOK_NUM) {
         if (lex_val(lex) == 0)
           add_flag(op, OF_STT);
         else if (lex_val(lex) < 8) {
-          op->val.reg = lex_val(lex);
+          op->val.reg.no = (REGNO) lex_val(lex);
           add_flag(op, OF_STI);
         }
         else
@@ -2207,7 +2211,8 @@ static void test_parse_operand_register(CuTest* tc) {
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_REG, op.opclass.type);
-  CuAssertIntEquals(tc, REG_BH, op.val.reg);
+  CuAssertIntEquals(tc, REG_BH, op.val.reg.no);
+  CuAssertIntEquals(tc, 1, op.val.reg.size);
   CuAssertIntEquals(tc, 3, op.opclass.nflag);
   CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_RM8, op.opclass.flags[1]);
@@ -2217,7 +2222,8 @@ static void test_parse_operand_register(CuTest* tc) {
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_REG, op.opclass.type);
-  CuAssertIntEquals(tc, REG_AL, op.val.reg);
+  CuAssertIntEquals(tc, REG_AL, op.val.reg.no);
+  CuAssertIntEquals(tc, 1, op.val.reg.size);
   CuAssertIntEquals(tc, 4, op.opclass.nflag);
   CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_RM8, op.opclass.flags[1]);
@@ -2228,7 +2234,8 @@ static void test_parse_operand_register(CuTest* tc) {
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_REG, op.opclass.type);
-  CuAssertIntEquals(tc, REG_SI, op.val.reg);
+  CuAssertIntEquals(tc, REG_SI, op.val.reg.no);
+  CuAssertIntEquals(tc, 2, op.val.reg.size);
   CuAssertIntEquals(tc, 3, op.opclass.nflag);
   CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_RM16, op.opclass.flags[1]);
@@ -2238,7 +2245,8 @@ static void test_parse_operand_register(CuTest* tc) {
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_REG, op.opclass.type);
-  CuAssertIntEquals(tc, REG_AX, op.val.reg);
+  CuAssertIntEquals(tc, REG_AX, op.val.reg.no);
+  CuAssertIntEquals(tc, 2, op.val.reg.size);
   CuAssertIntEquals(tc, 4, op.opclass.nflag);
   CuAssertIntEquals(tc, OF_RM, op.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_RM16, op.opclass.flags[1]);
@@ -2249,7 +2257,8 @@ static void test_parse_operand_register(CuTest* tc) {
   succ = parse_operand(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_SREG, op.opclass.type);
-  CuAssertIntEquals(tc, SR_ES, op.val.reg);
+  CuAssertIntEquals(tc, SR_ES, op.val.reg.no);
+  CuAssertIntEquals(tc, 2, op.val.reg.size);
   CuAssertIntEquals(tc, 1, op.opclass.nflag);
   CuAssertIntEquals(tc, OF_SREG, op.opclass.flags[0]);
 
@@ -2720,7 +2729,8 @@ static void test_parse_operands(CuTest* tc) {
   succ = parse_operands(&state, ifile, lex, &op1, &op2, &op3);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_REG, op1.opclass.type);
-  CuAssertIntEquals(tc, REG_AX, op1.val.reg);
+  CuAssertIntEquals(tc, REG_AX, op1.val.reg.no);
+  CuAssertIntEquals(tc, 2, op1.val.reg.size);
   CuAssertIntEquals(tc, 4, op1.opclass.nflag);
   CuAssertIntEquals(tc, OF_RM, op1.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_RM16, op1.opclass.flags[1]);
@@ -2741,7 +2751,8 @@ static void test_parse_operands(CuTest* tc) {
   succ = parse_operands(&state, ifile, lex, &op1, &op2, &op3);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, OT_REG, op1.opclass.type);
-  CuAssertIntEquals(tc, REG_BH, op1.val.reg);
+  CuAssertIntEquals(tc, REG_BH, op1.val.reg.no);
+  CuAssertIntEquals(tc, 1, op1.val.reg.size);
   CuAssertIntEquals(tc, 3, op1.opclass.nflag);
   CuAssertIntEquals(tc, OF_RM, op1.opclass.flags[0]);
   CuAssertIntEquals(tc, OF_RM8, op1.opclass.flags[1]);

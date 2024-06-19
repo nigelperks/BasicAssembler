@@ -1,0 +1,25 @@
+Error: mismatc3.asm: 7: operand sizes do not match:
+    adc al, [addr2]
+                   ^
+Error: mismatc3.asm: 8: operand sizes do not match:
+    adc ax, [addr1]
+                   ^
+Error: mismatc3.asm: 11: operand sizes do not match:
+    adc [addr1], ax
+                   ^
+Error: mismatc3.asm: 12: operand sizes do not match:
+    adc [addr2], al
+                   ^
+Error: mismatc3.asm: 15: operand sizes do not match:
+    mov al, [addr2]
+                   ^
+Error: mismatc3.asm: 16: operand sizes do not match:
+    mov ax, [addr1]
+                   ^
+Error: mismatc3.asm: 19: operand sizes do not match:
+    mov [addr2], al
+                   ^
+Error: mismatc3.asm: 20: operand sizes do not match:
+    mov [addr1], ax
+                   ^
+Errors: 8

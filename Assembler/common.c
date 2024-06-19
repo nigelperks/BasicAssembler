@@ -245,3 +245,39 @@ unsigned wait_needed(STATE* state, const INSDEF* def) {
   fatal("internal error: %s: %d: unknown WAIT prefix category: %d\n", __FILE__, __LINE__, def->wait_prefix);
   return false;
 }
+
+static unsigned operand_size(const OPERAND*);
+
+// When the instruction table does not specify the size of some operand -
+// for example OF_RM can be 8- or 16-bit register or memory data -
+// check that operand sizes match.
+void match_operand_sizes(STATE* state, LEX* lex, int flag1, int flag2,
+                         const OPERAND* oper1, const OPERAND* oper2) {
+  if (flag1 == OF_RM || flag1 == OF_INDIR || flag2 == OF_RM || flag2 == OF_INDIR) {
+    unsigned size1 = operand_size(oper1);
+    unsigned size2 = operand_size(oper2);
+    if (size1 && size2 && size1 != size2)
+      error2(state, lex, "operand sizes do not match");
+  }
+}
+
+static unsigned operand_size(const OPERAND* op) {
+  switch (op->opclass.type) {
+    case OT_REG:
+    case OT_SREG:
+    case OT_ST:
+      return op->val.reg.size;
+    case OT_MEM:
+      if (op->val.mem.size_override)
+        return op->val.mem.size_override;
+      if (op->val.mem.disp_type == REL_DISP)
+        return sym_data_size(op->val.mem.disp.label);
+      return 0;
+    case OT_IMM:
+    case OT_JUMP:
+    case OT_NONE:
+      return 0;
+  }
+  fatal("internal error: operand_size: unknown operand type: %d\n", (int) op->opclass.type);
+  return 0;
+}

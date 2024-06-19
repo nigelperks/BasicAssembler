@@ -38,4 +38,7 @@ size_t dword_expr_size(int expr_type, VALUE*, BOOL *init);
 size_t qword_expr_size(int expr_type, VALUE*, BOOL *init);
 size_t tbyte_expr_size(int expr_type, VALUE*, BOOL *init);
 
+void match_operand_sizes(STATE*, LEX*, int flag1, int flag2,
+                         const OPERAND* oper1, const OPERAND* oper2);
+
 #endif // COMMON_H

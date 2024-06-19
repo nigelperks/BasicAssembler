@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Encoding pass: generate code and data.
 // On entry all labels must be resolved already.
 
@@ -892,7 +892,6 @@ static void process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
     return;
   }
 
-
   RELOC_LIST relocs;
   init_reloc_list(&relocs);
 
@@ -1221,6 +1220,8 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
   unsigned i = 0;
   BYTE sreg_code;
 
+  match_operand_sizes(state, lex, irec->def->oper1, irec->def->oper2, oper1, oper2);
+
   for (unsigned j = 0; j < wait_needed(state, irec->def); j++)
     buf[i++] = WAIT_OPCODE;
 
@@ -1236,8 +1237,8 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
     buf[++i] = irec->def->opcode2;
   }
   switch (irec->def->opcode_inc) {
-    case 1: buf[i] += oper1->val.reg; break;
-    case 2: buf[i] += oper2->val.reg; break;
+    case 1: buf[i] += oper1->val.reg.no; break;
+    case 2: buf[i] += oper2->val.reg.no; break;
   }
   i++;
 
@@ -1261,11 +1262,11 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
     switch (irec->def->modrm) {
       case RRM:
         compute_rm(state, ifile, oper2, &mod, &rm, &disp_len, &disp_code, &rel);
-        reg = oper1->val.reg;
+        reg = oper1->val.reg.no;
         break;
       case RMR:
         compute_rm(state, ifile, oper1, &mod, &rm, &disp_len, &disp_code, &rel);
-        reg = oper2->val.reg;
+        reg = oper2->val.reg.no;
         break;
       case RMC:
       case MMC:
@@ -1273,19 +1274,19 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
         reg = irec->def->reg;
         break;
       case REG:
-        reg = oper1->val.reg;
+        reg = oper1->val.reg.no;
         rm = reg;
         mod = 3;
         break;
       case SSI:
         mod = 3;
         reg = irec->def->reg;
-        rm = oper2->val.reg;
+        rm = oper2->val.reg.no;
         break;
       case SIS:
         mod = 3;
         reg = irec->def->reg;
-        rm = oper1->val.reg;
+        rm = oper1->val.reg.no;
         break;
       case SSC:
         mod = 3;
@@ -1295,7 +1296,7 @@ static unsigned encode_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* 
       case SIC:
         mod = 3;
         reg = irec->def->reg;
-        rm = oper1->val.reg;
+        rm = oper1->val.reg.no;
         break;
       case STC:
         mod = 3;
@@ -1616,7 +1617,7 @@ static void compute_rm(STATE* state, IFILE* ifile, const OPERAND* oper,
 
   if (oper->opclass.type == OT_REG) {
     *mod = 3;
-    *rm = oper->val.reg;
+    *rm = oper->val.reg.no;
     *disp_len = 0;
     return;
   }

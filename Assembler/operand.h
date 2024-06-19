@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Assembly operands.
 
 #ifndef OPERAND_H
@@ -22,11 +22,16 @@ enum jump_type { ABS_JUMP, LABEL_JUMP, FAR_JUMP };
 
 enum jump_distance { SHORT, NEAR, FAR };
 
+typedef short REGNO;
+
 typedef struct {
   OPERAND_CLASS opclass;
   union {
     // OT_REG, OT_SREG, OT_ST
-    int reg;
+    struct reg {
+      REGNO no;
+      short size;
+    } reg;
     // OT_MEM
     struct mem {
       short base_reg;

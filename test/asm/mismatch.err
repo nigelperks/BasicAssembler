@@ -1,0 +1,31 @@
+Error: mismatch.asm: 7: operand sizes do not match:
+    adc al, ax
+              ^
+Error: mismatch.asm: 8: operand sizes do not match:
+    adc ax, al
+              ^
+Error: mismatch.asm: 10: operand sizes do not match:
+    adc al, [word addr]
+                       ^
+Error: mismatch.asm: 11: operand sizes do not match:
+    adc ax, [byte addr]
+                       ^
+Error: mismatch.asm: 14: operand sizes do not match:
+    adc [byte addr], ax
+                       ^
+Error: mismatch.asm: 15: operand sizes do not match:
+    adc [word addr], al
+                       ^
+Error: mismatch.asm: 18: operand sizes do not match:
+    mov al, [word addr]
+                       ^
+Error: mismatch.asm: 19: operand sizes do not match:
+    mov ax, [byte addr]
+                       ^
+Error: mismatch.asm: 22: operand sizes do not match:
+    mov [word addr], al
+                       ^
+Error: mismatch.asm: 23: operand sizes do not match:
+    mov [byte addr], ax
+                       ^
+Errors: 10

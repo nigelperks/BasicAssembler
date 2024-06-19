@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Pass 1: define labels, determine instruction sizes (provisional).
 
 #include <stdio.h>
@@ -1052,6 +1052,8 @@ static void process_instruction(STATE* state, IFILE* ifile, LEX* lex) {
     lex_discard_line(lex);
     return;
   }
+
+  match_operand_sizes(state, lex, irec->def->oper1, irec->def->oper2, &oper1, &oper2);
 
   assert(irec->def->imm1 == 0 || irec->def->oper1 == OF_IMM || irec->def->oper1 == OF_IMM8 || irec->def->oper1 == OF_IMM8U || irec->def->oper1 == OF_JUMP || irec->def->oper1 == OF_FAR);
   assert(irec->def->imm2 == 0 || irec->def->oper2 == OF_IMM || irec->def->oper2 == OF_IMM8 || irec->def->oper2 == OF_IMM8U);
