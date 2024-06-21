@@ -18,6 +18,7 @@ typedef struct {
   BOOL verbose;
   unsigned max_errors;
   BOOL report_memory;
+  BOOL report_time;
   BOOL help;
 } Options;
 

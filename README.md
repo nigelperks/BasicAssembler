@@ -86,6 +86,7 @@ Driver program, invoking bas and blink to assemble and link.
       -me=N         -- max errors N
       -o name       -- output to file name
       -S            -- print source instead of assembling
+      -t            -- measure assembly time (microseconds)
       -unittest     -- run unit tests (using CuTest) and quit
       -v            -- verbose
 

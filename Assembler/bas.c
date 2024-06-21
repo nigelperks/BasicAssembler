@@ -15,6 +15,7 @@
 #include "resize.h"
 #include "encoding.h"
 #include "object.h"
+#include "timer.h"
 
 #ifdef UNIT_TEST
 static void RunAllTests(void);
@@ -58,6 +59,10 @@ int main(int argc, char* argv[]) {
   if (opts->print_intermediate)
     print_intermediate(ifile, "AFTER SOURCE PASS", PRINT_SOURCE_NAME);
 
+  TIMER timer; // time the passes which involve symbol lookup
+
+  start_timer(&timer);
+
   pass1(ifile, opts);
   if (opts->print_intermediate)
     print_intermediate(ifile, "AFTER PASS 1", PRINT_SIZE);
@@ -74,6 +79,11 @@ int main(int argc, char* argv[]) {
   OFILE* ofile = encoding_pass(ifile, opts);
   if (opts->print_intermediate)
     print_intermediate(ifile, "AFTER ENCODING PASS", PRINT_SIZE);
+
+  stop_timer(&timer);
+
+  if (opts->report_time)
+    printf("Microseconds elapsed: %lld\n", elapsed_usec(&timer));
 
   if (opts->output_name == NULL)
     opts->output_name = default_object_name(opts->source_name);

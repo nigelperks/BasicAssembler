@@ -6,6 +6,7 @@ add_library(shared
   object.c
   opclass.c
   stringlist.c
+  timer.c
   token.c
   utils.c
 )

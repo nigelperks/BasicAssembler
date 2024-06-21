@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // bas options.
 
 #include <stdlib.h>
@@ -20,6 +20,7 @@ Options* new_options(void) {
   p->verbose = FALSE;
   p->max_errors = -1;
   p->report_memory = FALSE;
+  p->report_time = FALSE;
   p->help = FALSE;
 
   return p;
@@ -56,6 +57,8 @@ void process_argv(int argc, char* argv[], Options* opts) {
         opts->max_errors = atoi(arg + 4);
       else if (strcmp(arg, "-o") == 0 && i + 1 < argc)
         opts->output_name = estrdup(argv[++i]);
+      else if (strcmp(arg, "-t") == 0)
+        opts->report_time = TRUE;
       else if (strcmp(arg, "-v") == 0)
         opts->verbose = TRUE;
       else
