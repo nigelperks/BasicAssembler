@@ -1,8 +1,10 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Assembler tokens.
 
+#include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <assert.h>
 #include "token.h"
 
@@ -11,11 +13,11 @@ BOOL token_is_directive(int tok) {
 }
 
 BOOL token_is_opcode(int tok) {
-  return tok >= TOK_AAA && tok <= TOK_JS;
+  return tok >= FIRST_OPCODE_TOKEN && tok <= LAST_OPCODE_TOKEN;
 }
 
 bool token_is_jcc_opcode(int t) {
-  return t >= TOK_JA && t <= TOK_JS;
+  return t >= FIRST_JCC_TOKEN && t <= LAST_JCC_TOKEN;
 }
 
 BOOL token_is_repeat(int tok) {
@@ -23,10 +25,12 @@ BOOL token_is_repeat(int tok) {
          tok == TOK_REPZ || tok == TOK_REPNZ;
 }
 
-static const struct keyword {
+struct keyword {
   int token;
   const char* name;
-} keywords[] = {
+};
+
+static const struct keyword keywords[] = {
   // directives
   { TOK_ALIGN,    "ALIGN" },
   { TOK_ASSUME,   "ASSUME" },
@@ -293,7 +297,6 @@ static const struct keyword {
   { TOK_JBE,    "JBE" },
   { TOK_JC,     "JC" },
   { TOK_JE,     "JE" },
-  { TOK_JZ,     "JZ" },
   { TOK_JG,     "JG" },
   { TOK_JGE,    "JGE" },
   { TOK_JL,     "JL" },
@@ -317,64 +320,75 @@ static const struct keyword {
   { TOK_JPE,    "JPE" },
   { TOK_JPO,    "JPO" },
   { TOK_JS,     "JS" },
-  { TOK_JZ,     "JZ" },
-
-  // end marker
-  { TOK_NONE, NULL }
+  { TOK_JZ,     "JZ" }
 };
 
-int identifier_token(const char* name) {
-  const struct keyword * p;
+#define KEYWORDS (sizeof keywords / sizeof keywords[0])
 
-  for (p = keywords; p->name; p++) {
-    if (_stricmp(p->name, name) == 0)
-      return p->token;
-  }
+static struct keyword keywords_sorted[KEYWORDS];
 
-  return TOK_LABEL;
+static bool initialised = false;
+
+static int compare_keywords(const void* p, const void* q) {
+  const struct keyword * lhs = p;
+  const struct keyword * rhs = q;
+  return _stricmp(lhs->name, rhs->name);
 }
 
-static const struct Register {
-  char* name;
+void init_keywords(void) {
+  // check that the keywords list is in order for token_name() below
+  // initialise keywords_sorted
+  int t = keywords[0].token;
+  for (size_t i = 0; i < KEYWORDS; i++) {
+    if (keywords[i].token != t)
+      fatal("internal error: keyword out of order\n");
+    t++;
+    keywords_sorted[i] = keywords[i];
+  }
+
+  qsort(keywords_sorted, KEYWORDS, sizeof keywords_sorted[0], compare_keywords);
+
+  initialised = true;
+}
+
+int identifier_token(const char* name) {
+  if (!initialised)
+    fatal("internal error: identifier_token lookup not initialised\n");
+
+  struct keyword key;
+  key.name = name;
+  const struct keyword * p = bsearch(&key, keywords_sorted, KEYWORDS, sizeof keywords_sorted[0], compare_keywords);
+  return p ? p->token : TOK_LABEL;
+}
+
+static const struct {
   int token;
   int regno;
-} registers[] = {
-  { "CS", TOK_SREG, SR_CS },
-  { "DS", TOK_SREG, SR_DS },
-  { "ES", TOK_SREG, SR_ES },
-  { "SS", TOK_SREG, SR_SS },
-
-  { "AX", TOK_REG16, 0 },
-  { "CX", TOK_REG16, 1 },
-  { "DX", TOK_REG16, 2 },
-  { "BX", TOK_REG16, 3 },
-  { "SP", TOK_REG16, 4 },
-  { "BP", TOK_REG16, 5 },
-  { "SI", TOK_REG16, 6 },
-  { "DI", TOK_REG16, 7 },
-
-  { "AL", TOK_REG8, 0 },
-  { "CL", TOK_REG8, 1 },
-  { "DL", TOK_REG8, 2 },
-  { "BL", TOK_REG8, 3 },
-  { "AH", TOK_REG8, 4 },
-  { "CH", TOK_REG8, 5 },
-  { "DH", TOK_REG8, 6 },
-  { "BH", TOK_REG8, 7 },
-
-  { NULL, 0, 0 }
+} regs[6][6] = {
+  //          X                 L                H                I                 P                 S
+  /* A */ { { TOK_REG16, 0 }, { TOK_REG8, 0 }, { TOK_REG8, 4 }, { TOK_NONE,  0 }, { TOK_NONE,  0 }, { TOK_NONE, 0 } },
+  /* C */ { { TOK_REG16, 1 }, { TOK_REG8, 1 }, { TOK_REG8, 5 }, { TOK_NONE,  0 }, { TOK_NONE,  0 }, { TOK_SREG, 1 } },
+  /* D */ { { TOK_REG16, 2 }, { TOK_REG8, 2 }, { TOK_REG8, 6 }, { TOK_REG16, 7 }, { TOK_NONE,  0 }, { TOK_SREG, 3 } },
+  /* B */ { { TOK_REG16, 3 }, { TOK_REG8, 3 }, { TOK_REG8, 7 }, { TOK_NONE,  0 }, { TOK_REG16, 5 }, { TOK_NONE, 0 } },
+  /* E */ { { TOK_NONE,  0 }, { TOK_NONE, 0 }, { TOK_NONE, 0 }, { TOK_NONE,  0 }, { TOK_NONE,  0 }, { TOK_SREG, 0 } },
+  /* S */ { { TOK_NONE,  0 }, { TOK_NONE, 0 }, { TOK_NONE, 0 }, { TOK_REG16, 6 }, { TOK_REG16, 4 }, { TOK_SREG, 2 } }
 };
 
 int register_token(const char* name, int *regno) {
-  const struct Register * p;
-
   assert(name != NULL);
   assert(regno != NULL);
 
-  for (p = registers; p->name; p++) {
-    if (_stricmp(p->name, name) == 0) {
-      *regno = p->regno;
-      return p->token;
+  static const char FIRST[] = "ACDBES";
+  static const char SECOND[] = "XLHIPS";
+
+  if (name[0] && name[1] && name[2] == '\0') {
+    const char* p = strchr(FIRST, toupper(name[0]));
+    if (p) {
+      const char* q = strchr(SECOND, toupper(name[1]));
+      if (q) {
+        *regno = regs[p-FIRST][q-SECOND].regno;
+        return regs[p-FIRST][q-SECOND].token;
+      }
     }
   }
 
@@ -382,8 +396,6 @@ int register_token(const char* name, int *regno) {
 }
 
 const char* token_name(int tok) {
-  const struct keyword * p;
-
   if (tok >= 32 && tok < 127) {
     static char buf[4];
     buf[0] = '\'';
@@ -404,9 +416,11 @@ const char* token_name(int tok) {
   case TOK_REG16: return "16-bit register";
   }
 
-  for (p = keywords; p->name; p++) {
-    if (p->token == tok)
-      return p->name;
+  const int T = keywords[0].token;
+
+  if (tok >= T && tok - T < sizeof keywords / sizeof keywords[0]) {
+    assert(keywords[tok - T].token == tok);
+    return keywords[tok - T].name;
   }
 
   return "invalid token";
@@ -470,6 +484,7 @@ static void test_repeat(CuTest* tc) {
 }
 
 static void test_identifier_token(CuTest* tc) {
+  init_keywords();
   CuAssertIntEquals(tc, TOK_MOV, identifier_token("mov"));
   CuAssertIntEquals(tc, TOK_MOV, identifier_token("Mov"));
   CuAssertIntEquals(tc, TOK_MOV, identifier_token("MOV"));

@@ -184,7 +184,7 @@ Operators:
 
 - BYTE     -- force data to byte size: MOV AL, [BYTE addr]
 - DUP      -- duplicate data n times: n DUP (val)
-= DWORD    -- force data to dword size, 4 bytes
+- DWORD    -- force data to dword size, 4 bytes
 - FAR      -- far jump address: FAR 1234H:5678H, FAR addr
 - FWORD    -- force data to far word size, 6 bytes
 - NEAR     -- force near (2-byte signed offset) jump: NEAR addr

@@ -1,12 +1,15 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Instruction table
 
 #include <assert.h>
 #include "instable.h"
 #include "token.h"
 
-const INSDEF instable[] = {
+static const INSDEF instable[] = {
+  // index 0 = not an instruction
+  { TOK_NONE },
+
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_AAA,     OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x37, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
   { TOK_AAD,     OF_NONE,  OF_NONE,  OF_NONE,  2, NOPR, 0xD5, 0x0A, 0,  RMN, 0,  0,  0,  0, P86 },
@@ -633,14 +636,62 @@ BYTE opcode_prefix_code(int i) {
   return 0x9B;
 }
 
-const INSDEF* find_instruc(int op, const OPERAND_CLASS* op1, const OPERAND_CLASS* op2, const OPERAND_CLASS* op3) {
-  const INSDEF* p;
+const INSDEF* first_instruc(void) {
+  return &instable[1];
+}
 
-  for (p = instable; p->op != TOK_NONE; p++) {
-    if (p->op == op) {
-      if (flag_matches(op1, p->oper1) && flag_matches(op2, p->oper2) && flag_matches(op3, p->oper3))
-        return p;
+const INSDEF* next_instruc(const INSDEF* def) {
+  if (def == NULL || def->op == TOK_NONE)
+    return NULL;
+  def++;
+  return (def->op == TOK_NONE) ? NULL : def;
+}
+
+#define OPCODES (LAST_OPCODE_TOKEN - FIRST_OPCODE_TOKEN + 1)
+#define INSTRUCTIONS (sizeof instable / sizeof instable[0])
+
+static bool indexed = false;
+
+// first instruction in instable for a given token
+static size_t first_index[OPCODES];
+
+// next instruction for the same token
+static size_t next_index[INSTRUCTIONS];
+
+static void build_index(void) {
+  assert(!indexed);
+
+  // latest table entry encountered for a given token
+  size_t latest_index[OPCODES] = { 0 };
+
+  for (size_t i = 1; instable[i].op != TOK_NONE; i++) {
+    assert(instable[i].op >= FIRST_OPCODE_TOKEN && instable[i].op <= LAST_OPCODE_TOKEN);
+    int op_index = instable[i].op - FIRST_OPCODE_TOKEN;
+    if (first_index[op_index] == 0) {
+      first_index[op_index] = i;
+      latest_index[op_index] = i;
     }
+    else {
+      assert(latest_index[op_index] != 0);
+      next_index[latest_index[op_index]] = i;
+      latest_index[op_index] = i;
+    }
+  }
+
+  indexed = true;
+}
+
+const INSDEF* find_instruc(int op, const OPERAND_CLASS* op1, const OPERAND_CLASS* op2, const OPERAND_CLASS* op3) {
+  if (op < FIRST_OPCODE_TOKEN|| op > LAST_OPCODE_TOKEN)
+    return NULL;
+
+  if (!indexed)
+    build_index();
+
+  for (size_t i = first_index[op - FIRST_OPCODE_TOKEN]; i; i = next_index[i]) {
+    const INSDEF* p = &instable[i];
+    if (flag_matches(op1, p->oper1) && flag_matches(op2, p->oper2) && flag_matches(op3, p->oper3))
+      return p;
   }
 
   return NULL;
@@ -821,12 +872,39 @@ static void test_none_flag(CuTest* tc) {
   CuAssertTrue(tc, def == NULL);
 }
 
+static void test_iterate(CuTest* tc) {
+  const INSDEF* def1;
+  const INSDEF* def2;
+
+  def1 = first_instruc();
+  CuAssertPtrNotNull(tc, def1);
+  CuAssertTrue(tc, def1->op != TOK_NONE);
+
+  def2 = next_instruc(def1);
+  CuAssertPtrNotNull(tc, def2);
+  CuAssertTrue(tc, def2 != def1);
+
+  def1 = &instable[sizeof instable / sizeof instable[0] - 2];
+  CuAssertTrue(tc, def1->op != TOK_NONE);
+  def2 = next_instruc(def1);
+  CuAssertTrue(tc, def2 == NULL);
+
+  def1 = &instable[sizeof instable / sizeof instable[0] - 1];
+  CuAssertIntEquals(tc, TOK_NONE, def1->op);
+  def2 = next_instruc(def1);
+  CuAssertTrue(tc, def2 == NULL);
+
+  def2 = next_instruc(NULL);
+  CuAssertTrue(tc, def2 == NULL);
+}
+
 CuSuite* instable_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_find_instruc);
   SUITE_ADD_TEST(suite, test_find_instruc_3);
   SUITE_ADD_TEST(suite, test_repeats);
   SUITE_ADD_TEST(suite, test_none_flag);
+  SUITE_ADD_TEST(suite, test_iterate);
   return suite;
 }
 

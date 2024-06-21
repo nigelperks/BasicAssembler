@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // bas main.
 
 #include <stdio.h>
@@ -16,6 +16,7 @@
 #include "encoding.h"
 #include "object.h"
 #include "timer.h"
+#include "token.h"
 
 #ifdef UNIT_TEST
 static void RunAllTests(void);
@@ -41,6 +42,8 @@ int main(int argc, char* argv[]) {
 
   if (opts->help)
     help();
+
+  init_keywords();
 
   assert(opts->source_name != NULL);
   SOURCE* src = load_source_file(opts->source_name);

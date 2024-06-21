@@ -73,6 +73,9 @@ extern const INSDEF instable[];
 
 BOOL opcode_lea(int opcode);
 
+const INSDEF* first_instruc(void);
+const INSDEF* next_instruc(const INSDEF*);
+
 const INSDEF* find_instruc(int operation, const OPERAND_CLASS* operand1, const OPERAND_CLASS* operand2, const OPERAND_CLASS* operand3);
 
 void print_insdef(const INSDEF*);

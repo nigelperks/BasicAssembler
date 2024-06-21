@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Assembler tokens.
 
 #ifndef TOKEN_H
@@ -134,24 +134,24 @@ enum {
   TOK_FIADD,
   TOK_FICOM,
   TOK_FICOMP,
-  TOK_FINCSTP,
   TOK_FIDIV,
   TOK_FIDIVR,
   TOK_FILD,
   TOK_FIMUL,
+  TOK_FINCSTP,
   TOK_FINIT,
   TOK_FIST,
   TOK_FISTP,
   TOK_FISUB,
   TOK_FISUBR,
+  TOK_FLD,
+  TOK_FLDCW,
+  TOK_FLDENV,
   TOK_FLDLG2,
   TOK_FLDLN2,
   TOK_FLDL2E,
   TOK_FLDL2T,
   TOK_FLDPI,
-  TOK_FLD,
-  TOK_FLDCW,
-  TOK_FLDENV,
   TOK_FLDZ,
   TOK_FLD1,
   TOK_FMUL,
@@ -296,7 +296,6 @@ enum {
   TOK_JBE,
   TOK_JC,
   TOK_JE,
-  TOK_JZ,
   TOK_JG,
   TOK_JGE,
   TOK_JL,
@@ -320,7 +319,16 @@ enum {
   TOK_JPE,
   TOK_JPO,
   TOK_JS,
+  TOK_JZ,
 };
+
+#define FIRST_OPCODE_TOKEN TOK_AAA
+#define LAST_OPCODE_TOKEN TOK_JZ
+
+#define FIRST_JCC_TOKEN TOK_JA
+#define LAST_JCC_TOKEN TOK_JZ
+
+void init_keywords(void);
 
 const char* token_name(int token);
 

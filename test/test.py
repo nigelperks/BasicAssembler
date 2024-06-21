@@ -160,6 +160,40 @@ def test_com(tools, config, sources, force_ref, getRefOnly, keepDosBox, verbose)
   compare_raw(refName, test_com)
   if config_on(config, "mapfile"):
     compare_map("a.ma_", "test.map")
+  if "dis" in config and sources != [] and sources[0] in config["dis"].split(","):
+    test_com_disassembly(tools, "test.com", sources, verbose)
+
+
+def test_com_disassembly(tools, comName, sources, verbose):
+  announce(sources, "DISASSEMBLY")
+  cmd = tools["bdis"] + " -s " + comName + " > test.dis"
+  r = run(cmd)
+  if r != 0:
+    fatal("Disassembly error: %d" % r)
+  f = open("test.dis")
+  dis = f.readlines()
+  f.close()
+
+  f = open("_testdis.asm", "w")
+  f.write(" IDEAL\n")
+  f.write(" SEGMENT all\n")
+  f.write(" ASSUME CS:all,DS:all,ES:all,SS:all\n")
+  f.write(" ORG 100h\n")
+  f.write("start:\n")
+  f.writelines(dis)
+  f.write(" ENDS\n")
+  f.write(" END start\n")
+  f.close()
+  obj = assemble(tools, ["_testdis.asm"], verbose)
+
+  test_com = "_testdis.com"
+  cmd = "%s -fcom %s -o %s" % (tools["blink"], " ".join(obj), test_com)
+  r = run(cmd)
+  if r != 0:
+    fatal("COM linking error: %d" % r)
+
+  compare_raw(comName, test_com)
+  os.remove("_testdis.asm")
 
 
 def get_ref_com(config, sources, force_ref, keepDosBox):
@@ -293,7 +327,7 @@ def test_source(tools, config, source, force_ref, getRefOnly, keepDosBox, verbos
     for i, name in enumerate(components[:-1]):
       if not os.path.isdir(name):
         fatal("Test directory not found: " + os.sep.join(components[:i+1]))
-      print("Test directory found: " + os.sep.join(components[:i+1]))
+      banner("Test directory found: " + os.sep.join(components[:i+1]))
       os.chdir(name)
       if os.path.isfile(CONFIG_NAME):
         add_config(cfg, CONFIG_NAME)
@@ -311,7 +345,7 @@ def test_source(tools, config, source, force_ref, getRefOnly, keepDosBox, verbos
 
 def clean_file(name, verbose):
   ext = extension(name).lower()
-  if ext in ["bin","com","exe","map","obj"] or name in ["err"]:
+  if ext in ["bin","com","dis","exe","map","obj"] or name in ["err"]:
     print("Remove:", name)
     os.remove(name)
   elif verbose:
@@ -390,7 +424,7 @@ def main(argv):
   if executables is None:
     fatal("Usage: test.py executables-directory [sources]")
 
-  tools = find_tools(executables, ["bas","blink","exetool"])
+  tools = find_tools(executables, ["bas","bdis","blink","exetool"])
   print_tools(tools)
   config = load_root_config(CONFIG_NAME)
 

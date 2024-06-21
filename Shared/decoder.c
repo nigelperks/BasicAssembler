@@ -197,7 +197,7 @@ static void add_decoding(DECODER* dec, const INSDEF* def, int opcode1) {
 DECODER* build_decoder(void) {
   DECODER* dec = ecalloc(1, sizeof *dec);
 
-  for (const INSDEF* p = instable; p->op != TOK_NONE; p++) {
+  for (const INSDEF* p = first_instruc(); p; p = next_instruc(p)) {
     if (p->opcode_inc) {
       for (int reg = 0; reg < 8; reg++)
         add_decoding(dec, p, p->opcode1 + reg);

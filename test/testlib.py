@@ -44,6 +44,7 @@ def find_tools(p, names):
   return tools
 
 def print_tools(tools):
+  banner("Tools found")
   for t in tools:
     print("%s=%s" % (t, tools[t]))
 
@@ -51,9 +52,13 @@ def process_config_line(config, line):
   L = line.split("=", 1)
   if len(L) != 2:
     fatal("Invalid config line: " + line)
-  config[L[0].strip()] = L[1].strip()
+  name = L[0].strip()
+  val = L[1].strip()
+  config[name] = val
+  print("Config: %s=%s" % (name, val))
 
 def add_config(config, name):
+  banner("Configuration: " + os.path.abspath(name))
   with open(name) as f:
     line = f.readline()
     while line != "":
@@ -75,9 +80,8 @@ def config_on(config, name):
 def load_root_config(name):
   config = {}
   if os.path.isfile(name):
-    add_config(config, CONFIG_NAME)
+    add_config(config, name)
   else:
     print("Warning: no root configuration file:", name)
-  print_config(config)
   return config
 
