@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Operand-parsing common to passes.
 
 #ifndef PARSE_H
@@ -101,5 +101,6 @@ BOOL make_absolute(int type, union value *);
 
 void error(STATE*, const IFILE*, const char* fmt, ...);
 void error2(STATE*, LEX* lex, const char* fmt, ...);
+void check_max_errors(const STATE*);
 
 #endif // PARSE_H

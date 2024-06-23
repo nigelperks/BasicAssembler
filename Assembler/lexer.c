@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Lexical analyser.
 
 #include <stdlib.h>
@@ -9,12 +9,14 @@
 #include <limits.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include "lexer.h"
 #include "source.h"
 #include "token.h"
 #include "utils.h"
 
 static void lex_fatal(LEX*, const char* fmt, ...);
+static void lex_error(LEX*, const char* fmt, ...);
 
 LEX* new_lex(const char* source_name) {
   LEX* lex = emalloc(sizeof *lex);
@@ -26,6 +28,7 @@ LEX* new_lex(const char* source_name) {
   lex->token_pos = 0;
   lex->token = TOK_NONE;
   lex->lexeme[0] = '\0';
+  lex->errors = 0;
 
   return lex;
 }
@@ -61,6 +64,7 @@ void lex_begin(LEX* lex, const char* text, unsigned lineno, unsigned pos) {
   lex->lineno = lineno;
   lex->pos = pos;
   lex->token = lex_next(lex);
+  lex->errors = 0;
 }
 
 unsigned lex_pos(LEX* lex) {
@@ -83,6 +87,7 @@ int lex_token(LEX* lex) {
 
 const char* lex_lexeme(LEX* lex) {
   assert(lex != NULL);
+  assert(lex->token == TOK_LABEL);
 
   return lex->lexeme;
 }
@@ -113,6 +118,9 @@ void lex_discard_line(LEX* lex) {
   lex->token = TOK_EOL;
 }
 
+static void read_number(LEX*);
+static void convert(LEX*, unsigned pos, int base);
+
 int lex_next(LEX* lex) {
   assert(lex != NULL);
   assert(lex->text != NULL);
@@ -135,7 +143,7 @@ int lex_next(LEX* lex) {
     while (isalnum(c = text[lex->pos]) || c == '_' || c == '@') {
       if (i >= MAX_LEX - 1) {
         lex->lexeme[i] = '\0';
-        fatal("label too long: %s...\n", lex->lexeme);
+        lex_fatal(lex, "label too long: %s...\n", lex->lexeme);
       }
       lex->lexeme[i++] = c;
       lex->pos++;
@@ -154,41 +162,54 @@ int lex_next(LEX* lex) {
     return lex->token = TOK_LABEL;
   }
 
-  if (isdigit(c)) {
-    int base = 10;
-    unsigned i = 0;
-    char* end = NULL;
-
-    lex->lexeme[i++] = c;
+  if (c == '0') {
     lex->pos++;
-    while (isxdigit(c = text[lex->pos])) {
-      if (i >= MAX_LEX - 1) {
-        lex->lexeme[i] = '\0';
-        fatal("number too long: %s...\n", lex->lexeme);
-      }
-      lex->lexeme[i++] = c;
+    lex->lexeme[0] = '0';
+    lex->i = 1;
+    switch (tolower(c = text[lex->pos])) {
+      case 'b':
+        read_number(lex);  // including 'b'
+        if (tolower(text[lex->pos]) == 'h') {
+          lex->pos++;
+          convert(lex, 0, 16);
+        }
+        else
+          convert(lex, 2, 2);  // disregard 0b prefix
+        break;
+      case 'o':
+        lex->lexeme[lex->i++] = 'o';
+        lex->pos++;
+        read_number(lex);
+        convert(lex, 2, 8);
+        break;
+      case 'x':
+        lex->lexeme[lex->i++] = 'x';
+        lex->pos++;
+        read_number(lex);
+        convert(lex, 2, 16);
+        break;
+      default:
+        read_number(lex);
+        if (tolower(text[lex->pos]) == 'h') {
+          lex->pos++;
+          convert(lex, 0, 16);
+        }
+        else
+          convert(lex, 0, 10);
+        break;
+    }
+    return lex->token = TOK_NUM;
+  }
+
+  if (isdigit(c)) {
+    lex->i = 0;
+    read_number(lex);
+    if (tolower(text[lex->pos]) == 'h') {
       lex->pos++;
-      if (!isdigit(c))
-        base = 16;
+      convert(lex, 0, 16);
     }
-    assert(i < MAX_LEX);
-    lex->lexeme[i] = '\0';
-
-    if (tolower(c) == 'h') {
-      base = 16;
-      lex->pos++;
-    }
-    else {
-      if (base == 16)
-        fatal("hex number requires H suffix: %s\n", lex->lexeme);
-    }
-
-    lex->val.num = strtoull(lex->lexeme, &end, base);
-    if (lex->val.num == ULLONG_MAX && errno == ERANGE)
-      fatal("number out of range: %s\n", lex->lexeme);
-    if (*end != '\0')
-      fatal("invalid number: %s\n", lex->lexeme);
-
+    else
+      convert(lex, 0, 10);
     return lex->token = TOK_NUM;
   }
 
@@ -200,7 +221,7 @@ int lex_next(LEX* lex) {
     while ((c = text[lex->pos]) != '\0' && c != '\n' && c != delim) {
       if (i >= MAX_LEX - 2) {
         lex->lexeme[i] = '\0';
-        fatal("string too long: %s...\n", lex->lexeme);
+        lex_fatal(lex, "string too long: %s...\n", lex->lexeme);
       }
       lex->lexeme[i++] = c;
       lex->pos++;
@@ -223,6 +244,48 @@ int lex_next(LEX* lex) {
 
   lex_fatal(lex, "invalid token prefix: '%c'\n", c);
   return lex->token = TOK_NONE;
+}
+
+static void append_lexeme(LEX* lex, int c, const char* what) {
+  if (lex->i >= MAX_LEX - 1) {
+    lex->lexeme[lex->i] = '\0';
+    lex_fatal(lex, "%s too long: %s...\n", what, lex->lexeme);
+  }
+  lex->lexeme[lex->i++] = c;
+}
+
+// Read a number of zero or more hex digits into lexeme.
+// Invalid digits, and the lack of any digits, are caught at conversion.
+// Allow arbitrary underscore punctuation for readability.
+// On entry: lex->i initialised by caller.
+// On exit: pos -> first non-hex-digit.
+static void read_number(LEX* lex) {
+  int c;
+
+  while (isxdigit(c = lex->text[lex->pos])) {
+    append_lexeme(lex, c, "number");
+    do {
+      lex->pos++;
+    } while (lex->text[lex->pos] == '_');
+  }
+
+  assert(lex->i < MAX_LEX);
+  lex->lexeme[lex->i] = '\0';
+}
+
+// Convert number at pos in lexeme according to base, setting lex->val.num.
+// Errors are fatal.
+static void convert(LEX* lex, unsigned pos, int base) {
+  char* end = NULL;
+  lex->val.num = strtoull(lex->lexeme + pos, &end, base);
+  if (lex->val.num == ULLONG_MAX && errno == ERANGE) {
+    lex_error(lex, "number out of range: %s", lex->lexeme);
+    lex->val.num = 0;
+  }
+  if (*end != '\0' || end == lex->lexeme + pos) {
+    lex_error(lex, "invalid number: %s", lex->lexeme);
+    lex->val.num = 0;
+  }
 }
 
 size_t lex_string_len(LEX* lex) {
@@ -271,6 +334,37 @@ static void lex_fatal(LEX* lex, const char* fmt, ...) {
   va_end(ap);
 
   exit(EXIT_FAILURE);
+}
+
+static void lex_error(LEX* lex, const char* fmt, ...) {
+  assert(lex != NULL);
+  assert(fmt != NULL);
+
+  lex->errors++;
+
+  fprintf(stderr, "Error: %s: %u: ", lex->source_name ? lex->source_name : "-", lex->lineno);
+
+  va_list ap;
+  va_start(ap, fmt);
+  vfprintf(stderr, fmt, ap);
+  va_end(ap);
+
+  if (lex->text) {
+    fputs(":\n", stderr);
+
+    const unsigned TAB = 4;
+
+    print_notabs(stderr, lex->text, TAB);
+    fputc('\n', stderr);
+    position(stderr, lex->text, lex->token_pos, TAB);
+    fputs("^\n", stderr);
+  }
+  else
+    fputc('\n', stderr);
+}
+
+unsigned lex_errors(const LEX* lex) {
+  return lex->errors;
 }
 
 #ifdef UNIT_TEST
@@ -406,6 +500,111 @@ static void test_string(CuTest* tc) {
   efree(buf);
 }
 
+static void test_error(CuTest* tc) {
+  // Null source name
+  LEX* lex = new_lex(NULL);
+  CuAssertIntEquals(tc, 0, lex->errors);
+  // No source line
+  lex_error(lex, "dummy error");
+  CuAssertIntEquals(tc, 1, lex->errors);
+  // Begin source line
+  lex_begin(lex, "some code", 1, 5);
+  CuAssertIntEquals(tc, 0, lex->errors);
+  lex_error(lex, "code error: %d", 53);
+  CuAssertIntEquals(tc, 1, lex->errors);
+  delete_lex(lex);
+
+  // With source name
+  lex = new_lex("hello.asm");
+  // No source line
+  lex_error(lex, "dummy error");
+  // Begin source line
+  lex_begin(lex, "some code", 1, 0);
+  lex_error(lex, "first error");
+  CuAssertIntEquals(tc, 1, lex->errors);
+  lex->token_pos = 5;
+  lex_error(lex, "code error: %d", 53);
+  CuAssertIntEquals(tc, 2, lex->errors);
+  CuAssertIntEquals(tc, 2, lex_errors(lex));
+  delete_lex(lex);
+}
+
+static void test_append_lexeme(CuTest* tc) {
+  LEX lex;
+
+  lex.i = 0;
+
+  append_lexeme(&lex, '*', "test");
+  CuAssertIntEquals(tc, '*', lex.lexeme[0]);
+  CuAssertIntEquals(tc, 1, lex.i);
+
+  append_lexeme(&lex, '!', "test");
+  CuAssertIntEquals(tc, '*', lex.lexeme[0]);
+  CuAssertIntEquals(tc, '!', lex.lexeme[1]);
+  CuAssertIntEquals(tc, 2, lex.i);
+}
+
+static void test_read_number(CuTest* tc) {
+  LEX lex;
+
+  lex.text = "...0xFACE123H";
+
+  lex.pos = 0;
+  lex.i = 0;
+  read_number(&lex);
+  CuAssertStrEquals(tc, "", lex.lexeme);
+  CuAssertIntEquals(tc, 0, lex.pos);
+
+  lex.pos = 3;
+  lex.i = 0;
+  read_number(&lex);
+  CuAssertStrEquals(tc, "0", lex.lexeme);
+  CuAssertIntEquals(tc, 4, lex.pos);
+
+  lex.pos = 5;
+  lex.i = 0;
+  read_number(&lex);
+  CuAssertStrEquals(tc, "FACE123", lex.lexeme);
+  CuAssertIntEquals(tc, 'H', lex.text[lex.pos]);
+}
+
+static void test_convert(CuTest* tc) {
+  LEX* lex = new_lex(NULL);
+
+  lex->text = "0o128,0x1_0000_0000_0000_0000";
+  lex->lineno = 2;
+  lex->pos = 0;
+
+  strcpy(lex->lexeme, "");
+  lex->token_pos = strlen(lex->text);
+  convert(lex, 0, 10);
+  CuAssertIntEquals(tc, 1, lex->errors);
+
+  strcpy(lex->lexeme, "0o128");
+  lex->token_pos = 0;
+  convert(lex, 2, 10);
+  CuAssertIntEquals(tc, 1, lex->errors);
+  CuAssertLongLongEquals(tc, 128, lex->val.num);
+
+  convert(lex, 2, 8);
+  CuAssertIntEquals(tc, 2, lex->errors);
+  CuAssertLongLongEquals(tc, 0, lex->val.num);
+
+  const char* p = strchr(lex->text, ',');
+  unsigned i = 0;
+  for (p++; *p && *p != ','; p++) {
+    if (*p != '_')
+      lex->lexeme[i++] = *p;
+  }
+  lex->lexeme[i] = '\0';
+  lex->token_pos = p+1 - lex->text;
+  convert(lex, 2, 16);
+  CuAssertIntEquals(tc, 3, lex->errors);
+  CuAssertLongLongEquals(tc, 0, lex->val.num);
+
+  delete_lex(lex);
+}
+
 CuSuite* lexer_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_new_lex);
@@ -413,6 +612,10 @@ CuSuite* lexer_test_suite(void) {
   SUITE_ADD_TEST(suite, test_discard_line);
   SUITE_ADD_TEST(suite, test_get_token);
   SUITE_ADD_TEST(suite, test_string);
+  SUITE_ADD_TEST(suite, test_error);
+  SUITE_ADD_TEST(suite, test_append_lexeme);
+  SUITE_ADD_TEST(suite, test_read_number);
+  SUITE_ADD_TEST(suite, test_convert);
   return suite;
 }
 

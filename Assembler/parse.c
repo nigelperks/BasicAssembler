@@ -46,9 +46,7 @@ void error(STATE* state, const IFILE* ifile, const char* fmt, ...) {
   fputc('\n', stderr);
 
   state->errors++;
-
-  if (state->errors >= state->max_errors)
-    fatal("maximum errors reached\n");
+  check_max_errors(state);
 }
 
 void error2(STATE* state, LEX* lex, const char* fmt, ...) {
@@ -57,8 +55,6 @@ void error2(STATE* state, LEX* lex, const char* fmt, ...) {
   assert(state != NULL);
   assert(lex != NULL);
   assert(fmt != NULL);
-
-  state->errors++;
 
   fprintf(stderr, "Error: %s: %u: ", lex_source_name(lex), lex_lineno(lex));
 
@@ -75,6 +71,11 @@ void error2(STATE* state, LEX* lex, const char* fmt, ...) {
   position(stderr, lex_text(lex), lex_token_pos(lex), TAB);
   fputs("^\n", stderr);
 
+  state->errors++;
+  check_max_errors(state);
+}
+
+void check_max_errors(const STATE* state) {
   if (state->errors >= state->max_errors)
     fatal("maximum errors reached\n");
 }

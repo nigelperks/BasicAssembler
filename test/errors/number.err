@@ -1,0 +1,40 @@
+Error: number.asm: 9: invalid number: 0a:
+    dw  0a
+        ^
+Error: number.asm: 10: extra on line: label:
+    dw  0g
+         ^
+Error: number.asm: 11: invalid number: 0b:
+    dw  0b
+        ^
+Error: number.asm: 12: invalid number: 0b2:
+    dw  0b2
+        ^
+Error: number.asm: 13: invalid number: 0o:
+    dw  0o
+        ^
+Error: number.asm: 14: invalid number: 0o8:
+    dw  0o8
+        ^
+Error: number.asm: 15: invalid number: 0o9:
+    dw  0o9
+        ^
+Error: number.asm: 16: invalid number: 0x:
+    dw  0x
+        ^
+Error: number.asm: 17: invalid number: 0x:
+    dw  0xg
+        ^
+Error: number.asm: 17: extra on line: label:
+    dw  0xg
+          ^
+Error: number.asm: 18: extra on line: label:
+    dw  0x1g
+           ^
+Error: number.asm: 19: invalid number: 1a:
+    dw  1a
+        ^
+Error: number.asm: 20: extra on line: label:
+    dw  0x1234h
+              ^
+Errors: 13

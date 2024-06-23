@@ -62,7 +62,7 @@ static void process_irec(STATE* state, IFILE* ifile, LEX* lex) {
   IREC* irec = get_irec(ifile, ifile->pos);
   BOOL colon = FALSE;
 
-  lex_begin(lex, irec_text(ifile, irec), irec_lineno(ifile, irec), 0);
+  lex_begin(lex, irec_text(ifile, irec), irec_lineno(ifile, irec), 0);  // resets lex errors
 
   define_dollar(state, ifile);
 
@@ -90,6 +90,9 @@ static void process_irec(STATE* state, IFILE* ifile, LEX* lex) {
   }
   else if (lex_token(lex) != TOK_EOL)
     error(state, ifile, "directive or instruction expected: %s", token_name(lex_token(lex)));
+
+  state->errors += lex_errors(lex);
+  check_max_errors(state);
 }
 
 static BOOL eat_colon(LEX*);
