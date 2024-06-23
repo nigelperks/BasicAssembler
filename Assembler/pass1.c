@@ -21,6 +21,7 @@
 
 static void process_irec(STATE*, IFILE*, LEX*);
 
+static void check_no_segment_at_eof(STATE*, IFILE*);
 static void check_symbols_defined(IFILE*);
 
 void pass1(IFILE* ifile, const Options* options) {
@@ -39,6 +40,8 @@ void pass1(IFILE* ifile, const Options* options) {
 
   for (ifile->pos = 0; ifile->pos < irec_count(ifile); ifile->pos++)
     process_irec(&state, ifile, lex);
+
+  check_no_segment_at_eof(&state, ifile);
 
   delete_lex(lex);
 
@@ -288,18 +291,29 @@ static void do_equate(STATE* state, IFILE* ifile, LEX* lex) {
   }
 }
 
+static void check_no_segment_at_directive(STATE* state, IFILE* ifile, LEX* lex) {
+  if (state->curseg != NO_SEG) {
+    if (ifile->model_group == NULL)
+      error2(state, lex, "a segment is open: %s", segment_name(ifile, state->curseg));
+    state->curseg = NO_SEG;
+  }
+}
+
+static void check_no_segment_at_eof(STATE* state, IFILE* ifile) {
+  if (state->curseg != NO_SEG) {
+    if (ifile->model_group == NULL)
+      error(state, ifile, "a segment is open at end of file: %s", segment_name(ifile, state->curseg));
+    state->curseg = NO_SEG;
+  }
+}
+
 static void do_end(STATE* state, IFILE* ifile, LEX* lex) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(lex != NULL);
   assert(lex_token(lex) == TOK_END);
 
-  if (state->curseg != NO_SEG) {
-    if (ifile->model_group)
-      state->curseg = NO_SEG;
-    else
-      error2(state, lex, "a segment is open: %s", segment_name(ifile, state->curseg));
-  }
+  check_no_segment_at_directive(state, ifile, lex);
 
   if (lex_next(lex) == TOK_LABEL) {
     if (ifile->start_label != NULL)

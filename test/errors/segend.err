@@ -1,0 +1,4 @@
+Error: segend.asm: 9: a segment is open: main:
+    END start
+    ^
+Errors: 1
