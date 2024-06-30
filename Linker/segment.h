@@ -34,7 +34,7 @@ typedef struct {
 
   unsigned long pc; // where to load next data; set by ORG; valid only during loading
   BYTE* data;
-  unsigned long allocated;
+  MemSize allocated;
   DWORD lo;
   DWORD hi;
 

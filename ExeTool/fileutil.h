@@ -1,5 +1,5 @@
 // EXE analysis tool
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021,24 Nigel Perks
 // Low-level file functions.
 
 #ifndef FILE_UTIL_H
@@ -10,9 +10,5 @@
 
 BYTE getbyte(FILE*);
 WORD getword(FILE*);
-
-BYTE* read_file(FILE*, unsigned long size);
-
-long file_size(FILE*);
 
 #endif // FILE_UTIL_H

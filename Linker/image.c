@@ -29,7 +29,7 @@ void delete_image(IMAGE* image) {
 #define MAX_IMAGE (640 * 1024UL) // should be enough for anyone
 #define IMAGE_ALLOCATION_UNIT (16 * 1024)
 
-static void ensure_allocated(IMAGE* image, size_t size) {
+static void ensure_allocated(IMAGE* image, FileSize size) {
   assert(image != NULL);
   assert(image->lo <= image->hi);
   assert(image->hi <= MAX_IMAGE);
@@ -44,7 +44,7 @@ static void ensure_allocated(IMAGE* image, size_t size) {
     if (size % IMAGE_ALLOCATION_UNIT)
       size += (IMAGE_ALLOCATION_UNIT - size % IMAGE_ALLOCATION_UNIT);
     assert(size % IMAGE_ALLOCATION_UNIT == 0);
-    BYTE* data = ecalloc(size, 1);
+    BYTE* data = ecalloc(size);
     if (image->data) {
       memcpy(data, image->data, image->hi);
       efree(image->data);
@@ -54,7 +54,7 @@ static void ensure_allocated(IMAGE* image, size_t size) {
   }
 }
 
-static void write_image(IMAGE* image, size_t pos, const BYTE* data, size_t size) {
+static void write_image(IMAGE* image, FileSize pos, const BYTE* data, FileSize size) {
   assert(image != NULL);
   assert(image->lo <= image->hi);
   assert(image->hi <= MAX_IMAGE);
@@ -387,7 +387,7 @@ static void test_ensure_allocated(CuTest* tc) {
 static void test_write_image(CuTest* tc) {
   IMAGE* image = new_image();
   BYTE* buf1 = emalloc(32);
-  const size_t K = IMAGE_ALLOCATION_UNIT * 3/2;
+  const FileSize K = IMAGE_ALLOCATION_UNIT * 3/2;
   BYTE* buf2 = emalloc(K);
 
   memset(buf1, '*', 23);

@@ -16,17 +16,24 @@ Please see LICENSE.
 ## 1. How to build on Windows
 
 Clone the repo using **autocrlf=true** (CRLF on disk, LF committed).
-The recommend build is Debug for Win32 (x86),
-to avoid compile-warnings about type sizes, for debugging,
-and for unit-testing.
 
-In the top-level directory of the repo:
+Run the following in the top-level directory of the repo.
 
+Run one generator (-G) command and one build (--build) command,
+depending on whether you want 32- or 64-bit builds
+of Debug or Release configurations.
+All four combinations should build without warnings and pass the tests.
 
 ```
-md Build
-cmake -S . -B Build -G "Visual Studio 17 2022" -A Win32
-cmake --build Build --config Debug
+md Build32
+cmake -S . -B Build32 -G "Visual Studio 17 2022" -A Win32
+cmake --build Build32 --config Debug
+cmake --build Build32 --config Release
+
+md Build64
+cmake -S . -B Build64 -G "Visual Studio 17 2022" -A x64
+cmake --build Build64 --config Debug
+cmake --build Build64 --config Release
 ```
 
 
@@ -35,7 +42,7 @@ cmake --build Build --config Debug
 Unit tests:
 
 ```
-ctest --test-dir Build -C Debug
+ctest --test-dir Build32 -C Debug
 ```
 
 The following scripts take the location of the executables being tested
@@ -44,17 +51,17 @@ as a parameter.
 Functional & system tests:
 
     cd test
-    test.py ..\Build\Debug\bin
+    test.py ..\Build32\Debug\bin
 
 Generated tests (if suitable reference assembler & linker are installed):
 
     cd test
-    testgen.py ..\Build\Debug\bin
+    testgen.py ..\Build32\Debug\bin
 
 Generated tests of disassembler (do not require reference assembler):
 
     cd test
-    testdis.py ..\Build\Debug\bin
+    testdis.py ..\Build32\Debug\bin
 
 
 ## 3. How to use
@@ -65,6 +72,9 @@ No user manual yet.
 
 Assemble given ASM files to OBJ. Link together with given OBJ files.
 Driver program, invoking bas and blink to assemble and link.
+
+Note that the OBJ files are a custom format, and cannot be linked
+with Intel Object Module Format or any other format.
 
     basl file1.asm file2.obj ...
 

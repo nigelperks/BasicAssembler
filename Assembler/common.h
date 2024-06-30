@@ -31,12 +31,17 @@ bool valid_dword_expr(int type);
 bool valid_qword_expr(int type);
 bool valid_tbyte_expr(int type);
 
-typedef size_t EXPR_SIZE(int type, VALUE*, BOOL *init);
-size_t byte_expr_size(int expr_type, VALUE*, BOOL *init);
-size_t word_expr_size(int expr_type, VALUE*, BOOL *init);
-size_t dword_expr_size(int expr_type, VALUE*, BOOL *init);
-size_t qword_expr_size(int expr_type, VALUE*, BOOL *init);
-size_t tbyte_expr_size(int expr_type, VALUE*, BOOL *init);
+typedef DWORD DataSize;
+
+#define MAX_DATASIZE ((DWORD)(-1))
+
+typedef DataSize EXPR_SIZE_FN(int type, VALUE*, BOOL *init);
+
+DataSize byte_expr_size(int expr_type, VALUE*, BOOL *init);
+DataSize word_expr_size(int expr_type, VALUE*, BOOL *init);
+DataSize dword_expr_size(int expr_type, VALUE*, BOOL *init);
+DataSize qword_expr_size(int expr_type, VALUE*, BOOL *init);
+DataSize tbyte_expr_size(int expr_type, VALUE*, BOOL *init);
 
 void match_operand_sizes(STATE*, LEX*, int flag1, int flag2,
                          const OPERAND* oper1, const OPERAND* oper2);

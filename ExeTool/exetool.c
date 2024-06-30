@@ -63,7 +63,7 @@ static void dump_exe(const OPTIONS* opt)
     unsigned long relocations_offset = 0;
     unsigned long image_offset = 0;
     unsigned long after_image_offset = 0;
-    unsigned long image_size = 0;
+    FileSize image_size = 0;
 
     unsigned long total_size = 0;
 
@@ -71,16 +71,14 @@ static void dump_exe(const OPTIONS* opt)
     if (fp == NULL)
         fatal("cannot open file %s\n", opt->file_name);
 
-    fseek(fp, 0, SEEK_END);
-    long actual_size = ftell(fp);
-    assert(actual_size >= 0);
-    fseek(fp, 0, SEEK_SET);
+    FileSize actual_size = file_size(fp, opt->file_name);
 
     EXEHEADER header;
-    size_t count = fread(&header, 1, sizeof header, fp);
+    fseek(fp, 0, SEEK_SET);
+    FileSize count = (FileSize) fread(&header, 1, sizeof header, fp);
     if (count != sizeof header)
         fatal("file too small for EXE header\n");
-    long total_read = count;
+    FileSize total_read = count;
 
     if (header.exSignature != 0x5A4D)
         fatal("EXE signature not found\n");
@@ -94,7 +92,7 @@ static void dump_exe(const OPTIONS* opt)
         if (total_read < header.exRelocTable)
         {
             puts("PADDING BEFORE RELOCATION TABLE:");
-            const size_t padding_size = header.exRelocTable - total_read;
+            const FileSize padding_size = header.exRelocTable - total_read;
             BYTE* padding = read_file(fp, padding_size);
             total_read += padding_size;
             dump_mem(padding, header_padding_offset, padding_size);
@@ -115,10 +113,11 @@ static void dump_exe(const OPTIONS* opt)
         putchar('\n');
     }
 
-    if (total_read < header.exHeaderSize * 16)
+    FileSize header_size = header.exHeaderSize * 16;
+    if (total_read < header_size)
     {
         puts("REST OF HEADER:");
-        size_t sz = header.exHeaderSize * 16 - total_read;
+        FileSize sz = header_size - total_read;
         BYTE* rest = read_file(fp, sz);
         dump_mem(rest, total_read, sz);
         putchar('\n');
@@ -164,7 +163,7 @@ static void dump_exe(const OPTIONS* opt)
         assert(total_read <= actual_size);
         if (total_read < actual_size)
         {
-            long sz = actual_size - total_read;
+            FileSize sz = actual_size - total_read;
             BYTE* buf = read_file(fp, sz);
             dump_mem(buf, total_read, sz);
             efree(buf);

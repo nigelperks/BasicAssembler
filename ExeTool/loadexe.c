@@ -16,11 +16,8 @@ static RELOC_ITEM* load_reloc_table(FILE*, const EXEHEADER*);
 LOADEXE* load_exe(const char* file_name) {
   LOADEXE* exe = emalloc(sizeof *exe);
 
-  FILE* fp = fopen(file_name, "rb");
-  if (fp == NULL)
-    fatal("cannot open file for reading: %s\n", file_name);
-
-  long actual_size = file_size(fp);
+  FILE* fp = efopen(file_name, "rb", "reading");
+  FileSize actual_size = file_size(fp, file_name);
 
   size_t count = fread(&exe->header, 1, sizeof exe->header, fp);
   if (count != sizeof exe->header)
@@ -43,7 +40,7 @@ LOADEXE* load_exe(const char* file_name) {
   else
     exe->reloc_table = load_reloc_table(fp, &exe->header);
 
-  long image_start = exe->header.exHeaderSize * 16;
+  FileSize image_start = (FileSize)exe->header.exHeaderSize * 16;
   if (image_start > actual_size)
     fatal("calculated image start beyond actual file size: %s\n", file_name);
 

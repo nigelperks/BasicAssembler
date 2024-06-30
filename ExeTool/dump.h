@@ -7,6 +7,6 @@
 
 #include "utils.h"
 
-size_t dump_mem(const BYTE* buf, unsigned long report_offset, unsigned long size);
+MemSize dump_mem(const BYTE* buf, MemSize report_offset, MemSize size);
 
 #endif // DUMP_H

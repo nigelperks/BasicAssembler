@@ -22,7 +22,7 @@ typedef struct {
 
 typedef struct {
   BYTE* data;
-  size_t allocated;
+  FileSize allocated;
   DWORD lo;
   DWORD hi;
   IMAGE_START start;

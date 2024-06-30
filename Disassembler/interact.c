@@ -13,7 +13,7 @@
 
 typedef struct {
   BYTE* data;
-  size_t size;
+  DWORD size;
 } MEMORY;
 
 void delete_memory(MEMORY* mem) {
@@ -25,10 +25,7 @@ void delete_memory(MEMORY* mem) {
 
 static MEMORY* load_image(const char* fileName, DWORD origin) {
   FILE* fp = efopen(fileName, "rb", "loading");
-  fseek(fp, 0, SEEK_END);
-  long size = ftell(fp);
-  if (size < 0)
-    fatal("cannot determine length of file: %s\n", fileName);
+  FileSize size = file_size(fp, fileName);
   MEMORY *mem = emalloc(sizeof *mem);
   mem->size = size + origin;
   mem->data = emalloc(mem->size);

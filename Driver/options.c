@@ -5,7 +5,7 @@
 #include "utils.h"
 
 OPTIONS* new_options(void) {
-  OPTIONS* opt = ecalloc(1, sizeof *opt);
+  OPTIONS* opt = ecalloc(sizeof *opt);
   opt->sources = new_stringlist();
   return opt;
 }

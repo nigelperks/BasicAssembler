@@ -106,7 +106,7 @@ static void do_assume(STATE*, IFILE*, IREC*, LEX*);
 static void do_ends(STATE*, IFILE*, IREC*, LEX*);
 static void do_org(STATE*, IFILE*, IREC*, LEX*);
 static void do_segment(STATE*, IFILE*, IREC*, LEX*);
-static void define_data(STATE*, IFILE*, IREC*, LEX*, const char* descrip, EXPR_SIZE*);
+static void define_data(STATE*, IFILE*, IREC*, LEX*, const char* descrip, EXPR_SIZE_FN*);
 
 // TRUE if record resized
 static BOOL perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
@@ -114,7 +114,7 @@ static BOOL perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
   assert(irec != NULL);
   assert(token_is_directive(irec->op));
 
-  const unsigned provisional_record_size = irec->size;
+  const MemSize provisional_record_size = irec->size;
 
   switch (irec->op) {
     case TOK_ALIGN: do_align(state, ifile, irec, lex); break;
@@ -157,18 +157,18 @@ static BOOL perform_directive(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) 
   return irec->size != provisional_record_size;
 }
 
-size_t data_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*, BOOL *init);
+DataSize data_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE_FN*, BOOL *init);
 
-static void define_data(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, const char* descrip, EXPR_SIZE* expr_size) {
+static void define_data(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, const char* descrip, EXPR_SIZE_FN* expr_size_fn) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(irec != NULL);
   assert(lex != NULL);
   assert(descrip != NULL);
-  assert(expr_size != NULL);
+  assert(expr_size_fn != NULL);
 
   BOOL init;
-  irec->size = data_size(state, ifile, lex, descrip, expr_size, &init);
+  irec->size = data_size(state, ifile, lex, descrip, expr_size_fn, &init);
   inc_segment_pc(ifile, state->curseg, irec->size);
 }
 
@@ -253,6 +253,7 @@ static void do_align(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   if (parse_alignment(state, lex, &p2)) {
     DWORD pc = segment_pc(ifile, state->curseg);
     DWORD new_pc = p2aligned(pc, p2);
+    assert(new_pc >= pc);
     irec->size = new_pc - pc;
     set_segment_pc(ifile, state->curseg, new_pc);
   }
@@ -316,7 +317,7 @@ static bool expand_short_jump(STATE*, IFILE*, IREC*, LEX*,
 
 // TRUE if record resized.
 static BOOL process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
-  const unsigned provisional_record_size = irec->size;
+  const MemSize provisional_record_size = irec->size;
 
   assert(state != NULL);
   assert(ifile != NULL);
@@ -487,7 +488,7 @@ static bool expand_short_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     error2(state, lex, "cannot expand jump with repeat prefix");
 
   if (irec->size != 2) {
-    error2(state, lex, "internal error: unexpected short jump instruction size: %u\n", (unsigned) irec->size);
+    error2(state, lex, "internal error: unexpected short jump instruction size: %lu\n", (unsigned long) irec->size);
     exit(EXIT_FAILURE);
   }
 
@@ -517,9 +518,9 @@ static bool expand_short_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
     return false;
 
   DWORD dest = sym_relative_value(label);
-
-  long disp = (long)dest - (long)(segment_pc(ifile, state->curseg) + irec->size);
-  if (disp >= -0x80 && disp < 0x80)
+  MemSize pc = segment_pc(ifile, state->curseg) + irec->size;
+  if (dest >= pc && dest - pc <  0x80 ||
+      dest <  pc && pc - dest <= 0x80)
     return false;
 
 //   Jcc X
@@ -672,7 +673,7 @@ static unsigned string_sreg_override_size(STATE*, IFILE*, LEX*,
 
 static unsigned instruction_segment_override_size(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, const OPERAND* oper1, const OPERAND* oper2) {
   assert(ifile != NULL);
-  
+
   unsigned size;
 
   if (opcode_lea(irec->def->opcode1))

@@ -110,7 +110,7 @@ static BOOL define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
     BOOL colon = FALSE;
     int tok = lex_next(lex);
     if (tok == TOK_EQU || tok == '=')
-      irec->label = sym_insert_absolute(ifile->st, name);      
+      irec->label = sym_insert_absolute(ifile->st, name);
     else {
       colon = eat_colon(lex);
       if (state->curseg == NO_SEG)
@@ -193,7 +193,7 @@ static void do_org(STATE*, IFILE*, LEX*);
 static void do_public(STATE*, IFILE*, LEX*);
 static void do_segment(STATE*, IFILE*, LEX*);
 static void do_udataseg(STATE*, IFILE*, LEX*);
-static void define_data(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*);
+static void define_data(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE_FN*);
 
 static void perform_directive(STATE* state, IFILE* ifile, LEX* lex) {
   IREC* irec = get_irec(ifile, ifile->pos);
@@ -768,6 +768,7 @@ static void do_align(STATE* state, IFILE* ifile, LEX* lex) {
   if (parse_alignment(state, lex, &p2)) {
     DWORD pc = segment_pc(ifile, state->curseg);
     DWORD new_pc = p2aligned(pc, p2);
+    assert(new_pc >= pc);
     irec->size = new_pc - pc;
     set_segment_pc(ifile, state->curseg, new_pc);
   }
@@ -788,14 +789,14 @@ static void check_initialization_consistent(STATE* state, IFILE* ifile, LEX* lex
   }
 }
 
-size_t data_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*, BOOL *init);
+DataSize data_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE_FN*, BOOL *init);
 
-static void define_data(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE* expr_size) {
+static void define_data(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE_FN* expr_size_fn) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(lex != NULL);
   assert(descrip != NULL);
-  assert(expr_size != NULL);
+  assert(expr_size_fn != NULL);
 
   if (state->curseg == NO_SEG) {
     error2(state, lex, "data outside segment");
@@ -808,34 +809,46 @@ static void define_data(STATE* state, IFILE* ifile, LEX* lex, const char* descri
 
   lex_next(lex);
   BOOL init;
-  irec->size = data_size(state, ifile, lex, descrip, expr_size, &init);
-  check_initialization_consistent(state, ifile, lex, init);
+  irec->size = data_size(state, ifile, lex, descrip, expr_size_fn, &init);
+  if (irec->size)
+    check_initialization_consistent(state, ifile, lex, init);
   inc_segment_pc(ifile, state->curseg, irec->size);
 }
 
-static size_t datum_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE*, BOOL *init);
+static DataSize datum_size(STATE*, IFILE*, LEX*, const char* descrip, EXPR_SIZE_FN*, BOOL *init);
 
-size_t data_size(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE* expr_size, BOOL *init) {
-  size_t size = datum_size(state, ifile, lex, descrip, expr_size, init);
+DataSize data_size(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE_FN* expr_size_fn, BOOL *init) {
+  DataSize size = datum_size(state, ifile, lex, descrip, expr_size_fn, init);
 
   bool reported = false;
+  bool large = false;
+
   while (lex_token(lex) == ',') {
     lex_next(lex);
     BOOL init2;
-    size += datum_size(state, ifile, lex, descrip, expr_size, &init2);
+    DataSize size2 = datum_size(state, ifile, lex, descrip, expr_size_fn, &init2);
     if (*init != init2 && !reported) {
       error2(state, lex, "mix of initialised and uninitialised data");
       reported = true;
       *init = INIT;
     }
+    if (MAX_DATASIZE - size < size2 && !large) {
+      error2(state, lex, "combined data is too large");
+      large = true;
+    }
+    size += size2;
   }
 
-  return size;
+  return large ? 0 : size;
 }
 
-static size_t dup_size(STATE*, IFILE*, LEX*, long long count, const char* descrip, EXPR_SIZE*, BOOL *init);
+static DataSize dup_size(STATE*, IFILE*, LEX*, DataSize count, const char* descrip, EXPR_SIZE_FN* expr_size_fn, BOOL *init);
 
-static size_t datum_size(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE* expr_size, BOOL *init) {
+// Parse expression into value and type.
+// Return the size of the encoded value(s).
+// On error, issue error and return 0.
+// On entry: expr_size_fn == function to evaluate size of data: specific to DB, DW etc.
+static DataSize datum_size(STATE* state, IFILE* ifile, LEX* lex, const char* descrip, EXPR_SIZE_FN* expr_size_fn, BOOL *init) {
   assert(state != NULL);
   assert(ifile != NULL);
   assert(lex != NULL);
@@ -844,30 +857,36 @@ static size_t datum_size(STATE* state, IFILE* ifile, LEX* lex, const char* descr
 
   union value val;
   int type = expr(state, ifile, lex, &val);
-  
+
   if (type == ET_ERR)
     return 0;
 
   if (lex_token(lex) == TOK_DUP) {
-    if (type == ET_ABS || type == ET_REL_DIFF)
-      return dup_size(state, ifile, lex, val.n, descrip, expr_size, init);
+    if (type == ET_ABS || type == ET_REL_DIFF) {
+      DataSize count = 0;
+      if (val.n < 0)
+        error2(state, lex, "negative DUP count");
+      else {
+        unsigned long long u = val.n;
+        if (u > MAX_DATASIZE)
+          error2(state, lex, "DUP count too large");
+        else
+          count = (DataSize) u;
+      }
+      return dup_size(state, ifile, lex, count, descrip, expr_size_fn, init);
+    }
     error2(state, lex, "invalid DUP expression");
     lex_discard_line(lex);
     return 0;
   }
 
-  size_t size = expr_size(type, &val, init);
+  DataSize size = expr_size_fn(type, &val, init);
   if (size == 0)
     error2(state, lex, "invalid expression for %s data", descrip);
   return size;
 }
 
-static size_t dup_size(STATE* state, IFILE* ifile, LEX* lex, long long count, const char* descrip, EXPR_SIZE* expr_size, BOOL *init) {
-    if (count < 0) {
-      error2(state, lex, "negative DUP count");
-      count = 0;
-    }
-
+static DataSize dup_size(STATE* state, IFILE* ifile, LEX* lex, DataSize count, const char* descrip, EXPR_SIZE_FN* expr_size_fn, BOOL *init) {
     if (lex_next(lex) != '(') {
       error2(state, lex, "parentheses required");
       lex_discard_line(lex);
@@ -875,11 +894,22 @@ static size_t dup_size(STATE* state, IFILE* ifile, LEX* lex, long long count, co
     }
 
     lex_next(lex);
-    size_t size = (size_t) (count * data_size(state, ifile, lex, descrip, expr_size, init)); // TODO: overflow check
+    DataSize size = data_size(state, ifile, lex, descrip, expr_size_fn, init);
+
+    if (count == 0)
+      size = 0;
+    else if (size > MAX_DATASIZE / count) {
+      error2(state, lex, "duplicated data is too large");
+      size = 0;
+    }
+    else
+      size *= count;
+
     if (lex_token(lex) == ')')
       lex_next(lex);
     else
       error2(state, lex, "closing parenthesis expected");
+
     return size;
 }
 
@@ -1156,7 +1186,7 @@ static unsigned segment_override_size(STATE*, IFILE*, const struct mem *, BOOL *
 
 static void compute_segment_override_size(STATE* state, IFILE* ifile, IREC* irec, const struct mem * m) {
   BOOL provisional = FALSE;
-  irec->size += segment_override_size(state, ifile, m, &provisional);
+  irec->size+= segment_override_size(state, ifile, m, &provisional);
   if (provisional)
     ifile->provisional_sizes = TRUE;
 }
@@ -1167,7 +1197,7 @@ static void compute_string_segment_override_size(STATE* state, IFILE* ifile,
     IREC* irec, LEX* lex, const struct mem * m1, const struct mem * m2) {
   assert(irec != NULL);
   assert(irec->def != NULL);
-  
+
   if (irec->def->oper1 == OF_DI || irec->def->oper1 == OF_DI8 || irec->def->oper1 == OF_DI16)
     check_di_override(state, lex, m1);
 
@@ -1211,7 +1241,7 @@ static unsigned segment_override_size(STATE* state, IFILE* ifile, const struct m
         return 0;
       default:
         assert(0 && "unknown addressability");
-    }    
+    }
   }
 
   return 0;
@@ -1241,7 +1271,7 @@ static int addressability(STATE* state, IFILE* ifile, const SYMBOL* label, int s
 
   if (sym_section_type(assume_id) == ST_SEGMENT)
     return NOT_ADDRESSABLE;
-    
+
   if (sym_section_type(assume_id) == ST_GROUP) {
     GROUPNO assume_group = sym_section_ordinal(assume_id);
     assert(assume_group != NO_GROUP);

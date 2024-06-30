@@ -11,7 +11,7 @@ typedef struct {
   EXEHEADER header;
   RELOC_ITEM* reloc_table;
   BYTE* image;
-  size_t image_size;
+  DWORD image_size;
 } LOADEXE;
 
 LOADEXE* load_exe(const char* file_name);

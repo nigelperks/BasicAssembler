@@ -62,7 +62,10 @@ static void init_irec(IREC* irec) {
 static void ensure_slot(IFILE* ifile) {
   assert(ifile->used <= ifile->allocated);
   if (ifile->used == ifile->allocated) {
-    ifile->allocated = ifile->allocated ? 2 * ifile->allocated : 128;
+    unsigned new_allocated = ifile->allocated ? 2 * ifile->allocated : 128;
+    if (new_allocated < ifile->allocated)
+      fatal("too many intermediate records\n");
+    ifile->allocated = new_allocated;
     ifile->recs = erealloc(ifile->recs, (sizeof ifile->recs[0]) * ifile->allocated);
   }
 }
@@ -85,12 +88,14 @@ IREC* new_irec(IFILE* ifile) {
 }
 
 IREC* insert_irec_after(IFILE* ifile, const IREC* p) {
-  ptrdiff_t i = p - ifile->recs;
-  if (i < 0 || (unsigned long)i >= (unsigned long)ifile->used)
+  ptrdiff_t d = p - ifile->recs;
+  unsigned long long i = d;
+  if (d < 0 || i >= ifile->used || i > UINT_MAX || UINT_MAX - i < 1)
     fatal("internal error: insert_irec_after: position out of range\n");
+  unsigned pos = (unsigned) i + 1;
   ensure_slot(ifile);
-  spread(ifile, i+1);
-  return &ifile->recs[i+1];
+  spread(ifile, pos);
+  return &ifile->recs[pos];
 }
 
 unsigned irec_count(IFILE* ifile) {
@@ -127,7 +132,7 @@ void print_intermediate(const IFILE* ifile, const char* descrip, unsigned option
   for (i = 0, irec = ifile->recs; i < ifile->used; i++, irec++) {
     printf("%4u: ", i);
     if (options & PRINT_SIZE)
-      printf("%4u: ", (unsigned) irec->size);
+      printf("%4lu: ", (unsigned long) irec->size);
     if (options & PRINT_SOURCE_NAME) {
       printf("%s: ", source_name(ifile->source));
       printf("%4u: ", irec_lineno(ifile, irec));
@@ -465,10 +470,10 @@ static void test_segments(CuTest* tc) {
   CuAssertIntEquals(tc, 1, seg1);
   set_segment_pc(ifile, seg1, 0xdead);
   CuAssertIntEquals(tc, 0x744, segment_pc(ifile, seg0));
-  CuAssertIntEquals(tc, 0xdead, segment_pc(ifile, seg1)); 
+  CuAssertIntEquals(tc, 0xdead, segment_pc(ifile, seg1));
   reset_pc(ifile);
   CuAssertIntEquals(tc, 0, segment_pc(ifile, seg0));
-  CuAssertIntEquals(tc, 0, segment_pc(ifile, seg1)); 
+  CuAssertIntEquals(tc, 0, segment_pc(ifile, seg1));
   set_segment_stack(ifile, seg1);
   CuAssertIntEquals(tc, TRUE, segment_stack(ifile, seg1));
   CuAssertIntEquals(tc, ATTR_STACK, segment_attributes(ifile, seg1));

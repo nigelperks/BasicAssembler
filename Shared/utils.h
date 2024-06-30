@@ -26,13 +26,23 @@ void fatal(const char* fmt, ...);
 
 void* emalloc(size_t);
 void* erealloc(void*, size_t);
-void* ecalloc(size_t count, size_t size);
+void* ecalloc(size_t);
 char* estrdup(const char*);
 void efree(void*);
 
+typedef DWORD MemSize;
+
+#define MAX_MEMSIZE ((DWORD)(-1))
+
 void get_memory_counts(unsigned long *malloc_count, unsigned long *free_count);
 
-FILE* efopen(const char* filename, const char* mode, const char* descrip);
+#define MAX_FILESIZE ULONG_MAX
+
+typedef unsigned long FileSize;
+
+FILE* efopen(const char* filename, const char* mode, const char* action);
+BYTE* read_file(FILE*, FileSize);
+FileSize file_size(FILE*, const char* name);
 
 void position(FILE*, const char* string, unsigned pos, unsigned tab_size);
 void print_notabs(FILE*, const char*, unsigned tab_size);

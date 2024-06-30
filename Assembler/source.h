@@ -15,8 +15,8 @@ struct source_line {
 typedef struct {
   char* name;
   struct source_line * lines;
-  size_t allocated;
-  size_t used;
+  unsigned allocated;
+  unsigned used;
 } SOURCE;
 
 SOURCE* new_source(const char* name);

@@ -135,7 +135,7 @@ bool valid_tbyte_expr(int type) {
   return type == ET_UNDEF || type == ET_ABS || type == ET_STR;
 }
 
-size_t byte_expr_size(int type, VALUE* val, BOOL *init) {
+DataSize byte_expr_size(int type, VALUE* val, BOOL *init) {
   if (type == ET_UNDEF) {
     *init = UNINIT;
     return 1;
@@ -154,16 +154,13 @@ size_t byte_expr_size(int type, VALUE* val, BOOL *init) {
   return 0;
 }
 
-size_t word_expr_size(int type, VALUE* val, BOOL *init) {
-  size_t size = 0;
-
+DataSize word_expr_size(int type, VALUE* val, BOOL *init) {
   switch (type) {
     case ET_ERR:
-      break;
+      return 0;
     case ET_UNDEF:
       *init = UNINIT;
-      size = 2;
-      break;
+      return 2;
     case ET_ABS:
     case ET_REL:
     case ET_SEC:
@@ -171,66 +168,60 @@ size_t word_expr_size(int type, VALUE* val, BOOL *init) {
     case ET_OFFSET:
     case ET_REL_DIFF:
       *init = INIT;
-      size = 2;
-      break;
+      return 2;
     case ET_STR:
       if (make_absolute(type, val)) {
         *init = INIT;
-        size = 2;
+        return 2;
       }
       break;
     default:
       assert(0 && "unknown ET");
   }
 
-  return size;
+  return 0;
 }
 
-size_t dword_expr_size(int type, VALUE* val, BOOL *init) {
-  size_t size = 0;
-
+DataSize dword_expr_size(int type, VALUE* val, BOOL *init) {
   if (type == ET_UNDEF) {
     *init = UNINIT;
-    size = 4;
-  }
-  else if (make_absolute(type, val)) {
-    *init = INIT;
-    size = 4;
+    return 4;
   }
 
-  return size;
+  if (make_absolute(type, val)) {
+    *init = INIT;
+    return 4;
+  }
+
+  return 0;
 }
 
-size_t qword_expr_size(int type, VALUE* val, BOOL *init) {
-  size_t size = 0;
-
+DataSize qword_expr_size(int type, VALUE* val, BOOL *init) {
   if (type == ET_UNDEF) {
     *init = UNINIT;
-    size = 8;
-  }
-  else if (make_absolute(type, val)) {
-    *init = INIT;
-    size = 8;
+    return 8;
   }
 
-  return size;
+  if (make_absolute(type, val)) {
+    *init = INIT;
+    return 8;
+  }
+
+  return 0;
 }
 
-size_t tbyte_expr_size(int type, VALUE* val, BOOL *init) {
-  size_t size = 0;
-
-  // TODO: allow some kind of "long hex" value, not just long or even long long values
-
+DataSize tbyte_expr_size(int type, VALUE* val, BOOL *init) {
   if (type == ET_UNDEF) {
     *init = UNINIT;
-    size = 10;
-  }
-  else if (make_absolute(type, val)) {
-    *init = INIT;
-    size = 10;
+    return 10;
   }
 
-  return size;
+  if (make_absolute(type, val)) {
+    *init = INIT;
+    return 10;
+  }
+
+  return 0;
 }
 
 unsigned wait_needed(STATE* state, const INSDEF* def) {

@@ -235,7 +235,7 @@ static void test_obj_name(CuTest* tc) {
   CuAssertPtrNotNull(tc, n);
   CuAssertStrEquals(tc, ".o", n);
   efree(n);
-  
+
   n = obj_name("x.asm");
   CuAssertPtrNotNull(tc, n);
   CuAssertStrEquals(tc, "x.obj", n);

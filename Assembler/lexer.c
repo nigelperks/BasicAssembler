@@ -15,6 +15,8 @@
 #include "token.h"
 #include "utils.h"
 
+#define MAX_TEXT (4096)  // arbitrary, to avoid 64-bit size_t lengths
+
 static void lex_fatal(LEX*, const char* fmt, ...);
 static void lex_error(LEX*, const char* fmt, ...);
 
@@ -59,6 +61,11 @@ void lex_begin(LEX* lex, const char* text, unsigned lineno, unsigned pos) {
   assert(lex != NULL);
   assert(text != NULL);
   assert(pos <= strlen(text));
+
+  if (strlen(text) > MAX_TEXT) {
+    fprintf(stderr, "Fatal: %s: %u: line too long\n", lex->source_name ? lex->source_name : "-", lineno);
+    exit(EXIT_FAILURE);
+  }
 
   lex->text = text;
   lex->lineno = lineno;
@@ -114,7 +121,7 @@ void lex_discard_line(LEX* lex) {
   assert(lex != NULL);
 
   if (lex->text)
-    lex->pos = strlen(lex->text);
+    lex->pos = (unsigned) strlen(lex->text);
   lex->token = TOK_EOL;
 }
 
@@ -329,7 +336,7 @@ static void lex_fatal(LEX* lex, const char* fmt, ...) {
   fprintf(stderr, "Fatal: %s: %u: ", lex->source_name ? lex->source_name : "-", lex->lineno);
 
   va_list ap;
-  va_start(ap, fmt); 
+  va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
   va_end(ap);
 
@@ -412,7 +419,7 @@ static void test_lex_begin(CuTest* tc) {
 
 static void test_discard_line(CuTest* tc) {
   static const char text[] = "this is a test string";
-  const unsigned LEN = strlen(text);
+  const unsigned LEN = (unsigned) strlen(text);
 
   LEX* lex = new_lex(NULL);
 
@@ -576,7 +583,7 @@ static void test_convert(CuTest* tc) {
   lex->pos = 0;
 
   strcpy(lex->lexeme, "");
-  lex->token_pos = strlen(lex->text);
+  lex->token_pos = (unsigned) strlen(lex->text);
   convert(lex, 0, 10);
   CuAssertIntEquals(tc, 1, lex->errors);
 
@@ -597,7 +604,7 @@ static void test_convert(CuTest* tc) {
       lex->lexeme[i++] = *p;
   }
   lex->lexeme[i] = '\0';
-  lex->token_pos = p+1 - lex->text;
+  lex->token_pos = (unsigned) (p+1 - lex->text);
   convert(lex, 2, 16);
   CuAssertIntEquals(tc, 3, lex->errors);
   CuAssertLongLongEquals(tc, 0, lex->val.num);

@@ -36,20 +36,20 @@ void delete_fixups(FIXUPS* p) {
   }
 }
 
-size_t fixups_count(const FIXUPS* p) {
+DWORD fixups_count(const FIXUPS* p) {
   assert(p != NULL);
   return p->used;
 }
 
-FIXUP* fixup(FIXUPS* p, size_t i) {
+FIXUP* fixup(FIXUPS* p, DWORD i) {
   assert(p != NULL);
   assert(i < p->used);
   return &p->offsets[i];
 }
 
-size_t segment_and_group_fixups(const FIXUPS* p) {
+DWORD segment_and_group_fixups(const FIXUPS* p) {
   assert(p != NULL);
-  size_t n = 0;
+  DWORD n = 0;
   for (size_t i = 0; i < p->used; i++) {
     if (p->offsets[i].type == FT_SEGMENT || p->offsets[i].type == FT_GROUP)
       n++;
@@ -63,7 +63,7 @@ static void expand(FIXUPS* p, unsigned ext) {
   assert(p->used <= p->allocated);
   assert(ext > 0);
   if (p->allocated - p->used < ext) {
-    size_t new_allocated = p->used + ext;
+    DWORD new_allocated = p->used + ext;
     if (new_allocated <= p->allocated)
       fatal("overflow\n");
     if (new_allocated % ALLOC_UNIT)

@@ -22,20 +22,3 @@ WORD getword(FILE* fp)
 
     return (b2 << 8) | b1;
 }
-
-BYTE* read_file(FILE* fp, unsigned long size) {
-  BYTE* buf = emalloc(size);
-  unsigned long count = fread(buf, 1, size, fp);
-  if (count != size)
-    fatal("file out of data: reading %lu bytes, got %lu bytes\n", size, count);
-  return buf;
-}
-
-long file_size(FILE* fp) {
-  long pos = ftell(fp);
-  fseek(fp, 0, SEEK_END);
-  long size = ftell(fp);
-  assert(size >= 0);
-  fseek(fp, pos, SEEK_SET);
-  return size;
-}

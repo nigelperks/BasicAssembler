@@ -54,17 +54,17 @@ typedef struct fixup {
 
 typedef struct {
   FIXUP* offsets;
-  size_t allocated;
-  size_t used;
+  DWORD allocated;
+  DWORD used;
 } FIXUPS;
 
 FIXUPS* new_fixups(void);
 void delete_fixups(FIXUPS*);
 
-size_t fixups_count(const FIXUPS*);
-FIXUP* fixup(FIXUPS*, size_t index);
+DWORD fixups_count(const FIXUPS*);
+FIXUP* fixup(FIXUPS*, DWORD index);
 
-size_t segment_and_group_fixups(const FIXUPS*);
+DWORD segment_and_group_fixups(const FIXUPS*);
 
 void append_fixups(FIXUPS* dest, FIXUPS* source);
 

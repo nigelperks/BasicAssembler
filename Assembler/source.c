@@ -37,7 +37,7 @@ SOURCE* load_source_file(const char* filename) {
     const size_t len = strlen(buf);
     lineno++;
     if (len == 0 || buf[len-1] != '\n')
-      fatal("line %u is missing or incomplete\n", lineno);    
+      fatal("line %u is missing or incomplete\n", lineno);
     append(src, lineno, buf, len-1);
   }
 
@@ -111,9 +111,12 @@ static char* copy(const char*, size_t len);
 static unsigned append(SOURCE* src, unsigned lineno, const char* line, size_t len) {
   assert(src->used <= src->allocated);
   if (src->used == src->allocated) {
-    src->allocated = src->allocated ? src->allocated * 2 : 128;
+    unsigned new_allocated = src->allocated ? src->allocated * 2 : 128;
+    if (new_allocated < src->allocated)
+      fatal("too many source lines\n");
+    src->allocated = new_allocated;
     src->lines = erealloc(src->lines, (sizeof src->lines[0]) * src->allocated);
-  }    
+  }
   assert(src->used < src->allocated);
   src->lines[src->used].lineno = lineno;
   src->lines[src->used].text = copy(line, len);

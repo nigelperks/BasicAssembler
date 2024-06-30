@@ -126,6 +126,13 @@ static void emit_groups(IFILE* ifile, OFILE* ofile) {
     emit_group(i, group_name(ifile, i), ofile);
 }
 
+static void emit_string(OFILE* ofile, int type, const char* s) {
+  size_t len = strlen(s);
+  if (len > UINT_MAX)
+    fatal("object emission: unfeasibly long string\n");
+  emit_object_data(ofile, type, s, (unsigned) len);
+}
+
 static void emit_segment(IFILE* ifile, SEGNO segno, OFILE* ofile) {
   assert(ifile != NULL);
   assert(segno >= 0 && segno < segment_count(ifile));
@@ -139,7 +146,7 @@ static void emit_segment(IFILE* ifile, SEGNO segno, OFILE* ofile) {
   emit_object_byte(ofile, OBJ_ORDINAL, (BYTE) segno);
 
   const char* name = segment_name(ifile, segno);
-  emit_object_data(ofile, OBJ_NAME, name, strlen(name));
+  emit_string(ofile, OBJ_NAME, name);
 
   if (segment_public(ifile, segno))
     emit_object_signal(ofile, OBJ_PUBLIC);
@@ -167,7 +174,7 @@ static void emit_group(GROUPNO groupno, const char* name, OFILE* ofile) {
     fatal("cannot emit group number beyond 255\n");
   emit_object_byte(ofile, OBJ_ORDINAL, (BYTE) groupno);
 
-  emit_object_data(ofile, OBJ_NAME, name, strlen(name));
+  emit_string(ofile, OBJ_NAME, name);
 
   emit_object_signal(ofile, OBJ_END_GROUP);
 }
@@ -193,7 +200,7 @@ static void emit_external(const SYMBOL* sym, OFILE* ofile) {
     fatal("cannot emit external symbol ID beyond 64K\n");
   emit_object_word(ofile, OBJ_ID, ext_id);
 
-  emit_object_data(ofile, OBJ_NAME, sym_name(sym), strlen(sym_name(sym)));
+  emit_string(ofile, OBJ_NAME, sym_name(sym));
 
   emit_segno(ofile, sym_seg(sym));
 
@@ -218,7 +225,7 @@ static void emit_public(const SYMBOL* sym, OFILE* ofile) {
 
   emit_object_signal(ofile, OBJ_BEGIN_PUBLIC);
 
-  emit_object_data(ofile, OBJ_NAME, sym_name(sym), strlen(sym_name(sym)));
+  emit_string(ofile, OBJ_NAME, sym_name(sym));
 
   emit_segno(ofile, sym_seg(sym));
 
@@ -518,8 +525,8 @@ static void do_align(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE* of
     DWORD pc = segment_pc(ifile, state->curseg);
     DWORD new_pc = p2aligned(pc, p2);
     if (irec->size != new_pc - pc)
-      error2(state, lex, "internal error: alignment size discrepancy: sized %u, encoding %u",
-             (unsigned) irec->size, (unsigned) (new_pc - pc));
+      error2(state, lex, "internal error: alignment size discrepancy: sized %lu, encoding %lu",
+             (unsigned long) irec->size, (unsigned long) (new_pc - pc));
     set_segment_pc(ifile, state->curseg, new_pc);
     if (p2 >= 0x100)
       error2(state, lex, "alignment too big");
@@ -543,8 +550,8 @@ static void define_data(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, OFILE*
   DWORD size = generate_data(state, ifile, ofile, root, emit_expr);
 
   if (size != irec->size) {
-    error(state, ifile, "internal error: data size discrepancy: sized %u, emitted %u",
-          (unsigned) irec->size, (unsigned) size);
+    error(state, ifile, "internal error: data size discrepancy: sized %lu, emitted %lu",
+          (unsigned long) irec->size, (unsigned long) size);
     exit(EXIT_FAILURE);
   }
 
@@ -904,8 +911,8 @@ static void process_instruction(STATE* state, IFILE* ifile, IREC* irec, LEX* lex
     encoded = encode_instruction(state, ifile, irec, lex, &oper1, &oper2, &oper3, buf, &relocs);
 
   if (encoded != irec->size) {
-    error2(state, lex, "internal error: instruction size discrepancy: sized %u encoded %u",
-          (unsigned) irec->size, encoded);
+    error2(state, lex, "internal error: instruction size discrepancy: sized %lu encoded %u",
+          (unsigned long) irec->size, encoded);
     exit(EXIT_FAILURE);
   }
 
@@ -1495,7 +1502,7 @@ static BOOL string_sreg_override(STATE* state, IFILE* ifile, LEX* lex,
     }
     return FALSE;
   }
-      
+
   if (m2->index_reg == REG_SI) {
     if (m2->sreg_override != NO_REG && m2->sreg_override != SR_DS) {
       *code = encode_sreg_override(m2->sreg_override);

@@ -123,22 +123,31 @@ void inc_p2align(SEGMENT* dest, const SEGMENT* src) {
 
 #define ALLOCATION_UNIT (0x4000)
 
-static void ensure_writeable(SEGMENT* seg, DWORD offset, unsigned size) {
+static void overflow(MemSize offset, MemSize size) {
+  fatal("segment size overflow: offset %08lxh, size %0lxh = %lu\n",
+        (unsigned long) offset, (unsigned long) size, (unsigned long) size);
+}
+
+static void ensure_writeable(SEGMENT* seg, MemSize offset, MemSize size) {
   assert(seg != NULL);
 
   if (size == 0)
     return;
 
-  if (offset + size < offset)
-    fatal("segment size overflow: offset %08lxh, size %0xh = %u\n", (unsigned long) offset, size);
+  if (MAX_MEMSIZE - offset < size)
+    overflow(offset, size);
 
   if (offset > seg->allocated || seg->allocated - offset < size) {
-    size_t allocate = offset + size;
-    if (allocate % ALLOCATION_UNIT)
-      allocate += (ALLOCATION_UNIT - allocate % ALLOCATION_UNIT);
+    MemSize allocate = offset + size;
+    if (allocate % ALLOCATION_UNIT) {
+      MemSize add = ALLOCATION_UNIT - allocate % ALLOCATION_UNIT;
+      if (MAX_MEMSIZE - allocate < add)
+        overflow(offset, size);
+      allocate += add;
+    }
     assert(allocate % ALLOCATION_UNIT == 0);
     assert(allocate >= offset + size);
-    BYTE* data = ecalloc(allocate, 1);
+    BYTE* data = ecalloc(allocate);
     if (seg->data != NULL && seg->allocated > 0)
       memcpy(data, seg->data, seg->allocated);
     efree(seg->data);
@@ -389,7 +398,7 @@ static void test_ensure_writeable(CuTest* tc) {
 }
 
 static void test_write_segment(CuTest* tc) {
-  const size_t BUF_SIZE = ALLOCATION_UNIT + 123;
+  const MemSize BUF_SIZE = ALLOCATION_UNIT + 123;
   BYTE* buf = emalloc(BUF_SIZE);
   memset(buf, '*', BUF_SIZE);
 
@@ -482,8 +491,8 @@ static void test_load_segment_space(CuTest* tc) {
 static void test_append_segment(CuTest* tc) {
   SEGMENT* src = new_segment("SOURCE", FALSE, FALSE, NO_GROUP);
   SEGMENT* dest = new_segment("DEST", FALSE, FALSE, NO_GROUP);
-  const size_t SIZE1 = 64;
-  const size_t SIZE2 = ALLOCATION_UNIT;
+  const MemSize SIZE1 = 64;
+  const MemSize SIZE2 = ALLOCATION_UNIT;
   BYTE* buf1 = emalloc(SIZE1);
   BYTE* buf2 = emalloc(SIZE2);
 

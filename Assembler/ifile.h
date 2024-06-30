@@ -19,7 +19,7 @@ typedef struct {
   unsigned short operand_pos;
   unsigned short near_jump_size;
   const INSDEF* def;
-  size_t size;
+  MemSize size;
 } IREC;
 
 #define NO_SEG (-1)

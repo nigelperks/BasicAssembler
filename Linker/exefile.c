@@ -81,7 +81,7 @@ static RELOC_ITEM* build_reloc_table(const WORD n, FIXUPS* fixups) {
   assert(n != 0);
   RELOC_ITEM* rt = emalloc(n * sizeof rt[0]);
   unsigned j = 0;
-  for (size_t i = 0, e = fixups_count(fixups); i < e; i++) {
+  for (DWORD i = 0, e = fixups_count(fixups); i < e; i++) {
     const FIXUP* f = fixup(fixups, i);
     if (f->type == FT_SEGMENT) {
       assert(j < n);

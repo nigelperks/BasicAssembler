@@ -253,7 +253,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
       lex_next(lex);
       add_flag(op, OF_JUMP);
       return TRUE;
-    }    
+    }
 
     if (lex_token(lex) == TOK_LABEL) {
       SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
@@ -307,7 +307,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
         add_flag(op, OF_FAR);
         return TRUE;
       }
-    }    
+    }
     else if (lex_token(lex) == TOK_LABEL) {
       SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
       if (sym == NULL)
@@ -612,6 +612,8 @@ static BOOL data_size_flags(unsigned size, int *rm_flag, int *mem_flag) {
   return FALSE;
 }
 
+// Parse expression into AST, and evaluate AST into val if possible.
+// Return expression type or ET_ERR on error.
 int expr(STATE* state, IFILE* ifile, LEX* lex, union value * val) {
   AST* ast = parse_expr(state, ifile, lex);
   if (ast == NULL)
@@ -624,7 +626,7 @@ int expr(STATE* state, IFILE* ifile, LEX* lex, union value * val) {
 }
 
 AST* new_ast(int kind) {
-  AST* p = ecalloc(1, sizeof *p);
+  AST* p = ecalloc(sizeof *p);
   p->kind = kind;
   return p;
 }
@@ -1012,6 +1014,8 @@ static int eval_label(STATE* state, IFILE* ifile, SYMBOL* sym, VALUE* val) {
   return ET_ERR;
 }
 
+// Evaluate string content and length from AST into val.
+// Return expression type: ET_STR, or ET_ERR on error.
 static int eval_string(STATE* state, IFILE* ifile, const BYTE* content, size_t len, VALUE* val) {
   if (len > sizeof val->string.content) {
     error(state, ifile, "string too long");
@@ -1673,7 +1677,7 @@ static void test_eval_string(CuTest* tc) {
   type = eval_string(&state, ifile, buff, sizeof buff, &val);
   CuAssertIntEquals(tc, ET_STR, type);
   CuAssertTrue(tc, memcmp(val.string.content, buff, sizeof buff) == 0);
-  CuAssertIntEquals(tc, sizeof buff, val.string.len);
+  CuAssertSizeEquals(tc, sizeof buff, val.string.len);
 
   // string too long
   type = eval_string(&state, ifile, buff, sizeof buff + 1, &val);

@@ -56,8 +56,8 @@ void* erealloc(void* p, size_t sz) {
   return p;
 }
 
-void* ecalloc(size_t count, size_t size) {
-  void* p = calloc(count, size);
+void* ecalloc(size_t size) {
+  void* p = calloc(1, size);
   if (p == NULL)
     fatal("out of memory (ecalloc)\n");
   malloc_count++;
@@ -79,18 +79,36 @@ char* estrdup(const char* s) {
   return t;
 }
 
-FILE* efopen(const char* filename, const char* mode, const char* descrip) {
+FILE* efopen(const char* filename, const char* mode, const char* action) {
   FILE* fp = NULL;
 
   assert(filename != NULL);
   assert(mode != NULL);
-  assert(descrip != NULL);
+  assert(action != NULL);
 
   fp = fopen(filename, mode);
   if (fp == NULL)
-    fatal("cannot open %s for %s\n", filename, descrip);
+    fatal("cannot open %s for %s\n", filename, action);
 
   return fp;
+}
+
+BYTE* read_file(FILE* fp, FileSize size) {
+  BYTE* buf = emalloc(size);
+  size_t count = fread(buf, 1, size, fp);
+  if (count != size)
+    fatal("file out of data: reading %lu bytes, got %lu bytes\n", size, count);
+  return buf;
+}
+
+FileSize file_size(FILE* fp, const char* name) {
+  long pos = ftell(fp);
+  fseek(fp, 0, SEEK_END);
+  long size = ftell(fp);
+  if (size < 0)
+    fatal("cannot determine file size: %s\n", name);
+  fseek(fp, pos, SEEK_SET);
+  return size;
 }
 
 void position(FILE* fp, const char* s, unsigned n, unsigned tab_size) {
@@ -148,7 +166,7 @@ void write_word_le(void* p, WORD w) {
 }
 
 VECTOR* new_vector(unsigned size) {
-  VECTOR* vec = ecalloc(1, sizeof *vec + size * sizeof (vec->val[0]));
+  VECTOR* vec = ecalloc(sizeof *vec + size * sizeof (vec->val[0]));
   vec->size = size;
   return vec;
 }

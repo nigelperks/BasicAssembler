@@ -18,7 +18,7 @@ typedef struct {
 } SEGMENT_MAP;
 
 static SEGMENT_MAP* new_segment_map(unsigned size) {
-  SEGMENT_MAP* map = ecalloc(1, sizeof *map + size * sizeof map->map[0]);
+  SEGMENT_MAP* map = ecalloc(sizeof *map + size * sizeof map->map[0]);
   map->size = size;
   for (unsigned i = 0; i < size; i++)
     map->map[i].segno = NO_SEG;

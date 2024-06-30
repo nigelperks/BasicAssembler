@@ -5,12 +5,12 @@
 #include <ctype.h>
 #include "dump.h"
 
-static unsigned int dump_mem_paragraph(const BYTE* buf, unsigned long report_offset, unsigned long max)
+static unsigned int dump_mem_paragraph(const BYTE* buf, MemSize report_offset, MemSize max)
 {
-    const unsigned int offset_in_para = report_offset % 16;
-    const size_t remaining_in_para = 16 - offset_in_para;
-    const size_t bytes_to_print = remaining_in_para <= max ? remaining_in_para : max;
-    const size_t after_bytes = remaining_in_para - bytes_to_print;
+    const MemSize offset_in_para = report_offset % 16;
+    const MemSize remaining_in_para = 16 - offset_in_para;
+    const MemSize bytes_to_print = remaining_in_para <= max ? remaining_in_para : max;
+    const MemSize after_bytes = remaining_in_para - bytes_to_print;
     unsigned int i;
 
     printf("%06x: ", report_offset);
@@ -37,9 +37,9 @@ static unsigned int dump_mem_paragraph(const BYTE* buf, unsigned long report_off
     return i;
 }
 
-size_t dump_mem(const BYTE* buf, unsigned long report_offset, unsigned long size)
+MemSize dump_mem(const BYTE* buf, MemSize report_offset, MemSize size)
 {
-    size_t total = 0;
+    MemSize total = 0;
 
     while (size > 0)
     {
