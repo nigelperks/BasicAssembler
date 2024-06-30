@@ -856,11 +856,33 @@ int expr_type(STATE* state, IFILE* ifile, const AST* ast) {
   return ET_ERR;
 }
 
+static int math_type(STATE* state, IFILE* ifile, const AST* ast) {
+  if (ast && ast->kind == AST_STRING && ast->u.string.len == 1)
+    return ET_ABS;
+  return expr_type(state, ifile, ast);
+}
+
+static const char* expr_type_name(int t) {
+  switch (t) {
+    case ET_ERR: return "error";
+    case ET_UNDEF: return "undefined";
+    case ET_ABS: return "absolute";
+    case ET_REL: return "relative";
+    case ET_REL_DIFF: return "relative difference";
+    case ET_STR: return "string";
+    case ET_SEC: return "section";
+    case ET_SEG: return "SEG";
+    case ET_OFFSET: return "OFFSET";
+  }
+  return "unknown";
+}
+
 static int binary_type(STATE* state, IFILE* ifile, int op, AST* lhs, AST* rhs) {
-  int t1 = expr_type(state, ifile, lhs);
+  assert(op == '+' || op == '-' || op == '*');
+  int t1 = math_type(state, ifile, lhs);
   if (t1 == ET_ERR)
     return ET_ERR;
-  int t2 = expr_type(state, ifile, rhs);
+  int t2 = math_type(state, ifile, rhs);
   if (t2 == ET_ERR)
     return ET_ERR;
   if (t1 == ET_ABS && t2 == ET_ABS)
@@ -869,7 +891,8 @@ static int binary_type(STATE* state, IFILE* ifile, int op, AST* lhs, AST* rhs) {
     return ET_REL_DIFF;
   if (t1 == ET_ABS && t2 == ET_REL_DIFF && op == '-')
     return ET_REL_DIFF;
-  error(state, ifile, "invalid expression");
+  error(state, ifile, "invalid expression: %s %s %s",
+        expr_type_name(t1), token_name(op), expr_type_name(t2));
   return ET_ERR;
 }
 
@@ -942,12 +965,19 @@ int eval(STATE* state, IFILE* ifile, const AST* ast, union value * val) {
   return ET_ERR;
 }
 
+static int eval_math(STATE* state, IFILE* ifile, const AST* ast, union value * val) {
+  int t = eval(state, ifile, ast, val);
+  if (make_absolute(t, val))
+    t = ET_ABS;
+  return t;
+}
+
 static int eval_binary(STATE* state, IFILE* ifile, int op, AST* lhs, AST* rhs, VALUE* val) {
-  int t1 = eval(state, ifile, lhs, val);
+  int t1 = eval_math(state, ifile, lhs, val);
   if (t1 == ET_ERR)
     return ET_ERR;
   VALUE val2;
-  int t2 = eval(state, ifile, rhs, &val2);
+  int t2 = eval_math(state, ifile, rhs, &val2);
   if (t2 == ET_ERR)
     return ET_ERR;
   if (t1 == ET_REL && t2 == ET_REL && op == '-') {
