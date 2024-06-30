@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Intermediate file.
 
 #include <stdlib.h>
@@ -9,7 +9,7 @@
 #include "token.h"
 #include "utils.h"
 
-IFILE* new_ifile(SOURCE* src) {
+IFILE* new_ifile(SOURCE* src, bool case_sensitive) {
   IFILE* ifile = NULL;
 
   assert(src != NULL);
@@ -21,7 +21,7 @@ IFILE* new_ifile(SOURCE* src) {
   ifile->allocated = 0;
   ifile->used = 0;
   ifile->pos = 0;
-  ifile->st = new_symbol_table();
+  ifile->st = new_symbol_table(case_sensitive);
   ifile->start_label = NULL;
   ifile->provisional_sizes = FALSE;
   ifile->ngroup = 0;
@@ -363,7 +363,7 @@ static void test_new_ifile(CuTest* tc) {
   IFILE* ifile;
   SOURCE src;
 
-  ifile = new_ifile(&src);
+  ifile = new_ifile(&src, false);
   CuAssertPtrNotNull(tc, ifile);
   CuAssertPtrEquals(tc, &src, ifile->source);
   CuAssertPtrEquals(tc, NULL, ifile->recs);
@@ -387,7 +387,7 @@ static void test_new_ifile(CuTest* tc) {
 
 static void test_new_irec(CuTest* tc) {
   SOURCE src;
-  IFILE* ifile = new_ifile(&src);
+  IFILE* ifile = new_ifile(&src, false);
   IREC* irec = NULL;
 
   irec = new_irec(ifile);
@@ -432,7 +432,7 @@ static void test_new_irec(CuTest* tc) {
 
 static void test_segments(CuTest* tc) {
   SOURCE src;
-  IFILE* ifile = new_ifile(&src);
+  IFILE* ifile = new_ifile(&src, false);
 
   CuAssertIntEquals(tc, 0, segment_count(ifile));
   CuAssertIntEquals(tc, 0, group_count(ifile));
@@ -483,7 +483,7 @@ static void test_segments(CuTest* tc) {
 
 static void test_injections(CuTest* tc) {
   SOURCE* src = new_source(NULL);
-  IFILE* ifile = new_ifile(src);
+  IFILE* ifile = new_ifile(src, false);
 
   unsigned i = inject(ifile, 3, "cobblers");
   CuAssertIntEquals(tc, 0, i);

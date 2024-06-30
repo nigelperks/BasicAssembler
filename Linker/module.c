@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // The logic for processing one object module,
 // using the mechanisms of OFILE and SEGMENTS.
 
@@ -63,6 +63,8 @@ OBJ_OPEN_SEGMENT        ; open segment to add code and data to it
 
 OBJ_CLOSE_SEGMENT       ; close segment
 
+OBJ_CASED               ; (optional) indicate case-sensitive symbols
+
 OBJ_BEGIN_EXTRN_DEF     ; begin definition of external symbol to be imported
     OBJ_ID word         ; external symbol ID
     OBJ_NAME string     ; symbol name
@@ -93,6 +95,7 @@ typedef struct {
   unsigned pos;
   int segno;
   SEGMENT* seg;
+  int module_casing;
 } STATE;
 
 static void init_state(STATE* state, const char* module_name) {
@@ -100,6 +103,7 @@ static void init_state(STATE* state, const char* module_name) {
   state->pos = 0;
   state->segno = NO_SEG;
   state->seg = NULL;
+  state->module_casing = CASE_INSENSITIVE;
 }
 
 static void process_root_record(STATE*, const OFILE*, SEGMENTED*, int verbose);
@@ -115,6 +119,9 @@ SEGMENTED* build_module_segments(const OFILE* ofile, int case_sensitivity, int v
 
   for (state.pos = 0; state.pos < ofile->used; state.pos++)
     process_root_record(&state, ofile, module, verbose);
+
+  if (state.module_casing != case_sensitivity)
+    fatal("case sensitivity mismatch between linker options and module: %s\n", module_name);
 
   for (SEGNO i = 0; i < module->segs->used; i++) {
     if (module->segs->seg[i])
@@ -160,6 +167,9 @@ static void process_root_record(STATE* state, const OFILE* ofile, SEGMENTED* seg
       break;
     case OBJ_BEGIN_START:
       define_start(state, ofile, segs, verbose);
+      break;
+    case OBJ_CASED:
+      state->module_casing = CASE_SENSITIVE;
       break;
     default:
       fatal("%s: unexpected root object record type: %d\n", state->module_name, rec->type);

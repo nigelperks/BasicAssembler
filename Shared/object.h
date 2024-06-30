@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Object records.
 
 #ifndef OBJECT_H
@@ -60,6 +60,7 @@ enum object_record_type {
   OBJ_END_GROUP_ADDR,   // end group address fixup
   OBJ_P2ALIGN,          // align to power of 2 the segment being defined, or location counter in open segment
   OBJ_SPACE,            // allocate uninitialised space in current segment
+  OBJ_CASED,            // indicate that symbols are case-sensitive
 };
 
 typedef struct {

@@ -1,3 +1,7 @@
+// Basic Assembler
+// Copyright (c) 2022-24 Nigel Perks
+// Basic Assembler and Linker driver
+
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -31,6 +35,8 @@ static void usage(void) {
   puts("  -unittest  run unit tests and quit");
 #endif
   puts("  -v         verbose");
+  putchar('\n');
+  puts("  --case-sensitive");
   exit(EXIT_SUCCESS);
 }
 
@@ -51,6 +57,14 @@ OPTIONS* process_argv(int argc, char* argv[]) {
     if (arg[0] == '-') {
       if (strcmp(arg, "-?") == 0 || strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0)
         usage();
+      else if (arg[1] == '-') {
+        if (strcmp(arg+2, "case-sensitive") == 0)
+          opt->case_sensitive = true;
+        else if (strcmp(arg+2, "case-insensitive") == 0)
+          opt->case_sensitive = false;
+        else
+          fatal("unknown option: %s\n", arg);
+      }
       else if (arg[1] == 'f') {
         if (arg[2])
           opt->format = arg + 2;

@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-24 Nigel Perks
 // Basic Assembler and Linker driver
 
 #ifndef OPTIONS_H
@@ -22,6 +22,7 @@ typedef struct {
   const char* mapfile;
   bool report_memory;
   unsigned verbose;
+  bool case_sensitive;
 } OPTIONS;
 
 OPTIONS* new_options(void);

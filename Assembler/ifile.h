@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Intermediate file.
 
 #ifndef IFILE_H
@@ -67,7 +67,7 @@ typedef struct {
   SOURCE* injections;
 } IFILE;
 
-IFILE* new_ifile(SOURCE*);
+IFILE* new_ifile(SOURCE*, bool case_sensitive);
 void delete_ifile(IFILE*);
 
 IREC* new_irec(IFILE*);

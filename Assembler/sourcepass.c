@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Pass over source, creating intermediate file.
 
 #include <assert.h>
@@ -52,7 +52,7 @@ static void test_source_pass(CuTest* tc) {
 
   src = load_source_mem("\nfred\n   glorn\n  \nsmee hee\n");
 
-  ifile = new_ifile(src);
+  ifile = new_ifile(src, false);
 
   source_pass(ifile, opts);
 

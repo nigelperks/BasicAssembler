@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Assembler symbol table.
 
 #include <stdlib.h>
@@ -24,13 +24,14 @@ static void delete_symbol(SYMBOL* sym) {
   }
 }
 
-SYMTAB* new_symbol_table(void) {
+SYMTAB* new_symbol_table(bool case_sensitive) {
   SYMTAB* st = emalloc(sizeof *st);
   st->sym = NULL;
   st->allocated = 0;
   st->used = 0;
   st->next_external_id = 0;
   st->locals = 0;
+  st->case_sensitive = case_sensitive;
   return st;
 }
 
@@ -58,9 +59,17 @@ SYMBOL* sym_lookup(SYMTAB* st, const char* name) {
   unsigned i;
   assert(st != NULL);
   assert(name != NULL);
-  for (i = 0; i < st->used; i++) {
-    if (_stricmp(st->sym[i]->name, name) == 0)
-      return st->sym[i];
+  if (st->case_sensitive) {
+    for (i = 0; i < st->used; i++) {
+      if (strcmp(st->sym[i]->name, name) == 0)
+        return st->sym[i];
+    }
+  }
+  else {
+    for (i = 0; i < st->used; i++) {
+      if (_stricmp(st->sym[i]->name, name) == 0)
+        return st->sym[i];
+    }
   }
   return NULL;
 }
@@ -277,7 +286,7 @@ int sym_next(SYMTAB* st, int id) {
 static void test_new_symbol_table(CuTest* tc) {
   SYMTAB* st;
 
-  st = new_symbol_table();
+  st = new_symbol_table(false);
   CuAssertPtrNotNull(tc, st);
   CuAssertPtrEquals(tc, NULL, st->sym);
   CuAssertIntEquals(tc, 0, st->allocated);
@@ -289,7 +298,7 @@ static void test_new_symbol_table(CuTest* tc) {
 }
 
 static void test_sym_lookup(CuTest* tc) {
-  SYMTAB* st = new_symbol_table();
+  SYMTAB* st = new_symbol_table(false);
   SYMBOL* sym;
 
   CuAssertPtrEquals(tc, NULL, sym_lookup(st, "Fred"));
@@ -343,7 +352,7 @@ static void test_sym_lookup(CuTest* tc) {
 }
 
 static void test_grow_table(CuTest* tc) {
-  SYMTAB* st = new_symbol_table();
+  SYMTAB* st = new_symbol_table(false);
   unsigned i;
 
   sym_insert_relative(st, "Toad");
@@ -373,7 +382,7 @@ static void test_external_id(CuTest* tc) {
   SYMTAB* st;
   SYMBOL* sym;
 
-  st = new_symbol_table();
+  st = new_symbol_table(false);
   CuAssertIntEquals(tc, 0, st->next_external_id);
 
   sym = sym_insert_relative(st, "Kong");

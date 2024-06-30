@@ -1,10 +1,11 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Assembler symbol table.
 
 #ifndef SYMBOL_H
 #define SYMBOL_H
 
+#include <stdbool.h>
 #include "utils.h"
 
 typedef short SYMBOL_ID;
@@ -48,9 +49,10 @@ typedef struct {
   unsigned used;
   SYMBOL_ID next_external_id;
   unsigned locals;
+  bool case_sensitive;
 } SYMTAB;
 
-SYMTAB* new_symbol_table(void);
+SYMTAB* new_symbol_table(bool case_sensitive);
 void delete_symbol_table(SYMTAB*);
 
 unsigned sym_count(SYMTAB*);

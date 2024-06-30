@@ -87,6 +87,8 @@ with Intel Object Module Format or any other format.
       -unittest     -- run unit tests (using CuTest) and quit
       -vv           -- 1-2 verbosity levels
 
+      --case-sensitive      -- case-sensitive symbols (not keywords)
+
 ### Basic Assembler
 
     bas test.asm    -- assemble test.asm to test.obj
@@ -100,6 +102,8 @@ with Intel Object Module Format or any other format.
       -unittest     -- run unit tests (using CuTest) and quit
       -v            -- verbose
 
+      --case-sensitive      -- case-sensitive symbols (not keywords)
+
 ### Basic Linker
 
     blink file ...  -- link object files
@@ -110,6 +114,8 @@ with Intel Object Module Format or any other format.
       -p name       -- map file showing segment layout in image
       -unittest     -- run unit tests (using CuTest) and quit
       -vvvv         -- 1-4 verbosity levels for debugging the linker
+
+      --case-sensitive      -- case-sensitive symbols (not keywords)
 
 ### Basic Object tool
 

@@ -42,6 +42,9 @@ OFILE* encoding_pass(IFILE* ifile, const Options* options) {
   OFILE* ofile = new_ofile();
   emit_groups(ifile, ofile);
   emit_segments(ifile, ofile);
+
+  if (ifile->st->case_sensitive)
+    emit_object_signal(ofile, OBJ_CASED);
   emit_externals(ifile->st, ofile);
   emit_publics(ifile->st, ofile);
 

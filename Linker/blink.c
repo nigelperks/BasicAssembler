@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // blink main.
 
 #include <stdlib.h>
@@ -43,11 +43,6 @@ int main(int argc, char* argv[]) {
     if (strcmp(arg, "/?") == 0)
       help();
     if (arg[0] == '-') {
-      if (arg[1] == '-') {
-        if (strcmp(arg+2, "help") == 0)
-          help();
-        fatal("unknown option: %s\n", arg);
-      }
 #ifdef UNIT_TEST
       if (strcmp(arg, "-unittest") == 0) {
         delete_stringlist(files);
@@ -56,7 +51,15 @@ int main(int argc, char* argv[]) {
         exit(EXIT_SUCCESS); // TODO: return count of failures
       }
 #endif
-      if (arg[1] == 'f') {
+      if (arg[1] == '-') {
+        if (strcmp(arg+2, "help") == 0)
+          help();
+        if (strcmp(arg+2, "case-sensitive") == 0)
+          case_sensitivity = CASE_SENSITIVE;
+        else
+          fatal("unknown option: %s\n", arg);
+      }
+      else if (arg[1] == 'f') {
         if (arg[2])
           format = format_by_name(arg + 2);
         else if (++i < argc)

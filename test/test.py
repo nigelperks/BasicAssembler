@@ -57,27 +57,32 @@ def check(cmd):
 # USING REFERENCE ASSEMBLER AND LINKER #
 ########################################
 
-def run_turbo_in_dosbox(DosBoxMount, DosBoxTestDir, sourceNames, linkCOM, linkEXE, keepDosBox):
+def run_turbo_in_dosbox(DosBoxMount, DosBoxTestDir, sourceNames, linkCOM, linkEXE, keepDosBox, CaseSensitive):
   testDirMounted = os.path.join(DosBoxMount, DosBoxTestDir)
   if not os.path.isdir(testDirMounted):
     fatal("DosBox mounted test directory not found: " + testDirMounted)
   batchName = os.path.join(DosBoxMount, "job.bat")
   bat = open(batchName, "w")
+  tasm_options = "/m10 "
+  tlink_options = ""
+  if CaseSensitive:
+    tasm_options += "/ml "
+    tlink_options += "/c "
   try:
     bat.write("cd %s\n" % DosBoxTestDir)
     objects = []
     for x in sourceNames:
       if x.endswith(".asm"):
         x = x[:-4]
-      bat.write("tasm /m10 " + x + "\n")
+      bat.write("tasm " + tasm_options + x + "\n")
       bat.write("if errorlevel 1 goto end\n")
       objects.append(x)
       shutil.copy2(x + ".asm", testDirMounted)
     if linkCOM:
-      bat.write("tlink /t " + " ".join(objects) + "\n")
+      bat.write("tlink /t " + tlink_options + " ".join(objects) + "\n")
       bat.write("if errorlevel 1 goto end\n")
     if linkEXE:
-      bat.write("tlink " + " ".join(objects) + "\n")
+      bat.write("tlink " + tlink_options + " ".join(objects) + "\n")
       bat.write("if errorlevel 1 goto end\n")
     bat.write("cd \\\n")
     bat.write("echo OK > OK\n")
@@ -100,10 +105,15 @@ def announce(sources, target):
   print()
   banner(desc + " -> " + target)
 
-def assemble(tools, sources, verbose):
+def assemble(tools, config, sources, verbose):
   objects = []
+  options = ""
+  if verbose:
+    options += "-v "
+  if config_on(config, "CaseSensitive") or config_on(config, "CaseSensitiveAsm"):
+    options += "--case-sensitive "
   for x in sources:
-    r = run("%s %s %s" % (tools["bas"], "-v" if verbose else "", x))
+    r = run("%s %s %s" % (tools["bas"], options, x))
     if r != 0:
       fatal("Assembler error: %d" % r)
     objects.append(bare_name(x) + ".obj")
@@ -128,11 +138,18 @@ def compare_map(refName, outputName):
   print("Match: " + refName + " " + os.path.abspath(outputName))
 
 
+def blink_options(config):
+  options = ""
+  if config_on(config, "CaseSensitive") or config_on(config, "CaseSensitiveLink"):
+    options += "--case-sensitive "
+  return options
+
+
 def test_bin(tools, config, sources, verbose):
   announce(sources, "BIN")
-  objects = assemble(tools, sources, verbose)
+  objects = assemble(tools, config, sources, verbose)
   test_bin = "test.bin"
-  cmd = "%s -fbin %s -o %s" % (tools["blink"], " ".join(objects), test_bin)
+  cmd = "%s -fbin %s %s -o %s" % (tools["blink"], blink_options(config), " ".join(objects), test_bin)
   if config_on(config, "mapfile"):
     cmd += " -p test.map"
   r = run(cmd)
@@ -148,9 +165,9 @@ def test_com(tools, config, sources, force_ref, getRefOnly, keepDosBox, verbose)
     refName = get_ref_com(config, sources, force_ref, keepDosBox)
     print("Obtained reference:", refName)
     return
-  objects = assemble(tools, sources, verbose)
+  objects = assemble(tools, config, sources, verbose)
   test_com = "test.com"
-  cmd = "%s -fcom %s -o %s" % (tools["blink"], " ".join(objects), test_com)
+  cmd = "%s -fcom %s %s -o %s" % (tools["blink"], blink_options(config), " ".join(objects), test_com)
   if config_on(config, "mapfile"):
     cmd += " -p test.map"
   r = run(cmd)
@@ -184,7 +201,8 @@ def test_com_disassembly(tools, comName, sources, verbose):
   f.write(" ENDS\n")
   f.write(" END start\n")
   f.close()
-  obj = assemble(tools, ["_testdis.asm"], verbose)
+  config = {}
+  obj = assemble(tools, config, ["_testdis.asm"], verbose)
 
   test_com = "_testdis.com"
   cmd = "%s -fcom %s -o %s" % (tools["blink"], " ".join(obj), test_com)
@@ -202,7 +220,8 @@ def get_ref_com(config, sources, force_ref, keepDosBox):
     os.remove(refName)
   if not os.path.isfile(refName):
     run_turbo_in_dosbox(config["DosBoxMount"], config["DosBoxTestDir"],
-                        sources, linkCOM=True, linkEXE=False, keepDosBox=keepDosBox)
+                        sources, linkCOM=True, linkEXE=False, keepDosBox=keepDosBox,
+                        CaseSensitive=config_on(config,"CaseSensitive"))
     comName = bare_name(sources[0]) + ".COM"
     refCOM = os.path.join(config["DosBoxMount"], config["DosBoxTestDir"], comName)
     shutil.copy2(refCOM, refName)
@@ -228,9 +247,9 @@ def test_exe(tools, config, sources, force_ref, getRefOnly, keepDosBox, verbose)
     refName = get_ref_exe(config, sources, force_ref, keepDosBox)
     print("Obtained reference:", refName)
     return
-  objects = assemble(tools, sources, verbose)
+  objects = assemble(tools, config, sources, verbose)
   test_exe = "test.exe"
-  r = run("%s -fexe %s -o %s" % (tools["blink"], " ".join(objects), test_exe))
+  r = run("%s -fexe %s %s -o %s" % (tools["blink"], blink_options(config), " ".join(objects), test_exe))
   if r != 0:
     fatal("EXE linking error: %d" % r)
   refName = get_ref_exe(config, sources, force_ref, keepDosBox)
@@ -243,7 +262,8 @@ def get_ref_exe(config, sources, force_ref, keepDosBox):
     os.remove(refName)
   if not os.path.isfile(refName):
     run_turbo_in_dosbox(config["DosBoxMount"], config["DosBoxTestDir"],
-                        sources, linkCOM=False, linkEXE=True, keepDosBox=keepDosBox)
+                        sources, linkCOM=False, linkEXE=True, keepDosBox=keepDosBox,
+                        CaseSensitive=config_on(config,"CaseSensitive"))
     exeName = bare_name(sources[0]) + ".EXE"
     refEXE = os.path.join(config["DosBoxMount"], config["DosBoxTestDir"], exeName)
     shutil.copy2(refEXE, refName)
@@ -261,18 +281,18 @@ def compare_err(refName, outputName):
     fatal("Different errors than expected")
   print("Errors were as expected")
 
-def test_asm_error(tools, source, error_file):
+def test_asm_error(tools, config, source, error_file):
   announce([source], "ERR")
   r = run("%s %s 2>err" % (tools["bas"], source))
   if r == 0:
     fatal("Assembly succeeded unexpectedly")
   compare_err(error_file, "err")
 
-def test_link_error(tools, sources, verbose):
+def test_link_error(tools, config, sources, verbose):
   announce(sources, "ERR")
-  objects = assemble(tools, sources, verbose)
+  objects = assemble(tools, config, sources, verbose)
   test_err = "err"
-  r = run("%s -fcom %s 2> %s" % (tools["blink"], " ".join(objects), test_err))
+  r = run("%s -fcom %s %s 2> %s" % (tools["blink"], blink_options(config), " ".join(objects), test_err))
   if r == 0:
     fatal("Linking succeeded unexpectedly")
   compare_err(LINKING_ERROR_REFERENCE, test_err)
@@ -281,10 +301,10 @@ def test(tools, config, sources, force_ref, getRefOnly, keepDosBox, verbose):
   if not config_on(config, "link"):
     error_file = bare_name(sources[0]) + ".err"
     if os.path.isfile(error_file):
-      test_asm_error(tools, sources[0], error_file)
+      test_asm_error(tools, config, sources[0], error_file)
       return
   elif os.path.isfile(LINKING_ERROR_REFERENCE):
-    test_link_error(tools, sources, verbose)
+    test_link_error(tools, config, sources, verbose)
     return
   formats = config["formats"] if "formats" in config else "both"
   if formats == "bin":
@@ -305,7 +325,9 @@ def test_dir(tools, config, name, force_ref, getRefOnly, keepDosBox, verbose):
   if os.path.isfile(CONFIG_NAME):
     add_config(cfg, CONFIG_NAME)
   if not config_on(cfg, SUPPRESS):
-    if config_on(cfg, "link"):
+    if os.path.isfile("test.cmd"):
+      check("test.cmd")
+    elif config_on(cfg, "link"):
       sources = glob("*.asm")
       if sources != []:
         test(tools, cfg, sources, force_ref, getRefOnly, keepDosBox, verbose)

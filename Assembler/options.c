@@ -22,6 +22,7 @@ Options* new_options(void) {
   p->report_memory = FALSE;
   p->report_time = FALSE;
   p->help = FALSE;
+  p->case_sensitive = false;
 
   return p;
 }
@@ -61,6 +62,10 @@ void process_argv(int argc, char* argv[], Options* opts) {
         opts->report_time = TRUE;
       else if (strcmp(arg, "-v") == 0)
         opts->verbose = TRUE;
+      else if (strcmp(arg, "--case-sensitive") == 0)
+        opts->case_sensitive = true;
+      else if (strcmp(arg, "--case-insensitive") == 0)
+        opts->case_sensitive = false;
       else
         fatal("invalid option: %s\n", arg);
     }

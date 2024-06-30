@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
     exit(EXIT_SUCCESS);
   }
 
-  IFILE* ifile = new_ifile(src);
+  IFILE* ifile = new_ifile(src, opts->case_sensitive);
 
   source_pass(ifile, opts);
   if (opts->print_intermediate)

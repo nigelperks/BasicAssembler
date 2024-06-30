@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-24 Nigel Perks
 // Basic Assembler and Linker driver
 
 #include <stdio.h>
@@ -111,6 +111,9 @@ static char* assemble(const OPTIONS* opt, const char* name) {
       extend_string(&str, " -v");
   }
 
+  if (opt->case_sensitive)
+    extend_string(&str, " --case-sensitive");
+
   int r = system(estring_text(&str));
   if (opt->verbose)
     printf("Exit code: %d\n", r);
@@ -153,6 +156,9 @@ static void link(const OPTIONS* opt, const STRINGLIST* objects) {
     if (opt->verbose >= 2)
       extend_string(&str, " -v");
   }
+
+  if (opt->case_sensitive)
+    extend_string(&str, " --case-sensitive");
 
   int r = system(estring_text(&str));
   if (opt->verbose)

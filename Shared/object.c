@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Object file handling (custom format).
 
 #include <stdlib.h>
@@ -74,6 +74,7 @@ static const struct {
   /* OBJ_END_GROUP_ADDR */       { "END_GROUP_ADDR",       OK_SIGNAL },
   /* OBJ_P2ALIGN */              { "P2ALIGN",              OK_BYTE },
   /* OBJ_SPACE */                { "SPACE",                OK_WORD },
+  /* OBJ_CASED */                { "CASED",                OK_SIGNAL },
 };
 
 void clear_orec(OREC* rec) {

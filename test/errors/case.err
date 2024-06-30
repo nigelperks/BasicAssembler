@@ -1,0 +1,7 @@
+Error: case.asm: 9: label already defined: Start:
+start:
+     ^
+Error: case.asm: 12: start label may not be external:
+    END     start
+            ^
+Errors: 2

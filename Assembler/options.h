@@ -1,10 +1,11 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // bas options.
 
 #ifndef OPTIONS_H
 #define OPTIONS_H
 
+#include <stdbool.h>
 #include "utils.h"
 
 typedef struct {
@@ -20,6 +21,7 @@ typedef struct {
   BOOL report_memory;
   BOOL report_time;
   BOOL help;
+  bool case_sensitive;
 } Options;
 
 Options* new_options(void);
