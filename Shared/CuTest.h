@@ -11,7 +11,7 @@
 
 /* CuString */
 
-char* CuStrAlloc(int size);
+char* CuStrAlloc(size_t size); // NRP: use size_t for 64-bit builds
 char* CuStrCopy(const char* old);
 
 #define CU_ALLOC(TYPE)		((TYPE*) malloc(sizeof(TYPE)))
@@ -20,10 +20,11 @@ char* CuStrCopy(const char* old);
 #define STRING_MAX		256
 #define STRING_INC		256
 
+// NRP: use size_t for 64-bit builds
 typedef struct
 {
-	int length;
-	int size;
+	size_t length;
+	size_t size;
 	char* buffer;
 } CuString;
 
@@ -33,8 +34,8 @@ void CuStringRead(CuString* str, const char* path);
 void CuStringAppend(CuString* str, const char* text);
 void CuStringAppendChar(CuString* str, char ch);
 void CuStringAppendFormat(CuString* str, const char* format, ...);
-void CuStringInsert(CuString* str, const char* text, int pos);
-void CuStringResize(CuString* str, int newSize);
+void CuStringInsert(CuString* str, const char* text, size_t pos); // NRP: use size_t for 64-bit builds
+void CuStringResize(CuString* str, size_t newSize); // NRP: use size_t for 64-bit builds
 void CuStringDelete(CuString* str);
 
 /* CuTest */

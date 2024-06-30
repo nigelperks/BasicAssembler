@@ -1,5 +1,5 @@
 /* CuTest C Unit Testing Framework */
-/* Altered version with modifications by Nigel Perks, clearly commented below. */
+/* Altered version with modifications by Nigel Perks (NRP), clearly commented below. */
 
 #include <assert.h>
 #include <setjmp.h>
@@ -14,7 +14,7 @@
  * CuStr
  *-------------------------------------------------------------------------*/
 
-char* CuStrAlloc(int size)
+char* CuStrAlloc(size_t size) // NRP: use size_t for 64-bit builds
 {
 	char* newStr = (char*) malloc( sizeof(char) * (size) );
 	return newStr;
@@ -22,7 +22,7 @@ char* CuStrAlloc(int size)
 
 char* CuStrCopy(const char* old)
 {
-	int len = strlen(old);
+	size_t len = strlen(old); // NRP: use size_t for 64-bit builds
 	char* newStr = CuStrAlloc(len + 1);
 	strcpy(newStr, old);
 	return newStr;
@@ -57,7 +57,8 @@ void CuStringDelete(CuString *str)
         free(str);
 }
 
-void CuStringResize(CuString* str, int newSize)
+// NRP: use size_t for 64-bit builds
+void CuStringResize(CuString* str, size_t newSize)
 {
 	str->buffer = (char*) realloc(str->buffer, sizeof(char) * newSize);
 	str->size = newSize;
@@ -65,7 +66,7 @@ void CuStringResize(CuString* str, int newSize)
 
 void CuStringAppend(CuString* str, const char* text)
 {
-	int length;
+	size_t length; // NRP: use size_t for 64-bit builds
 
 	if (text == NULL) {
 		text = "NULL";
@@ -96,9 +97,9 @@ void CuStringAppendFormat(CuString* str, const char* format, ...)
 	CuStringAppend(str, buf);
 }
 
-void CuStringInsert(CuString* str, const char* text, int pos)
+void CuStringInsert(CuString* str, const char* text, size_t pos)
 {
-	int length = strlen(text);
+	size_t length = strlen(text); // NRP: use size_t for 64-bit builds
 	if (pos > str->length)
 		pos = str->length;
 	if (str->length + length + 1 >= str->size)
