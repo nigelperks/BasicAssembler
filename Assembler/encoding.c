@@ -185,8 +185,8 @@ static void emit_group(GROUPNO groupno, const char* name, OFILE* ofile) {
 static void emit_external(const SYMBOL*, OFILE*);
 
 static void emit_externals(SYMTAB* st, OFILE* ofile) {
-  for (int id = sym_begin(st); id != sym_end(st); id = sym_next(st, id)) {
-    const SYMBOL* sym = get_sym(st, id);
+  SYM_FIND find;
+  for (const SYMBOL* sym = sym_first(st, &find); sym; sym = sym_next(&find)) {
     if (sym_external(sym))
       emit_external(sym, ofile);
   }
@@ -213,8 +213,8 @@ static void emit_external(const SYMBOL* sym, OFILE* ofile) {
 static void emit_public(const SYMBOL*, OFILE*);
 
 static void emit_publics(SYMTAB* st, OFILE* ofile) {
-  for (int id = sym_begin(st); id != sym_end(st); id = sym_next(st, id)) {
-    const SYMBOL* sym = get_sym(st, id);
+  SYM_FIND find;
+  for (const SYMBOL* sym = sym_first(st, &find); sym; sym = sym_next(&find)) {
     if (sym_public(sym))
       emit_public(sym, ofile);
   }

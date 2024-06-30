@@ -450,6 +450,9 @@ def main(argv):
   print_tools(tools)
   config = load_root_config(CONFIG_NAME)
 
+  os.environ["PATH"] = os.path.abspath(executables) + os.pathsep + os.environ["PATH"]
+  print("PATH=" + os.environ["PATH"])
+
   if sources == []:
     for name in glob("*"):
       if os.path.isdir(name):

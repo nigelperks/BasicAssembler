@@ -55,8 +55,6 @@ typedef struct {
 SYMTAB* new_symbol_table(bool case_sensitive);
 void delete_symbol_table(SYMTAB*);
 
-unsigned sym_count(SYMTAB*);
-SYMBOL* get_sym(SYMTAB*, int id);
 SYMBOL* sym_lookup(SYMTAB*, const char* name);
 SYMBOL* sym_insert_unknown(SYMTAB*, const char* name);
 SYMBOL* sym_insert_relative(SYMTAB*, const char* name);
@@ -91,8 +89,12 @@ void sym_define_section(SYMBOL*, int type, int ordinal);
 int sym_section_type(const SYMBOL*);
 int sym_section_ordinal(const SYMBOL*);
 
-int sym_begin(SYMTAB*);
-int sym_end(SYMTAB*);
-int sym_next(SYMTAB*, int id);
+typedef struct {
+  SYMTAB* st;
+  unsigned i;
+} SYM_FIND;
+
+SYMBOL* sym_first(SYMTAB*, SYM_FIND*);
+SYMBOL* sym_next(SYM_FIND*);
 
 #endif // SYMBOL_H

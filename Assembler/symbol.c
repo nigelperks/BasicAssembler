@@ -44,17 +44,6 @@ void delete_symbol_table(SYMTAB* st) {
   }
 }
 
-unsigned sym_count(SYMTAB* st) {
-  assert(st != NULL);
-  return st->used;
-}
-
-SYMBOL* get_sym(SYMTAB* st, int id) {
-  assert(st != NULL);
-  assert(id >= 0 && (unsigned)id < st->used);
-  return st->sym[id];
-}
-
 SYMBOL* sym_lookup(SYMTAB* st, const char* name) {
   unsigned i;
   assert(st != NULL);
@@ -267,16 +256,19 @@ void sym_define_section(SYMBOL* sym, int type, int ord) {
   sym->defined = TRUE;
 }
 
-int sym_begin(SYMTAB* st) {
-  return 0;
+SYMBOL* sym_first(SYMTAB* st, SYM_FIND* find) {
+  assert(st != NULL);
+  assert(find != NULL);
+  find->st = st;
+  find->i = 0;
+  return st->used ? st->sym[0] : NULL;
 }
 
-int sym_end(SYMTAB* st) {
-  return st->used;
-}
-
-int sym_next(SYMTAB* st, int id) {
-  return id + 1;
+// undefined if NULL already returned (this lets us increment i even if it overflows)
+SYMBOL* sym_next(SYM_FIND* find) {
+  assert(find != NULL);
+  find->i++;
+  return find->i < find->st->used ? find->st->sym[find->i] : NULL;
 }
 
 #ifdef UNIT_TEST
@@ -311,10 +303,6 @@ static void test_sym_lookup(CuTest* tc) {
   CuAssertIntEquals(tc, 3, st->used);
   CuAssertIntEquals(tc, 64, st->allocated);
 
-  CuAssertPtrEquals(tc, st->sym[0], get_sym(st, 0));
-  CuAssertPtrEquals(tc, st->sym[1], get_sym(st, 1));
-  CuAssertPtrEquals(tc, st->sym[2], get_sym(st, 2));
-
   sym = st->sym[0];
   CuAssertStrEquals(tc, "Fred", sym_name(sym));
   CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(sym));
@@ -345,9 +333,6 @@ static void test_sym_lookup(CuTest* tc) {
   CuAssertIntEquals(tc, TRUE, sym_public(sym));
   CuAssertIntEquals(tc, -1, sym->u.rel.external_id);
 
-  CuAssertIntEquals(tc, 0, sym_begin(st));
-  CuAssertIntEquals(tc, 3, sym_end(st));
-
   delete_symbol_table(st);
 }
 
@@ -366,10 +351,6 @@ static void test_grow_table(CuTest* tc) {
   CuAssertPtrNotNull(tc, sym_insert_relative(st, "Froggy"));
   CuAssertIntEquals(tc, 128, st->allocated);
   CuAssertIntEquals(tc, 65, st->used);
-
-  CuAssertPtrEquals(tc, st->sym[0], get_sym(st, 0));
-  CuAssertPtrEquals(tc, st->sym[1], get_sym(st, 1));
-  CuAssertPtrEquals(tc, st->sym[64], get_sym(st, 64));
 
   CuAssertStrEquals(tc, "Toad", sym_name(st->sym[0]));
   CuAssertStrEquals(tc, "Cowslip", sym_name(st->sym[1]));
@@ -408,12 +389,53 @@ static void test_external_id(CuTest* tc) {
   delete_symbol_table(st);
 }
 
+static void test_find(CuTest* tc) {
+  SYMTAB* st = new_symbol_table(false);
+  SYM_FIND find;
+  SYMBOL* sym;
+
+  // empty table
+  sym = sym_first(st, &find);
+  CuAssertPtrEquals(tc, st, find.st);
+  CuAssertIntEquals(tc, 0, find.i);
+  CuAssertPtrEquals(tc, NULL, sym);
+
+  // one symbol
+  SYMBOL* apple = sym_insert_relative(st, "apple");
+  sym = sym_first(st, &find);
+  CuAssertPtrEquals(tc, st, find.st);
+  CuAssertIntEquals(tc, 0, find.i);
+  CuAssertPtrEquals(tc, apple, sym);
+  sym = sym_next(&find);
+  CuAssertPtrEquals(tc, st, find.st);
+  CuAssertIntEquals(tc, 1, find.i);
+  CuAssertPtrEquals(tc, NULL, sym);
+
+  // two symbols
+  SYMBOL* orange = sym_insert_relative(st, "orange");
+  sym = sym_first(st, &find);
+  CuAssertPtrEquals(tc, st, find.st);
+  CuAssertIntEquals(tc, 0, find.i);
+  CuAssertPtrEquals(tc, apple, sym);
+  sym = sym_next(&find);
+  CuAssertPtrEquals(tc, st, find.st);
+  CuAssertIntEquals(tc, 1, find.i);
+  CuAssertPtrEquals(tc, orange, sym);
+  sym = sym_next(&find);
+  CuAssertPtrEquals(tc, st, find.st);
+  CuAssertIntEquals(tc, 2, find.i);
+  CuAssertPtrEquals(tc, NULL, sym);
+
+  delete_symbol_table(st);
+}
+
 CuSuite* symbol_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_new_symbol_table);
   SUITE_ADD_TEST(suite, test_sym_lookup);
   SUITE_ADD_TEST(suite, test_grow_table);
   SUITE_ADD_TEST(suite, test_external_id);
+  SUITE_ADD_TEST(suite, test_find);
   return suite;
 }
 

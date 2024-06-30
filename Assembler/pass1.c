@@ -159,11 +159,10 @@ static BOOL eat_colon(LEX* lex) {
 }
 
 static void check_symbols_defined(IFILE* ifile) {
-  int i;
   unsigned count = 0;
+  SYM_FIND find;
 
-  for (i = sym_begin(ifile->st); i < sym_end(ifile->st); i = sym_next(ifile->st, i)) {
-    const SYMBOL* sym = get_sym(ifile->st, i);
+  for (const SYMBOL* sym = sym_first(ifile->st, &find); sym; sym = sym_next(&find)) {
     if (!sym_defined(sym)) {
       fprintf(stderr, "Error: %s: symbol used but not defined: %s\n",
               source_name(ifile->source), sym_name(sym));
