@@ -14,12 +14,12 @@
 // State of an assembly pass, as opposed to the intermediate file,
 // which is built up for ongoing use throughout the assembly.
 typedef struct {
-  unsigned errors;
-  unsigned max_errors;
-  SEGNO curseg;
-  unsigned cpu;
-  const SYMBOL* assume_sym[N_SREG];
-  bool jumps;
+  unsigned errors;  // Non-fatal lexical or parsing errors so far in current pass.
+  unsigned max_errors;  // Maximum errors allowed: quit when reached.
+  SEGNO curseg;  // Current segment.
+  unsigned cpu;  // CPUs (instruction sets) currently active: effect of P286 etc.
+  const SYMBOL* assume_sym[N_SREG];  // ASSUME settings.
+  bool jumps;  // JUMPS directive: expand out-of-range short jumps to reverse sense and JMP.
 } STATE;
 
 void init_state(STATE*, unsigned max_errors);
