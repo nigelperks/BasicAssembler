@@ -79,6 +79,9 @@ void CuAssertPtrEquals_LineMsg(CuTest* tc,
 void CuAssertLongLongEquals_LineMsg(CuTest* tc,
     const char* file, int line, const char* message,
 	long long expected, long long actual);
+void CuAssertSizeEquals_LineMsg(CuTest* tc,
+    const char* file, int line, const char* message,
+	size_t expected, size_t actual);
 /* NIGEL PERKS MODIFICATION ENDS */
 
 /* public assert functions */
@@ -99,6 +102,8 @@ void CuAssertLongLongEquals_LineMsg(CuTest* tc,
 /* NIGEL PERKS MODIFICATION BEGINS */
 #define CuAssertLongLongEquals(tc,ex,ac)           CuAssertLongLongEquals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
 #define CuAssertLongLongEquals_Msg(tc,ms,ex,ac)    CuAssertLongLongEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
+#define CuAssertSizeEquals(tc,ex,ac)               CuAssertSizeEquals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
+#define CuAssertSizeEquals_Msg(tc,ms,ex,ac)        CuAssertSizeEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
 /* NIGEL PERKS MODIFICATION ENDS */
 
 #define CuAssertPtrNotNull(tc,p)        CuAssert_Line((tc),__FILE__,__LINE__,"null pointer unexpected",(p != NULL))
