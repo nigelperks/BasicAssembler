@@ -96,7 +96,8 @@ static void define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
   else {
     unsigned data_size = token_data_size(irec->op);
     DWORD val = segment_pc(ifile, state->curseg);
-    sym_define_relative(irec->label, state->curseg, data_size, val);
+    sym_define_relative(irec->label, state->curseg, val);
+    sym_set_data_size(irec->label, data_size);
   }
 }
 
@@ -547,7 +548,7 @@ static bool expand_short_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
 
   IREC* over = insert_irec_after(ifile, jmp);
   over->label = local;
-  sym_define_relative(local, state->curseg, 0, segment_pc(ifile, state->curseg) + 5);
+  sym_define_relative(local, state->curseg, segment_pc(ifile, state->curseg) + 5);
 
   return true;
 }

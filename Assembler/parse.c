@@ -2377,7 +2377,7 @@ static void test_parse_operand_label(CuTest* tc) {
   ahead_label = sym_insert_relative(ifile->st, "ahead");
 
   behind_label = sym_insert_relative(ifile->st, "behind");
-  sym_define_relative(behind_label, 0, 2, 0x492);
+  sym_define_relative(behind_label, 0, 0x492);
 
   equ_label = sym_insert_absolute(ifile->st, "K");
   sym_define_absolute(equ_label, 903);
@@ -2469,7 +2469,7 @@ static void test_parse_operand_offset(CuTest* tc) {
   SYMBOL* ahead_label = sym_insert_relative(ifile->st, "ahead");
 
   SYMBOL* behind_label = sym_insert_relative(ifile->st, "behind");
-  sym_define_relative(behind_label, 0, 2, 0x492);
+  sym_define_relative(behind_label, 0, 0x492);
 
   SYMBOL* equ_label = sym_insert_absolute(ifile->st, "K");
   sym_define_absolute(equ_label, 903);

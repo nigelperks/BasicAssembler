@@ -71,7 +71,7 @@ const char* sym_name(const SYMBOL*);
 int sym_type(const SYMBOL*);
 BOOL sym_defined(const SYMBOL*);
 
-void sym_define_relative(SYMBOL*, int seg, unsigned data_size, DWORD val);
+void sym_define_relative(SYMBOL*, int seg, DWORD val);
 void sym_update_relative(SYMBOL*, int seg, DWORD val);
 DWORD sym_relative_value(const SYMBOL*);
 SEGNO sym_seg(const SYMBOL*);

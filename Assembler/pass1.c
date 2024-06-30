@@ -119,7 +119,8 @@ static BOOL define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
         unsigned data_size = token_data_size(lex_token(lex));
         irec->label = sym_insert_relative(ifile->st, name);
         DWORD val = segment_pc(ifile, state->curseg);
-        sym_define_relative(irec->label, state->curseg, data_size, val);
+        sym_define_relative(irec->label, state->curseg, val);
+        sym_set_data_size(irec->label, data_size);
       }
     }
     efree(name);
@@ -140,7 +141,8 @@ static BOOL define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
     BOOL colon = eat_colon(lex);
     unsigned data_size = token_data_size(lex_token(lex));
     DWORD val = segment_pc(ifile, state->curseg);
-    sym_define_relative(irec->label, state->curseg, data_size, val);
+    sym_define_relative(irec->label, state->curseg, val);
+    sym_set_data_size(irec->label, data_size);
     return colon;
   }
 

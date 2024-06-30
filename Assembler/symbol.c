@@ -150,14 +150,9 @@ BOOL sym_defined(const SYMBOL* sym) {
   return sym->defined;
 }
 
-void sym_define_relative(SYMBOL* sym, int seg, unsigned data_size, DWORD val) {
+void sym_define_relative(SYMBOL* sym, int seg, DWORD val) {
   assert(sym != NULL);
   assert(sym->type == SYM_RELATIVE);
-  assert(data_size == 0 || data_size == 1 || data_size == 2 || data_size == 4 ||
-         data_size == 8 || data_size == 10);
-
-  if (sym->u.rel.data_size != 0 && data_size != sym->u.rel.data_size)
-    fatal("resizing %s data size from %u to %u\n", sym->name, sym->u.rel.data_size, data_size);
 
   if (sym->u.rel.seg == NO_SEG) {
     assert(sym->defined == FALSE);
@@ -169,7 +164,6 @@ void sym_define_relative(SYMBOL* sym, int seg, unsigned data_size, DWORD val) {
     assert(sym->u.rel.seg == seg);
   }
   sym->u.rel.val = val;
-  sym->u.rel.data_size = data_size;
 }
 
 void sym_update_relative(SYMBOL* sym, int seg, DWORD val) {
@@ -331,13 +325,12 @@ static void test_sym_lookup(CuTest* tc) {
   CuAssertStrEquals(tc, "Berk_radish", sym_name(sym));
   CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(sym));
   CuAssertIntEquals(tc, 0, sym->u.rel.val);
-  sym_define_relative(sym, 3, 2, -1);
+  sym_define_relative(sym, 3, -1);
   CuAssertIntEquals(tc, DEFINED, sym_defined(sym));
   CuAssertIntEquals(tc, -1, sym->u.rel.val);
   CuAssertIntEquals(tc, 3, sym->u.rel.seg);
   CuAssertIntEquals(tc, -1, sym_relative_value(sym));
   CuAssertIntEquals(tc, PRIVATE, sym->u.rel.public);
-  CuAssertIntEquals(tc, 2, sym->u.rel.data_size);
   sym_set_public(sym);
   CuAssertIntEquals(tc, PUBLIC, sym->u.rel.public);
   CuAssertIntEquals(tc, TRUE, sym_public(sym));
