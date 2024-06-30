@@ -112,7 +112,7 @@ void define_dollar(STATE* state, IFILE* ifile) {
   SYMBOL* sym = sym_lookup(ifile->st, "$");
   assert(sym != NULL);
   DWORD pc = (state->curseg == NO_SEG) ? 0 : segment_pc(ifile, state->curseg);
-  sym_update_relative(sym, state->curseg, 0, pc);
+  sym_update_relative(sym, state->curseg, pc);
 }
 
 bool valid_byte_expr(int type) {
