@@ -154,12 +154,12 @@ void print_source(const SOURCE* src) {
 #include "CuTest.h"
 
 static void test_line_length(CuTest* tc) {
-  CuAssertIntEquals(tc, 0, line_length(""));
-  CuAssertIntEquals(tc, 0, line_length("\n"));
-  CuAssertIntEquals(tc, 0, line_length("\nfred\n"));
-  CuAssertIntEquals(tc, 1, line_length("\r\nfred\n"));
-  CuAssertIntEquals(tc, 4, line_length("fred\n"));
-  CuAssertIntEquals(tc, 4, line_length("fred"));
+  CuAssertSizeEquals(tc, 0, line_length(""));
+  CuAssertSizeEquals(tc, 0, line_length("\n"));
+  CuAssertSizeEquals(tc, 0, line_length("\nfred\n"));
+  CuAssertSizeEquals(tc, 1, line_length("\r\nfred\n"));
+  CuAssertSizeEquals(tc, 4, line_length("fred\n"));
+  CuAssertSizeEquals(tc, 4, line_length("fred"));
 }
 
 static void test_copy(CuTest* tc) {
@@ -198,8 +198,8 @@ static void test_new_source(CuTest* tc) {
   CuAssertPtrNotNull(tc, src);
   CuAssertStrEquals(tc, "lovely", src->name);
   CuAssertPtrEquals(tc, NULL, src->lines);
-  CuAssertIntEquals(tc, 0, src->allocated);
-  CuAssertIntEquals(tc, 0, src->used);
+  CuAssertSizeEquals(tc, 0, src->allocated);
+  CuAssertSizeEquals(tc, 0, src->used);
 
   delete_source(src);
 }
@@ -211,8 +211,8 @@ static void test_append(CuTest* tc) {
   i = append(src, 1, "", 0);
   CuAssertIntEquals(tc, 0, i);
   CuAssertPtrNotNull(tc, src->lines);
-  CuAssertIntEquals(tc, 128, src->allocated);
-  CuAssertIntEquals(tc, 1, src->used);
+  CuAssertSizeEquals(tc, 128, src->allocated);
+  CuAssertSizeEquals(tc, 1, src->used);
   CuAssertPtrNotNull(tc, src->lines[0].text);
   CuAssertIntEquals(tc, 1, src->lines[0].lineno);
   CuAssertStrEquals(tc, "", src->lines[0].text);
@@ -220,8 +220,8 @@ static void test_append(CuTest* tc) {
   i = append(src, 3, "jam sandwich\n", 12);
   CuAssertIntEquals(tc, 1, i);
   CuAssertPtrNotNull(tc, src->lines);
-  CuAssertIntEquals(tc, 128, src->allocated);
-  CuAssertIntEquals(tc, 2, src->used);
+  CuAssertSizeEquals(tc, 128, src->allocated);
+  CuAssertSizeEquals(tc, 2, src->used);
   CuAssertPtrNotNull(tc, src->lines[1].text);
   CuAssertIntEquals(tc, 3, src->lines[1].lineno);
   CuAssertStrEquals(tc, "jam sandwich", src->lines[1].text);
@@ -239,8 +239,8 @@ static void test_load_source_mem(CuTest* tc) {
 
   src = load_source_mem(text);
   CuAssertPtrNotNull(tc, src);
-  CuAssertIntEquals(tc, 3, src->used);
-  CuAssertIntEquals(tc, 128, src->allocated);
+  CuAssertSizeEquals(tc, 3, src->used);
+  CuAssertSizeEquals(tc, 128, src->allocated);
   CuAssertStrEquals(tc, "once upon a time", src->lines[0].text);
   CuAssertIntEquals(tc, 1, src->lines[0].lineno);
   CuAssertStrEquals(tc, "there was a little pig", src->lines[1].text);

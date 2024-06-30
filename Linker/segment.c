@@ -418,7 +418,7 @@ static void test_write_segment(CuTest* tc) {
   CuAssertPtrNotNull(tc, seg->data);
   CuAssertIntEquals(tc, ALLOCATION_UNIT * 2, seg->allocated);
   CuAssertIntEquals(tc, ALLOCATION_UNIT / 2, seg->lo);
-  CuAssertIntEquals(tc, ALLOCATION_UNIT / 2 + BUF_SIZE, seg->hi);
+  CuAssertSizeEquals(tc, ALLOCATION_UNIT / 2 + BUF_SIZE, seg->hi);
   CuAssertTrue(tc, memcmp(seg->data + ALLOCATION_UNIT/2, buf, BUF_SIZE) == 0);
   CuAssertIntEquals(tc, 0, seg->space);
   CuAssertIntEquals(tc, PC, seg->pc);
@@ -507,7 +507,7 @@ static void test_append_segment(CuTest* tc) {
   CuAssertTrue(tc, memcmp(dest->data + 50, buf2, SIZE2) == 0);
   CuAssertTrue(tc, zero(dest->data + 50 + SIZE2, 100));
   CuAssertTrue(tc, memcmp(dest->data + 50 + SIZE2 + 100, buf1, SIZE1) == 0);
-  CuAssertIntEquals(tc, 50 + SIZE2 + 100 + SIZE1, dest->hi);
+  CuAssertSizeEquals(tc, 50 + SIZE2 + 100 + SIZE1, dest->hi);
   CuAssertTrue(tc, zero(dest->data + dest->hi, dest->allocated - dest->hi));
   CuAssertIntEquals(tc, 0x234, dest->space);
 

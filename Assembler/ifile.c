@@ -395,7 +395,7 @@ static void test_new_irec(CuTest* tc) {
   CuAssertIntEquals(tc, 0, irec->operand_pos);
   CuAssertIntEquals(tc, 0, irec->near_jump_size);
   CuAssertTrue(tc, irec->def == NULL);
-  CuAssertIntEquals(tc, 0, irec->size);
+  CuAssertSizeEquals(tc, 0, irec->size);
 
   CuAssertPtrNotNull(tc, ifile->recs);
   CuAssertIntEquals(tc, 1, ifile->used);
@@ -407,7 +407,7 @@ static void test_new_irec(CuTest* tc) {
   CuAssertPtrNotNull(tc, irec);
   CuAssertIntEquals(tc, 0, irec->si);
   CuAssertPtrEquals(tc, NULL, irec->label);
-  CuAssertIntEquals(tc, 0, irec->size);
+  CuAssertSizeEquals(tc, 0, irec->size);
   CuAssertPtrNotNull(tc, ifile->recs);
   CuAssertIntEquals(tc, 2, ifile->used);
   CuAssertIntEquals(tc, 128, ifile->allocated);

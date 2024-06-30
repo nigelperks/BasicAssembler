@@ -155,8 +155,8 @@ static void test_new_fixups(CuTest* tc) {
   p = new_fixups();
   CuAssertPtrNotNull(tc, p);
   CuAssertPtrEquals(tc, NULL, p->offsets);
-  CuAssertIntEquals(tc, 0, p->allocated);
-  CuAssertIntEquals(tc, 0, p->used);
+  CuAssertSizeEquals(tc, 0, p->allocated);
+  CuAssertSizeEquals(tc, 0, p->used);
 
   delete_fixups(p);
 }
@@ -165,11 +165,11 @@ static void test_add_offset_info(CuTest* tc) {
   FIXUPS* p = new_fixups();
   FIXUP* offset;
 
-  CuAssertIntEquals(tc, 0, fixups_count(p));
+  CuAssertSizeEquals(tc, 0, fixups_count(p));
 
   offset = add_offset_fixup(p, 0, 80, 3);
   CuAssertPtrNotNull(tc, p->offsets);
-  CuAssertIntEquals(tc, 1, p->used);
+  CuAssertSizeEquals(tc, 1, p->used);
   CuAssertTrue(tc, p->allocated > 0);
   CuAssertPtrEquals(tc, p->offsets + 0, offset);
   CuAssertIntEquals(tc, FT_OFFSET, p->offsets[0].type);
@@ -177,12 +177,12 @@ static void test_add_offset_info(CuTest* tc) {
   CuAssertIntEquals(tc, 80, p->offsets[0].holding_offset);
   CuAssertIntEquals(tc, 3, p->offsets[0].u.addressed_segno);
 
-  CuAssertIntEquals(tc, 1, fixups_count(p));
+  CuAssertSizeEquals(tc, 1, fixups_count(p));
   CuAssertPtrEquals(tc, p->offsets + 0, fixup(p, 0));
 
   offset = add_offset_fixup(p, 1, 0x1234, 1);
   CuAssertPtrNotNull(tc, p->offsets);
-  CuAssertIntEquals(tc, 2, p->used);
+  CuAssertSizeEquals(tc, 2, p->used);
   CuAssertTrue(tc, p->allocated > 0);
   CuAssertPtrEquals(tc, p->offsets + 1, offset);
   CuAssertIntEquals(tc, FT_OFFSET, p->offsets[0].type);
@@ -194,7 +194,7 @@ static void test_add_offset_info(CuTest* tc) {
   CuAssertIntEquals(tc, 0x1234, p->offsets[1].holding_offset);
   CuAssertIntEquals(tc, 1, p->offsets[1].u.addressed_segno);
 
-  CuAssertIntEquals(tc, 2, fixups_count(p));
+  CuAssertSizeEquals(tc, 2, fixups_count(p));
   CuAssertPtrEquals(tc, p->offsets + 0, fixup(p, 0));
   CuAssertPtrEquals(tc, p->offsets + 1, fixup(p, 1));
 
@@ -204,14 +204,14 @@ static void test_add_offset_info(CuTest* tc) {
 static void test_insert_externals(CuTest* tc) {
   FIXUPS* ext = new_fixups();
 
-  CuAssertIntEquals(tc, 0, fixups_count(ext));
+  CuAssertSizeEquals(tc, 0, fixups_count(ext));
 
   int i = add_external_fixup(ext, 3, 0x1030, 7, FALSE);
 
   CuAssertIntEquals(tc, 0, i);
 
   CuAssertPtrNotNull(tc, ext->offsets);
-  CuAssertIntEquals(tc, 1, ext->used);
+  CuAssertSizeEquals(tc, 1, ext->used);
   CuAssertTrue(tc, ext->allocated >= 1);
 
   CuAssertIntEquals(tc, FT_EXTERNAL, ext->offsets[0].type);
@@ -221,7 +221,7 @@ static void test_insert_externals(CuTest* tc) {
   CuAssertIntEquals(tc, FALSE, ext->offsets[0].u.ext.jump);
   
   CuAssertTrue(tc, fixup(ext, 0) == ext->offsets);
-  CuAssertIntEquals(tc, 1, fixups_count(ext));
+  CuAssertSizeEquals(tc, 1, fixups_count(ext));
 
   delete_fixups(ext);
 }
@@ -231,8 +231,8 @@ static void test_append_offsets(CuTest* tc) {
   FIXUPS* src = new_fixups();
 
   append_fixups(dest, src);
-  CuAssertIntEquals(tc, 0, dest->used);
-  CuAssertIntEquals(tc, 0, src->used);
+  CuAssertSizeEquals(tc, 0, dest->used);
+  CuAssertSizeEquals(tc, 0, src->used);
 
   // add_global_offset_info(info, holding_seg, holding_offset, holding_len, addressed_seg)
 
@@ -240,8 +240,8 @@ static void test_append_offsets(CuTest* tc) {
   add_offset_fixup(src, 1, 0, 2);
 
   append_fixups(dest, src);
-  CuAssertIntEquals(tc, 2, dest->used);
-  CuAssertIntEquals(tc, 2, src->used);
+  CuAssertSizeEquals(tc, 2, dest->used);
+  CuAssertSizeEquals(tc, 2, src->used);
 
   CuAssertIntEquals(tc, 0, dest->offsets[0].holding_seg);
   CuAssertIntEquals(tc, 0x1000, dest->offsets[0].holding_offset);
@@ -256,8 +256,8 @@ static void test_append_offsets(CuTest* tc) {
   add_offset_fixup(src, 4, 0xDEAD, 0);
 
   append_fixups(dest, src);
-  CuAssertIntEquals(tc, 3, dest->used);
-  CuAssertIntEquals(tc, 1, src->used);
+  CuAssertSizeEquals(tc, 3, dest->used);
+  CuAssertSizeEquals(tc, 1, src->used);
 
   CuAssertIntEquals(tc, 0, dest->offsets[0].holding_seg);
   CuAssertIntEquals(tc, 0x1000, dest->offsets[0].holding_offset);
@@ -287,7 +287,7 @@ static void test_append_externals(CuTest* tc) {
 
   append_fixups(main, sub);
 
-  CuAssertIntEquals(tc, 4, main->used);
+  CuAssertSizeEquals(tc, 4, main->used);
 
   CuAssertIntEquals(tc, 10, main->offsets[0].holding_offset);
   CuAssertIntEquals(tc, 20, main->offsets[1].holding_offset);

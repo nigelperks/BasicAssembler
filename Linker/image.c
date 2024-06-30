@@ -349,7 +349,7 @@ static void test_new_image(CuTest* tc) {
   IMAGE* image = new_image();
 
   CuAssertPtrEquals(tc, NULL, image->data);
-  CuAssertIntEquals(tc, 0, image->allocated);
+  CuAssertSizeEquals(tc, 0, image->allocated);
   CuAssertIntEquals(tc, 0, image->lo);
   CuAssertIntEquals(tc, 0, image->hi);
   CuAssertIntEquals(tc, 0, image->space);
@@ -363,21 +363,21 @@ static void test_ensure_allocated(CuTest* tc) {
   IMAGE* image = new_image();
 
   ensure_allocated(image, 0);
-  CuAssertIntEquals(tc, 0, image->allocated);
+  CuAssertSizeEquals(tc, 0, image->allocated);
   CuAssertPtrEquals(tc, NULL, image->data);
 
   ensure_allocated(image, 10000);
-  CuAssertIntEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
+  CuAssertSizeEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
   CuAssertPtrNotNull(tc, image->data);
   CuAssertTrue(tc, zero(image->data, image->allocated));
 
   ensure_allocated(image, 8000);
-  CuAssertIntEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
+  CuAssertSizeEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
   CuAssertPtrNotNull(tc, image->data);
   CuAssertTrue(tc, zero(image->data, image->allocated));
 
   ensure_allocated(image, 50000);
-  CuAssertIntEquals(tc, 4 * IMAGE_ALLOCATION_UNIT, image->allocated);
+  CuAssertSizeEquals(tc, 4 * IMAGE_ALLOCATION_UNIT, image->allocated);
   CuAssertPtrNotNull(tc, image->data);
   CuAssertTrue(tc, zero(image->data, image->allocated));
 
@@ -393,22 +393,22 @@ static void test_write_image(CuTest* tc) {
   memset(buf1, '*', 23);
   write_image(image, 32, buf1, 23);
   CuAssertPtrNotNull(tc, image->data);
-  CuAssertIntEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
+  CuAssertSizeEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
   CuAssertIntEquals(tc, 32, image->lo);
   CuAssertIntEquals(tc, 55, image->hi);
   CuAssertTrue(tc, memcmp(image->data + 32, buf1, 23) == 0);
 
   memset(buf2, '-', K);
   write_image(image, 16, buf2, K);
-  CuAssertIntEquals(tc, 2 * IMAGE_ALLOCATION_UNIT, image->allocated);
+  CuAssertSizeEquals(tc, 2 * IMAGE_ALLOCATION_UNIT, image->allocated);
   CuAssertIntEquals(tc, 16, image->lo);
-  CuAssertIntEquals(tc, 16 + K, image->hi);
+  CuAssertSizeEquals(tc, 16 + K, image->hi);
   CuAssertTrue(tc, memcmp(image->data + 16, buf2, K) == 0);
 
   write_image(image, image->hi, buf1, 23);
-  CuAssertIntEquals(tc, 2 * IMAGE_ALLOCATION_UNIT, image->allocated);
+  CuAssertSizeEquals(tc, 2 * IMAGE_ALLOCATION_UNIT, image->allocated);
   CuAssertIntEquals(tc, 16, image->lo);
-  CuAssertIntEquals(tc, 16 + K + 23, image->hi);
+  CuAssertSizeEquals(tc, 16 + K + 23, image->hi);
   CuAssertTrue(tc, memcmp(image->data + 16, buf2, K) == 0);
   CuAssertTrue(tc, memcmp(image->data + 16 + K, buf1, 23) == 0);
 
@@ -453,7 +453,7 @@ static void test_append_segment(CuTest* tc) {
   append_segment_data_to_image(image, seg);
 
   CuAssertPtrNotNull(tc, image->data);
-  CuAssertIntEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
+  CuAssertSizeEquals(tc, IMAGE_ALLOCATION_UNIT, image->allocated);
   CuAssertIntEquals(tc, 0x80, image->lo);
   CuAssertIntEquals(tc, 0x80 + sizeof buf, image->hi);
 

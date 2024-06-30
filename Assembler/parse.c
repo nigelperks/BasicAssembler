@@ -1291,7 +1291,7 @@ static void test_primitive_expr(CuTest* tc) {
   CuAssertPtrNotNull(tc, ast);
   CuAssertIntEquals(tc, AST_STRING, ast->kind);
   CuAssertPtrEquals(tc, NULL, ast->u.string.content);
-  CuAssertIntEquals(tc, 0, ast->u.string.len);
+  CuAssertSizeEquals(tc, 0, ast->u.string.len);
   delete_ast(ast);
 
   ast = primitive_expr(&state, ifile, lex);
@@ -1299,7 +1299,7 @@ static void test_primitive_expr(CuTest* tc) {
   CuAssertIntEquals(tc, AST_STRING, ast->kind);
   CuAssertPtrNotNull(tc, ast->u.string.content);
   CuAssertTrue(tc, memcmp(ast->u.string.content, "cobblers", 8) == 0);
-  CuAssertIntEquals(tc, 8, ast->u.string.len);
+  CuAssertSizeEquals(tc, 8, ast->u.string.len);
   delete_ast(ast);
 
   // ?

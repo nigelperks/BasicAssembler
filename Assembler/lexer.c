@@ -491,12 +491,12 @@ static void test_string(CuTest* tc) {
   sprintf(lex.lexeme, "'%s'", STRING);
   lex.token = TOK_STRING;
 
-  CuAssertIntEquals(tc, LEN, lex_string_len(&lex));
+  CuAssertSizeEquals(tc, LEN, lex_string_len(&lex));
 
   buf = lex_string_content(&lex, &len);
   CuAssertPtrNotNull(tc, buf);
   CuAssertStrEquals(tc, STRING, buf);
-  CuAssertIntEquals(tc, LEN, len);
+  CuAssertSizeEquals(tc, LEN, len);
   efree(buf);
 }
 

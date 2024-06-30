@@ -57,9 +57,9 @@ static void test_init(CuTest* tc) {
 
   init_estring(&e, 16);
   CuAssertPtrEquals(tc, NULL, e.s);
-  CuAssertIntEquals(tc, 0, e.allocated);
-  CuAssertIntEquals(tc, 0, e.used);
-  CuAssertIntEquals(tc, 16, e.first_alloc);
+  CuAssertSizeEquals(tc, 0, e.allocated);
+  CuAssertSizeEquals(tc, 0, e.used);
+  CuAssertSizeEquals(tc, 16, e.first_alloc);
 }
 
 static void test_deinit(CuTest* tc) {
@@ -68,18 +68,18 @@ static void test_deinit(CuTest* tc) {
   init_estring(&e, 32);
   deinit_estring(&e);
   CuAssertPtrEquals(tc, NULL, e.s);
-  CuAssertIntEquals(tc, 0, e.allocated);
-  CuAssertIntEquals(tc, 0, e.used);
-  CuAssertIntEquals(tc, 32, e.first_alloc);
+  CuAssertSizeEquals(tc, 0, e.allocated);
+  CuAssertSizeEquals(tc, 0, e.used);
+  CuAssertSizeEquals(tc, 32, e.first_alloc);
 
   e.s = estrdup("some sample text");
   e.allocated = 32;
   e.used = 17;
   deinit_estring(&e);
   CuAssertPtrEquals(tc, NULL, e.s);
-  CuAssertIntEquals(tc, 0, e.allocated);
-  CuAssertIntEquals(tc, 0, e.used);
-  CuAssertIntEquals(tc, 32, e.first_alloc);
+  CuAssertSizeEquals(tc, 0, e.allocated);
+  CuAssertSizeEquals(tc, 0, e.used);
+  CuAssertSizeEquals(tc, 32, e.first_alloc);
 }
 
 static void test_extend(CuTest* tc) {
@@ -88,32 +88,32 @@ static void test_extend(CuTest* tc) {
   init_estring(&e, 8);
 
   extend_string(&e, "");
-  CuAssertIntEquals(tc, 8, e.allocated);
-  CuAssertIntEquals(tc, 1, e.used);
+  CuAssertSizeEquals(tc, 8, e.allocated);
+  CuAssertSizeEquals(tc, 1, e.used);
 
   extend_string(&e, "a");
-  CuAssertIntEquals(tc, 8, e.allocated);
-  CuAssertIntEquals(tc, 2, e.used);
+  CuAssertSizeEquals(tc, 8, e.allocated);
+  CuAssertSizeEquals(tc, 2, e.used);
   CuAssertStrEquals(tc, "a", e.s);
 
   extend_string(&e, "123456");
-  CuAssertIntEquals(tc, 8, e.allocated);
-  CuAssertIntEquals(tc, 8, e.used);
+  CuAssertSizeEquals(tc, 8, e.allocated);
+  CuAssertSizeEquals(tc, 8, e.used);
   CuAssertStrEquals(tc, "a123456", e.s);
 
   extend_string(&e, "-hello!");
-  CuAssertIntEquals(tc, 16, e.allocated);
-  CuAssertIntEquals(tc, 15, e.used);
+  CuAssertSizeEquals(tc, 16, e.allocated);
+  CuAssertSizeEquals(tc, 15, e.used);
   CuAssertStrEquals(tc, "a123456-hello!", e.s);
 
   extend_string(&e, "");
-  CuAssertIntEquals(tc, 16, e.allocated);
-  CuAssertIntEquals(tc, 15, e.used);
+  CuAssertSizeEquals(tc, 16, e.allocated);
+  CuAssertSizeEquals(tc, 15, e.used);
   CuAssertStrEquals(tc, "a123456-hello!", e.s);
 
   extend_string(&e, "!!");
-  CuAssertIntEquals(tc, 32, e.allocated);
-  CuAssertIntEquals(tc, 17, e.used);
+  CuAssertSizeEquals(tc, 32, e.allocated);
+  CuAssertSizeEquals(tc, 17, e.used);
   CuAssertStrEquals(tc, "a123456-hello!!!", e.s);
 
   deinit_estring(&e);
