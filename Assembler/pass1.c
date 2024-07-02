@@ -36,7 +36,7 @@ void pass1(IFILE* ifile, const Options* options) {
 
   if (sym_lookup(ifile->st, "$"))
     fatal("internal error: built-in symbol '$' is already defined\n");
-  sym_insert_relative(ifile->st, "$");
+  sym_insert_relative(ifile->st, "$", 1);
 
   for (ifile->pos = 0; ifile->pos < irec_count(ifile); ifile->pos++)
     process_irec(&state, ifile, lex);
@@ -110,14 +110,14 @@ static BOOL define_label(STATE* state, IFILE* ifile, IREC* irec, LEX* lex) {
     BOOL colon = FALSE;
     int tok = lex_next(lex);
     if (tok == TOK_EQU || tok == '=')
-      irec->label = sym_insert_absolute(ifile->st, name);
+      irec->label = sym_insert_absolute(ifile->st, name, lex_lineno(lex));
     else {
       colon = eat_colon(lex);
       if (state->curseg == NO_SEG)
         error2(state, lex, "label outside segment: %s", name);
       else {
         unsigned data_size = token_data_size(lex_token(lex));
-        irec->label = sym_insert_relative(ifile->st, name);
+        irec->label = sym_insert_relative(ifile->st, name, lex_lineno(lex));
         DWORD val = segment_pc(ifile, state->curseg);
         sym_define_relative(irec->label, state->curseg, val);
         sym_set_data_size(irec->label, data_size);
@@ -164,8 +164,8 @@ static void check_symbols_defined(IFILE* ifile) {
 
   for (const SYMBOL* sym = sym_first(ifile->st, &find); sym; sym = sym_next(&find)) {
     if (!sym_defined(sym)) {
-      fprintf(stderr, "Error: %s: symbol used but not defined: %s\n",
-              source_name(ifile->source), sym_name(sym));
+      fprintf(stderr, "Error: %s: %u: symbol used but not defined: %s\n",
+              source_name(ifile->source), sym_lineno(sym), sym_name(sym));
       count++;
     }
   }
@@ -360,7 +360,7 @@ static void do_segment(STATE* state, IFILE* ifile, LEX* lex) {
 
   SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
   if (sym == NULL) {
-    sym = sym_insert_section(ifile->st, lex_lexeme(lex));
+    sym = sym_insert_section(ifile->st, lex_lexeme(lex), lex_lineno(lex));
     seg = create_segment(ifile, lex_lexeme(lex));
     sym_define_section(sym, ST_SEGMENT, seg);
     state->curseg = seg;
@@ -516,7 +516,7 @@ static void assume(STATE* state, IFILE* ifile, LEX* lex) {
 
   SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
   if (sym == NULL) {
-    sym = sym_insert_section(ifile->st, lex_lexeme(lex));
+    sym = sym_insert_section(ifile->st, lex_lexeme(lex), lex_lineno(lex));
     state->assume_sym[reg] = sym;
   }
   else if (sym_type(sym) == SYM_SECTION)
@@ -561,7 +561,7 @@ static int get_group(STATE* state, IFILE* ifile, LEX* lex) {
 
   SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
   if (sym == NULL) {
-    sym = sym_insert_section(ifile->st, lex_lexeme(lex));
+    sym = sym_insert_section(ifile->st, lex_lexeme(lex), lex_lineno(lex));
     int group = create_group(ifile, lex_lexeme(lex));
     sym_define_section(sym, ST_GROUP, group);
     return group;
@@ -676,7 +676,7 @@ static SYMBOL* model_segment(STATE* state, IFILE* ifile, LEX* lex, const char* n
     error2(state, lex, "cannot create segment because name already used: %s", name);
     return NULL;
   }
-  sym = sym_insert_section(ifile->st, name);
+  sym = sym_insert_section(ifile->st, name, lex_lineno(lex));
   int seg = create_segment(ifile, name);
   set_segment_public(ifile, seg);
   set_segment_p2align(ifile, seg, 1);
@@ -690,7 +690,7 @@ static SYMBOL* model_group(STATE* state, IFILE* ifile, LEX* lex, const char* nam
     error2(state, lex, "cannot create group because name already used: %s", name);
     return NULL;
   }
-  sym = sym_insert_section(ifile->st, name);
+  sym = sym_insert_section(ifile->st, name, lex_lineno(lex));
   int group = create_group(ifile, name);
   sym_define_section(sym, ST_GROUP, group);
   return sym;
@@ -938,7 +938,7 @@ static void public_symbol(STATE* state, IFILE* ifile, LEX* lex) {
 
   SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
   if (sym == NULL) {
-    sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
+    sym = sym_insert_relative(ifile->st, lex_lexeme(lex), lex_lineno(lex));
     sym_set_public(sym);
   }
   else if (sym_type(sym) == SYM_RELATIVE)
@@ -994,7 +994,7 @@ static void external_symbol(STATE* state, IFILE* ifile, LEX* lex) {
     return;
   }
 
-  sym = sym_insert_external(ifile->st, lex_lexeme(lex), state->curseg);
+  sym = sym_insert_external(ifile->st, lex_lexeme(lex), state->curseg, lex_lineno(lex));
 
   if (lex_next(lex) == ':')
     lex_next(lex);

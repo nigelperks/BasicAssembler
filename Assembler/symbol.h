@@ -25,6 +25,7 @@ typedef struct {
   char* name;
   BYTE type;
   BYTE defined;
+  unsigned lineno;
   union {
     struct {
       DWORD val;
@@ -56,20 +57,21 @@ SYMTAB* new_symbol_table(bool case_sensitive);
 void delete_symbol_table(SYMTAB*);
 
 SYMBOL* sym_lookup(SYMTAB*, const char* name);
-SYMBOL* sym_insert_unknown(SYMTAB*, const char* name);
-SYMBOL* sym_insert_relative(SYMTAB*, const char* name);
-SYMBOL* sym_insert_absolute(SYMTAB*, const char* name);
-SYMBOL* sym_insert_section(SYMTAB*, const char* name);
+SYMBOL* sym_insert_unknown(SYMTAB*, const char* name, unsigned lineno);
+SYMBOL* sym_insert_relative(SYMTAB*, const char* name, unsigned lineno);
+SYMBOL* sym_insert_absolute(SYMTAB*, const char* name, unsigned lineno);
+SYMBOL* sym_insert_section(SYMTAB*, const char* name, unsigned lineno);
 
-SYMBOL* sym_insert_external(SYMTAB*, const char* name, SEGNO);
+SYMBOL* sym_insert_external(SYMTAB*, const char* name, SEGNO, unsigned lineno);
 
-SYMBOL* sym_insert_local(SYMTAB*);
+SYMBOL* sym_insert_local(SYMTAB*, unsigned lineno);
 
 void sym_init_relative(SYMBOL*);
 
 const char* sym_name(const SYMBOL*);
 int sym_type(const SYMBOL*);
 BOOL sym_defined(const SYMBOL*);
+unsigned sym_lineno(const SYMBOL*);
 
 void sym_define_relative(SYMBOL*, int seg, DWORD val);
 void sym_update_relative(SYMBOL*, int seg, DWORD val);

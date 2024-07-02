@@ -531,7 +531,7 @@ static bool expand_short_jump(STATE* state, IFILE* ifile, IREC* irec, LEX* lex, 
 
   const unsigned lineno = irec_lineno(ifile, irec);
 
-  SYMBOL* local = sym_insert_local(ifile->st);
+  SYMBOL* local = sym_insert_local(ifile->st, lineno);
 
   irec->op = reverse_jcc(irec->op);
 

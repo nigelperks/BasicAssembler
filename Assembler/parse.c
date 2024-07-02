@@ -258,7 +258,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
     if (lex_token(lex) == TOK_LABEL) {
       SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
       if (sym == NULL)
-        sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
+        sym = sym_insert_relative(ifile->st, lex_lexeme(lex), lex_lineno(lex));
       lex_next(lex);
 
       if (sym_type(sym) == SYM_RELATIVE) {
@@ -311,7 +311,7 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
     else if (lex_token(lex) == TOK_LABEL) {
       SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
       if (sym == NULL)
-        sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
+        sym = sym_insert_relative(ifile->st, lex_lexeme(lex), lex_lineno(lex));
       lex_next(lex);
 
       if (sym_type(sym) == SYM_RELATIVE) {
@@ -534,7 +534,7 @@ static BOOL parse_disp(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
   if (lex_token(lex) == TOK_LABEL) {
     SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
     if (sym == NULL)
-      sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
+      sym = sym_insert_relative(ifile->st, lex_lexeme(lex), lex_lineno(lex));
 
     switch (sym_type(sym)) {
       case SYM_ABSOLUTE:
@@ -763,7 +763,7 @@ static const SYMBOL* relative_label(STATE* state, IFILE* ifile, LEX* lex, int op
   }
   SYMBOL* sym = sym_lookup(ifile->st, lex_lexeme(lex));
   if (sym == NULL)
-    sym = sym_insert_relative(ifile->st, lex_lexeme(lex));
+    sym = sym_insert_relative(ifile->st, lex_lexeme(lex), lex_lineno(lex));
   else {
     if (sym_type(sym) != SYM_RELATIVE) {
       error2(state, lex, "%s requires relative label", token_name(op));
@@ -800,7 +800,7 @@ static AST* primitive_expr(STATE* state, IFILE* ifile, LEX* lex) {
       node = new_ast(AST_LABEL);
       node->u.label = sym_lookup(ifile->st, lex_lexeme(lex));
       if (node->u.label == NULL)
-        node->u.label = sym_insert_unknown(ifile->st, lex_lexeme(lex));
+        node->u.label = sym_insert_unknown(ifile->st, lex_lexeme(lex), lex_lineno(lex));
       lex_next(lex);
       break;
     case TOK_STRING:
@@ -1378,18 +1378,18 @@ static void test_relative_label(CuTest* tc) {
   CuAssertPtrNotNull(tc, sym_lookup(ifile->st, "Fred"));
 
   // existing relative label
-  SYMBOL* sally = sym_insert_relative(ifile->st, "Sally");
+  SYMBOL* sally = sym_insert_relative(ifile->st, "Sally", lex_lineno(lex));
   sym = relative_label(&state, ifile, lex, TOK_OFFSET);
   CuAssertPtrNotNull(tc, sym);
   CuAssertTrue(tc, sym == sally);
 
-  SYMBOL* outside = sym_insert_external(ifile->st, "Outside", 1);
+  SYMBOL* outside = sym_insert_external(ifile->st, "Outside", 1, lex_lineno(lex));
   sym = relative_label(&state, ifile, lex, TOK_OFFSET);
   CuAssertPtrNotNull(tc, sym);
   CuAssertTrue(tc, sym == outside);
 
   // non-relative label
-  sym_insert_absolute(ifile->st, "Tom");
+  sym_insert_absolute(ifile->st, "Tom", lex_lineno(lex));
   CuAssertIntEquals(tc, 1, state.errors);
   sym = relative_label(&state, ifile, lex, TOK_OFFSET);
   CuAssertTrue(tc, sym == NULL);
@@ -2034,7 +2034,7 @@ static void test_parse_disp(CuTest* tc) {
   lex_next(lex);
 
   // equ: cabbage
-  sym = sym_insert_absolute(ifile->st, "cabbage");
+  sym = sym_insert_absolute(ifile->st, "cabbage", lex_lineno(lex));
   sym_define_absolute(sym, 78918L);
 
   mem->disp_type = -1;
@@ -2408,15 +2408,15 @@ static void test_parse_operand_label(CuTest* tc) {
   init_state(&state, -1);
   lex_begin(lex, text, 1, 0);
 
-  ahead_label = sym_insert_relative(ifile->st, "ahead");
+  ahead_label = sym_insert_relative(ifile->st, "ahead", lex_lineno(lex));
 
-  behind_label = sym_insert_relative(ifile->st, "behind");
+  behind_label = sym_insert_relative(ifile->st, "behind", lex_lineno(lex));
   sym_define_relative(behind_label, 0, 0x492);
 
-  equ_label = sym_insert_absolute(ifile->st, "K");
+  equ_label = sym_insert_absolute(ifile->st, "K", lex_lineno(lex));
   sym_define_absolute(equ_label, 903);
 
-  equ_label_imm8 = sym_insert_absolute(ifile->st, "TINY");
+  equ_label_imm8 = sym_insert_absolute(ifile->st, "TINY", lex_lineno(lex));
   sym_define_absolute(equ_label_imm8, 3);
 
   init_operand(&op);
@@ -2500,12 +2500,12 @@ static void test_parse_operand_offset(CuTest* tc) {
   init_state(&state, -1);
   lex_begin(lex, text, 1, 0);
 
-  SYMBOL* ahead_label = sym_insert_relative(ifile->st, "ahead");
+  SYMBOL* ahead_label = sym_insert_relative(ifile->st, "ahead", lex_lineno(lex));
 
-  SYMBOL* behind_label = sym_insert_relative(ifile->st, "behind");
+  SYMBOL* behind_label = sym_insert_relative(ifile->st, "behind", lex_lineno(lex));
   sym_define_relative(behind_label, 0, 0x492);
 
-  SYMBOL* equ_label = sym_insert_absolute(ifile->st, "K");
+  SYMBOL* equ_label = sym_insert_absolute(ifile->st, "K", lex_lineno(lex));
   sym_define_absolute(equ_label, 903);
 
   // "offset 39 "
@@ -2579,7 +2579,7 @@ static void test_parse_operand_jump(CuTest* tc) {
   init_state(&state, -1);
   lex_begin(lex, text, 1, 0);
 
-  SYMBOL* equ_label = sym_insert_absolute(ifile->st, "K");
+  SYMBOL* equ_label = sym_insert_absolute(ifile->st, "K", lex_lineno(lex));
   sym_define_absolute(equ_label, 903);
 
   // "SHORT 86Ah"
@@ -2847,7 +2847,7 @@ static void test_expr(CuTest* tc) {
   lex_begin(lex, text, 1, 0);
 
   // -KARR
-  sym = sym_insert_absolute(ifile->st, "KARR");
+  sym = sym_insert_absolute(ifile->st, "KARR", lex_lineno(lex));
   sym_define_absolute(sym, 0xdead);
   type = expr(&state, ifile, lex, &val);
   CuAssertIntEquals(tc, ET_ABS, type);
@@ -2859,7 +2859,7 @@ static void test_expr(CuTest* tc) {
   CuAssertLongLongEquals(tc, 11, val.n); // now with operator precedence
 
   // addr addr+0"
-  sym = sym_insert_relative(ifile->st, "addr");
+  sym = sym_insert_relative(ifile->st, "addr", lex_lineno(lex));
   type = expr(&state, ifile, lex, &val);
   CuAssertIntEquals(tc, ET_REL, type);
 
@@ -2889,7 +2889,7 @@ static void test_expr_operand(CuTest* tc) {
   lex_begin(lex, text, 1, 0);
 
   // -KARR*3
-  sym = sym_insert_absolute(ifile->st, "KARR");
+  sym = sym_insert_absolute(ifile->st, "KARR", lex_lineno(lex));
   sym_define_absolute(sym, 0xdead);
   init_operand(&op);
   succ = parse_operand(&state, ifile, lex, &op);

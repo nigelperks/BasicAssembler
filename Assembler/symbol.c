@@ -9,11 +9,12 @@
 
 #define NO_SEG (-1)
 
-static SYMBOL* new_symbol(const char* name, BYTE type) {
+static SYMBOL* new_symbol(const char* name, BYTE type, unsigned lineno) {
   SYMBOL* sym = emalloc(sizeof *sym);
   sym->name = estrdup(name);
   sym->type = type;
   sym->defined = UNDEFINED;
+  sym->lineno = lineno;
   return sym;
 }
 
@@ -63,7 +64,7 @@ SYMBOL* sym_lookup(SYMTAB* st, const char* name) {
   return NULL;
 }
 
-static SYMBOL* insert(SYMTAB* st, const char* name, int type) {
+static SYMBOL* insert(SYMTAB* st, const char* name, int type, unsigned lineno) {
   assert(st != NULL);
   assert(name != NULL);
 
@@ -75,11 +76,11 @@ static SYMBOL* insert(SYMTAB* st, const char* name, int type) {
 
   assert(st->used < st->allocated);
   int id = st->used++;
-  return st->sym[id] = new_symbol(name, type);
+  return st->sym[id] = new_symbol(name, type, lineno);
 }
 
-SYMBOL* sym_insert_unknown(SYMTAB* st, const char* name) {
-  return insert(st, name, SYM_UNKNOWN);
+SYMBOL* sym_insert_unknown(SYMTAB* st, const char* name, unsigned lineno) {
+  return insert(st, name, SYM_UNKNOWN, lineno);
 }
 
 void sym_init_relative(SYMBOL* sym) {
@@ -93,18 +94,18 @@ void sym_init_relative(SYMBOL* sym) {
   sym->u.rel.data_size = 0;
 }
 
-SYMBOL* sym_insert_relative(SYMTAB* st, const char* name) {
-  SYMBOL* sym = insert(st, name, SYM_RELATIVE);
+SYMBOL* sym_insert_relative(SYMTAB* st, const char* name, unsigned lineno) {
+  SYMBOL* sym = insert(st, name, SYM_RELATIVE, lineno);
   sym_init_relative(sym);
   return sym;
 }
 
-SYMBOL* sym_insert_external(SYMTAB* st, const char* name, SEGNO seg) {
+SYMBOL* sym_insert_external(SYMTAB* st, const char* name, SEGNO seg, unsigned lineno) {
   assert(st != NULL);
   assert(name != NULL);
   assert(seg != NO_SEG);
 
-  SYMBOL* sym = insert(st, name, SYM_RELATIVE);
+  SYMBOL* sym = insert(st, name, SYM_RELATIVE, lineno);
   sym->defined = DEFINED;
   sym->u.rel.val = 0;
   sym->u.rel.seg = seg;
@@ -115,22 +116,22 @@ SYMBOL* sym_insert_external(SYMTAB* st, const char* name, SEGNO seg) {
   return sym;
 }
 
-SYMBOL* sym_insert_absolute(SYMTAB* st, const char* name) {
-  return insert(st, name, SYM_ABSOLUTE);
+SYMBOL* sym_insert_absolute(SYMTAB* st, const char* name, unsigned lineno) {
+  return insert(st, name, SYM_ABSOLUTE, lineno);
 }
 
-SYMBOL* sym_insert_section(SYMTAB* st, const char* name) {
-  SYMBOL* sym = insert(st, name, SYM_SECTION);
+SYMBOL* sym_insert_section(SYMTAB* st, const char* name, unsigned lineno) {
+  SYMBOL* sym = insert(st, name, SYM_SECTION, lineno);
   sym->u.sec.type = ST_UNKNOWN;
   sym->u.sec.ord = 0;
   return sym;
 }
 
 // TODO: prevent non-local symbols using this namespace
-SYMBOL* sym_insert_local(SYMTAB* st) {
+SYMBOL* sym_insert_local(SYMTAB* st, unsigned lineno) {
   char buf[16];
   sprintf(buf, "@@%u", st->locals++);
-  return sym_insert_relative(st, buf);
+  return sym_insert_relative(st, buf, lineno);
 }
 
 const char* sym_name(const SYMBOL* sym) {
@@ -146,6 +147,11 @@ int sym_type(const SYMBOL* sym) {
 BOOL sym_defined(const SYMBOL* sym) {
   assert(sym != NULL);
   return sym->defined;
+}
+
+unsigned sym_lineno(const SYMBOL* sym) {
+  assert(sym != NULL);
+  return sym->lineno;
 }
 
 void sym_define_relative(SYMBOL* sym, int seg, DWORD val) {
@@ -294,11 +300,11 @@ static void test_sym_lookup(CuTest* tc) {
   SYMBOL* sym;
 
   CuAssertPtrEquals(tc, NULL, sym_lookup(st, "Fred"));
-  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Fred"));
+  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Fred", 1));
   CuAssertPtrEquals(tc, st->sym[0], sym_lookup(st, "Fred"));
-  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Fred"));
+  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Fred", 2));
   CuAssertPtrEquals(tc, st->sym[0], sym_lookup(st, "Fred"));
-  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Berk_radish"));
+  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Berk_radish", 3));
   CuAssertPtrEquals(tc, st->sym[2], sym_lookup(st, "Berk_radish"));
   CuAssertIntEquals(tc, 3, st->used);
   CuAssertIntEquals(tc, 64, st->allocated);
@@ -340,15 +346,15 @@ static void test_grow_table(CuTest* tc) {
   SYMTAB* st = new_symbol_table(false);
   unsigned i;
 
-  sym_insert_relative(st, "Toad");
+  sym_insert_relative(st, "Toad", 1);
   CuAssertIntEquals(tc, 64, st->allocated);
-  sym_insert_relative(st, "Cowslip");
+  sym_insert_relative(st, "Cowslip", 2);
   for (i = 2; i < 64; i++)
-    sym_insert_relative(st, "dummy");
+    sym_insert_relative(st, "dummy", i+1);
   CuAssertIntEquals(tc, 64, st->allocated);
   CuAssertIntEquals(tc, 64, st->used);
 
-  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Froggy"));
+  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Froggy", 100));
   CuAssertIntEquals(tc, 128, st->allocated);
   CuAssertIntEquals(tc, 65, st->used);
 
@@ -366,11 +372,11 @@ static void test_external_id(CuTest* tc) {
   st = new_symbol_table(false);
   CuAssertIntEquals(tc, 0, st->next_external_id);
 
-  sym = sym_insert_relative(st, "Kong");
+  sym = sym_insert_relative(st, "Kong", 1);
   CuAssertIntEquals(tc, 0, st->next_external_id);
   CuAssertIntEquals(tc, FALSE, sym_external(sym));
 
-  sym = sym_insert_external(st, "Fred", 0);
+  sym = sym_insert_external(st, "Fred", 0, 2);
   CuAssertIntEquals(tc, 1, st->next_external_id);
   CuAssertIntEquals(tc, TRUE, sym_external(sym));
   CuAssertIntEquals(tc, 0, sym_external_id(sym));
@@ -379,7 +385,7 @@ static void test_external_id(CuTest* tc) {
   sym_set_data_size(sym, 2);
   CuAssertIntEquals(tc, 2, sym_data_size(sym));
 
-  sym = sym_insert_external(st, "Mucky", 1);
+  sym = sym_insert_external(st, "Mucky", 1, 3);
   CuAssertIntEquals(tc, 2, st->next_external_id);
   CuAssertIntEquals(tc, TRUE, sym_external(sym));
   CuAssertIntEquals(tc, 1, sym_external_id(sym));
@@ -401,7 +407,7 @@ static void test_find(CuTest* tc) {
   CuAssertPtrEquals(tc, NULL, sym);
 
   // one symbol
-  SYMBOL* apple = sym_insert_relative(st, "apple");
+  SYMBOL* apple = sym_insert_relative(st, "apple", 1);
   sym = sym_first(st, &find);
   CuAssertPtrEquals(tc, st, find.st);
   CuAssertIntEquals(tc, 0, find.i);
@@ -412,7 +418,7 @@ static void test_find(CuTest* tc) {
   CuAssertPtrEquals(tc, NULL, sym);
 
   // two symbols
-  SYMBOL* orange = sym_insert_relative(st, "orange");
+  SYMBOL* orange = sym_insert_relative(st, "orange", 2);
   sym = sym_first(st, &find);
   CuAssertPtrEquals(tc, st, find.st);
   CuAssertIntEquals(tc, 0, find.i);
