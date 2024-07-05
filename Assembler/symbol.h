@@ -21,7 +21,7 @@ enum section_type { ST_UNKNOWN, ST_SEGMENT, ST_GROUP };
 
 enum scope { PRIVATE, PUBLIC };
 
-typedef struct {
+typedef struct symbol {
   char* name;
   BYTE type;
   BYTE defined;
@@ -42,12 +42,13 @@ typedef struct {
       short ord;
     } sec;
   } u;
+  struct symbol * next;  // next on hash list
 } SYMBOL;
 
+#define SYMBOL_HASH_SIZE (199)
+
 typedef struct {
-  SYMBOL* * sym;
-  unsigned allocated;
-  unsigned used;
+  SYMBOL* hash[SYMBOL_HASH_SIZE];
   SYMBOL_ID next_external_id;
   unsigned locals;
   bool case_sensitive;
@@ -93,10 +94,13 @@ int sym_section_ordinal(const SYMBOL*);
 
 typedef struct {
   SYMTAB* st;
-  unsigned i;
+  unsigned h;
+  SYMBOL* sym;
 } SYM_FIND;
 
 SYMBOL* sym_first(SYMTAB*, SYM_FIND*);
 SYMBOL* sym_next(SYM_FIND*);
+
+void report_sym_hash(const SYMTAB*);
 
 #endif // SYMBOL_H

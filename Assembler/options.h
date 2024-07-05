@@ -22,6 +22,7 @@ typedef struct {
   BOOL report_time;
   BOOL help;
   bool case_sensitive;
+  bool report_hash_table;
 } Options;
 
 Options* new_options(void);

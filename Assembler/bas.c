@@ -92,6 +92,9 @@ int main(int argc, char* argv[]) {
     opts->output_name = default_object_name(opts->source_name);
   save_object_file(ofile, opts->output_name);
 
+  if (opts->report_hash_table)
+    report_sym_hash(ifile->st);
+
   delete_ofile(ofile);
   delete_ifile(ifile);
   delete_source(src);
@@ -140,6 +143,10 @@ static void help(void) {
   puts("  -me=N      max errors");
   puts("  -o name    output to file name");
   puts("  -q         quiet");
+  putchar('\n');
+  puts("  --case-sensitive     case-sensitive symbols");
+  puts("  --case-insensitive   case-insensitive symbols (default)");
+  puts("  --hash               report hash table utilisation");
   exit(EXIT_SUCCESS);
 }
 

@@ -4,10 +4,38 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <assert.h>
 #include "symbol.h"
 
 #define NO_SEG (-1)
+
+// Aho, Sethi, Ullman, "Compilers: Principle, Techniques, and Tools" (1986) p. 436
+static unsigned hashpjw(const char* s) {
+  unsigned h = 0;
+  for (const char* p = s; *p; p++) {
+    h = (h << 4) + *p;
+    unsigned g = h & 0xf0000000;
+    if (g) {
+      h ^= (g >> 24);
+      h ^= g;
+    }
+  }
+  return h;
+}
+
+static unsigned hashpjw_toupper(const char* s) {
+  unsigned h = 0;
+  for (const char* p = s; *p; p++) {
+    h = (h << 4) + toupper(*p);
+    unsigned g = h & 0xf0000000;
+    if (g) {
+      h ^= (g >> 24);
+      h ^= g;
+    }
+  }
+  return h;
+}
 
 static SYMBOL* new_symbol(const char* name, BYTE type, unsigned lineno) {
   SYMBOL* sym = emalloc(sizeof *sym);
@@ -26,39 +54,39 @@ static void delete_symbol(SYMBOL* sym) {
 }
 
 SYMTAB* new_symbol_table(bool case_sensitive) {
-  SYMTAB* st = emalloc(sizeof *st);
-  st->sym = NULL;
-  st->allocated = 0;
-  st->used = 0;
-  st->next_external_id = 0;
-  st->locals = 0;
+  SYMTAB* st = ecalloc(sizeof *st);
   st->case_sensitive = case_sensitive;
   return st;
 }
 
 void delete_symbol_table(SYMTAB* st) {
   if (st) {
-    for (unsigned i = 0; i < st->used; i++)
-      delete_symbol(st->sym[i]);
-    efree(st->sym);
+    for (unsigned i = 0; i < SYMBOL_HASH_SIZE; i++) {
+      SYMBOL* next = NULL;
+      for (SYMBOL* sym = st->hash[i]; sym; sym = next) {
+        next = sym->next;
+        delete_symbol(sym);
+      }
+    }
     efree(st);
   }
 }
 
 SYMBOL* sym_lookup(SYMTAB* st, const char* name) {
-  unsigned i;
   assert(st != NULL);
   assert(name != NULL);
   if (st->case_sensitive) {
-    for (i = 0; i < st->used; i++) {
-      if (strcmp(st->sym[i]->name, name) == 0)
-        return st->sym[i];
+    unsigned h = hashpjw(name) % SYMBOL_HASH_SIZE;
+    for (SYMBOL* sym = st->hash[h]; sym; sym = sym->next) {
+      if (strcmp(sym->name, name) == 0)
+        return sym;
     }
   }
   else {
-    for (i = 0; i < st->used; i++) {
-      if (_stricmp(st->sym[i]->name, name) == 0)
-        return st->sym[i];
+    unsigned h = hashpjw_toupper(name) % SYMBOL_HASH_SIZE;
+    for (SYMBOL* sym = st->hash[h]; sym; sym = sym->next) {
+      if (_stricmp(sym->name, name) == 0)
+        return sym;
     }
   }
   return NULL;
@@ -68,15 +96,12 @@ static SYMBOL* insert(SYMTAB* st, const char* name, int type, unsigned lineno) {
   assert(st != NULL);
   assert(name != NULL);
 
-  assert(st->used <= st->allocated);
-  if (st->used == st->allocated) {
-    st->allocated = st->allocated ? 2 * st->allocated : 64;
-    st->sym = erealloc(st->sym, st->allocated * sizeof st->sym[0]);
-  }
-
-  assert(st->used < st->allocated);
-  int id = st->used++;
-  return st->sym[id] = new_symbol(name, type, lineno);
+  unsigned h = st->case_sensitive ? hashpjw(name) : hashpjw_toupper(name);
+  h %= SYMBOL_HASH_SIZE;
+  SYMBOL* sym = new_symbol(name, type, lineno);
+  sym->next = st->hash[h];
+  st->hash[h] = sym;
+  return sym;
 }
 
 SYMBOL* sym_insert_unknown(SYMTAB* st, const char* name, unsigned lineno) {
@@ -262,20 +287,67 @@ void sym_define_section(SYMBOL* sym, int type, int ord) {
   sym->defined = TRUE;
 }
 
+static SYMBOL* valid_symbol(SYM_FIND* find) {
+  while (find->sym == NULL) {
+    find->h++;
+    if (find->h >= SYMBOL_HASH_SIZE)
+      return find->sym = NULL;
+    find->sym = find->st->hash[find->h];
+  }
+  return find->sym;
+}
+
 SYMBOL* sym_first(SYMTAB* st, SYM_FIND* find) {
   assert(st != NULL);
   assert(find != NULL);
+
   find->st = st;
-  find->i = 0;
-  return st->used ? st->sym[0] : NULL;
+  find->h = 0;
+  find->sym = st->hash[0];
+  return valid_symbol(find);
 }
 
-// undefined if NULL already returned (this lets us increment i even if it overflows)
+// Undefined behaviour if NULL returned last time.
 SYMBOL* sym_next(SYM_FIND* find) {
   assert(find != NULL);
-  find->i++;
-  return find->i < find->st->used ? find->st->sym[find->i] : NULL;
+  assert(find->sym != NULL);
+
+  find->sym = find->sym->next;
+  return valid_symbol(find);
 }
+
+#define REPORT_COUNTS (8)
+
+static unsigned list_size(const SYMBOL* sym) {
+  unsigned n = 0;
+  for ( ; sym; sym = sym->next)
+    n++;
+  return n;
+}
+
+void report_sym_hash(const SYMTAB* st) {
+  unsigned counts[REPORT_COUNTS] = { 0 };
+  unsigned excessive = 0;
+
+  for (unsigned h = 0; h < SYMBOL_HASH_SIZE; h++) {
+    unsigned count = list_size(st->hash[h]);
+    if (count < REPORT_COUNTS)
+      counts[count]++;
+    else
+      excessive++;
+  }
+
+  putchar('\n');
+  printf("%-17s  %-20s\n", "NUMBER OF SYMBOLS", "NUMBER OF HASH LISTS");
+  unsigned total = 0;
+  for (unsigned i = 0; i < REPORT_COUNTS; i++) {
+    printf("%15u    %4u\n", i, counts[i]);
+    total += counts[i];
+  }
+  printf("%15u+   %4u\n", REPORT_COUNTS, excessive);
+  printf("%17s  %4u\n", "TOTAL", total);
+}
+
 
 #ifdef UNIT_TEST
 
@@ -286,9 +358,8 @@ static void test_new_symbol_table(CuTest* tc) {
 
   st = new_symbol_table(false);
   CuAssertPtrNotNull(tc, st);
-  CuAssertPtrEquals(tc, NULL, st->sym);
-  CuAssertIntEquals(tc, 0, st->allocated);
-  CuAssertIntEquals(tc, 0, st->used);
+  CuAssertPtrEquals(tc, NULL, st->hash[0]);
+  CuAssertPtrEquals(tc, NULL, st->hash[SYMBOL_HASH_SIZE - 1]);
   CuAssertIntEquals(tc, 0, st->next_external_id);
   CuAssertIntEquals(tc, 0, st->locals);
 
@@ -297,70 +368,43 @@ static void test_new_symbol_table(CuTest* tc) {
 
 static void test_sym_lookup(CuTest* tc) {
   SYMTAB* st = new_symbol_table(false);
-  SYMBOL* sym;
 
   CuAssertPtrEquals(tc, NULL, sym_lookup(st, "Fred"));
-  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Fred", 1));
-  CuAssertPtrEquals(tc, st->sym[0], sym_lookup(st, "Fred"));
-  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Fred", 2));
-  CuAssertPtrEquals(tc, st->sym[0], sym_lookup(st, "Fred"));
-  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Berk_radish", 3));
-  CuAssertPtrEquals(tc, st->sym[2], sym_lookup(st, "Berk_radish"));
-  CuAssertIntEquals(tc, 3, st->used);
-  CuAssertIntEquals(tc, 64, st->allocated);
+  SYMBOL* sym1 = sym_insert_relative(st, "Fred", 1);
+  CuAssertPtrNotNull(tc, sym1);
+  CuAssertPtrEquals(tc, sym1, sym_lookup(st, "Fred"));
+  SYMBOL* sym2 = sym_insert_relative(st, "Fred", 2);
+  CuAssertPtrEquals(tc, sym2, sym_lookup(st, "Fred"));
+  SYMBOL* sym3 = sym_insert_relative(st, "Berk_radish", 3);
+  CuAssertPtrNotNull(tc, sym3);
+  CuAssertPtrEquals(tc, sym3, sym_lookup(st, "Berk_radish"));
 
-  sym = st->sym[0];
-  CuAssertStrEquals(tc, "Fred", sym_name(sym));
-  CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(sym));
-  CuAssertIntEquals(tc, UNDEFINED, sym_defined(sym));
-  CuAssertIntEquals(tc, FALSE, sym->defined);
-  CuAssertIntEquals(tc, 0, sym->u.rel.val);
-  CuAssertIntEquals(tc, 0, sym->u.rel.data_size);
+  CuAssertStrEquals(tc, "Fred", sym_name(sym1));
+  CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(sym1));
+  CuAssertIntEquals(tc, UNDEFINED, sym_defined(sym1));
+  CuAssertIntEquals(tc, FALSE, sym1->defined);
+  CuAssertIntEquals(tc, 0, sym1->u.rel.val);
+  CuAssertIntEquals(tc, 0, sym1->u.rel.data_size);
 
-  sym = st->sym[1];
-  CuAssertStrEquals(tc, "Fred", sym_name(sym));
-  CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(sym));
-  CuAssertIntEquals(tc, UNDEFINED, sym_defined(sym));
-  CuAssertIntEquals(tc, FALSE, sym->defined);
-  CuAssertIntEquals(tc, 0, sym->u.rel.val);
+  CuAssertStrEquals(tc, "Fred", sym_name(sym2));
+  CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(sym2));
+  CuAssertIntEquals(tc, UNDEFINED, sym_defined(sym2));
+  CuAssertIntEquals(tc, FALSE, sym2->defined);
+  CuAssertIntEquals(tc, 0, sym2->u.rel.val);
 
-  sym = st->sym[2];
-  CuAssertStrEquals(tc, "Berk_radish", sym_name(sym));
-  CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(sym));
-  CuAssertIntEquals(tc, 0, sym->u.rel.val);
-  sym_define_relative(sym, 3, -1);
-  CuAssertIntEquals(tc, DEFINED, sym_defined(sym));
-  CuAssertIntEquals(tc, -1, sym->u.rel.val);
-  CuAssertIntEquals(tc, 3, sym->u.rel.seg);
-  CuAssertIntEquals(tc, -1, sym_relative_value(sym));
-  CuAssertIntEquals(tc, PRIVATE, sym->u.rel.public);
-  sym_set_public(sym);
-  CuAssertIntEquals(tc, PUBLIC, sym->u.rel.public);
-  CuAssertIntEquals(tc, TRUE, sym_public(sym));
-  CuAssertIntEquals(tc, -1, sym->u.rel.external_id);
-
-  delete_symbol_table(st);
-}
-
-static void test_grow_table(CuTest* tc) {
-  SYMTAB* st = new_symbol_table(false);
-  unsigned i;
-
-  sym_insert_relative(st, "Toad", 1);
-  CuAssertIntEquals(tc, 64, st->allocated);
-  sym_insert_relative(st, "Cowslip", 2);
-  for (i = 2; i < 64; i++)
-    sym_insert_relative(st, "dummy", i+1);
-  CuAssertIntEquals(tc, 64, st->allocated);
-  CuAssertIntEquals(tc, 64, st->used);
-
-  CuAssertPtrNotNull(tc, sym_insert_relative(st, "Froggy", 100));
-  CuAssertIntEquals(tc, 128, st->allocated);
-  CuAssertIntEquals(tc, 65, st->used);
-
-  CuAssertStrEquals(tc, "Toad", sym_name(st->sym[0]));
-  CuAssertStrEquals(tc, "Cowslip", sym_name(st->sym[1]));
-  CuAssertStrEquals(tc, "Froggy", sym_name(st->sym[64]));
+  CuAssertStrEquals(tc, "Berk_radish", sym_name(sym3));
+  CuAssertIntEquals(tc, SYM_RELATIVE, sym_type(sym3));
+  CuAssertIntEquals(tc, 0, sym3->u.rel.val);
+  sym_define_relative(sym3, 3, -1);
+  CuAssertIntEquals(tc, DEFINED, sym_defined(sym3));
+  CuAssertIntEquals(tc, -1, sym3->u.rel.val);
+  CuAssertIntEquals(tc, 3, sym3->u.rel.seg);
+  CuAssertIntEquals(tc, -1, sym_relative_value(sym3));
+  CuAssertIntEquals(tc, PRIVATE, sym3->u.rel.public);
+  sym_set_public(sym3);
+  CuAssertIntEquals(tc, PUBLIC, sym3->u.rel.public);
+  CuAssertIntEquals(tc, TRUE, sym_public(sym3));
+  CuAssertIntEquals(tc, -1, sym3->u.rel.external_id);
 
   delete_symbol_table(st);
 }
@@ -403,45 +447,52 @@ static void test_find(CuTest* tc) {
   // empty table
   sym = sym_first(st, &find);
   CuAssertPtrEquals(tc, st, find.st);
-  CuAssertIntEquals(tc, 0, find.i);
+  CuAssertIntEquals(tc, SYMBOL_HASH_SIZE, find.h);
+  CuAssertPtrEquals(tc, NULL, find.sym);
   CuAssertPtrEquals(tc, NULL, sym);
 
   // one symbol
   SYMBOL* apple = sym_insert_relative(st, "apple", 1);
   sym = sym_first(st, &find);
   CuAssertPtrEquals(tc, st, find.st);
-  CuAssertIntEquals(tc, 0, find.i);
+  CuAssertPtrEquals(tc, apple, find.sym);
   CuAssertPtrEquals(tc, apple, sym);
   sym = sym_next(&find);
   CuAssertPtrEquals(tc, st, find.st);
-  CuAssertIntEquals(tc, 1, find.i);
+  CuAssertIntEquals(tc, SYMBOL_HASH_SIZE, find.h);
+  CuAssertPtrEquals(tc, NULL, find.sym);
   CuAssertPtrEquals(tc, NULL, sym);
 
   // two symbols
   SYMBOL* orange = sym_insert_relative(st, "orange", 2);
   sym = sym_first(st, &find);
   CuAssertPtrEquals(tc, st, find.st);
-  CuAssertIntEquals(tc, 0, find.i);
   CuAssertPtrEquals(tc, apple, sym);
   sym = sym_next(&find);
   CuAssertPtrEquals(tc, st, find.st);
-  CuAssertIntEquals(tc, 1, find.i);
   CuAssertPtrEquals(tc, orange, sym);
   sym = sym_next(&find);
   CuAssertPtrEquals(tc, st, find.st);
-  CuAssertIntEquals(tc, 2, find.i);
   CuAssertPtrEquals(tc, NULL, sym);
 
   delete_symbol_table(st);
+}
+
+static void test_hash(CuTest* tc) {
+  unsigned h1 = hashpjw_toupper("TABULATED");
+  unsigned h2 = hashpjw_toupper("TabuLated");
+  unsigned h3 = hashpjw_toupper("tabulated");
+  CuAssertIntEquals(tc, h1, h2);
+  CuAssertIntEquals(tc, h1, h3);
 }
 
 CuSuite* symbol_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_new_symbol_table);
   SUITE_ADD_TEST(suite, test_sym_lookup);
-  SUITE_ADD_TEST(suite, test_grow_table);
   SUITE_ADD_TEST(suite, test_external_id);
   SUITE_ADD_TEST(suite, test_find);
+  SUITE_ADD_TEST(suite, test_hash);
   return suite;
 }
 

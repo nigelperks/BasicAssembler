@@ -23,6 +23,7 @@ Options* new_options(void) {
   p->report_time = FALSE;
   p->help = FALSE;
   p->case_sensitive = false;
+  p->report_hash_table = false;
 
   return p;
 }
@@ -66,6 +67,8 @@ void process_argv(int argc, char* argv[], Options* opts) {
         opts->case_sensitive = true;
       else if (strcmp(arg, "--case-insensitive") == 0)
         opts->case_sensitive = false;
+      else if (strcmp(arg, "--hash") == 0)
+        opts->report_hash_table = true;
       else
         fatal("invalid option: %s\n", arg);
     }

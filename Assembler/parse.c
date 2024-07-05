@@ -2022,7 +2022,6 @@ static void test_parse_disp(CuTest* tc) {
   succ = parse_disp(&state, ifile, lex, &op);
   CuAssertIntEquals(tc, TRUE, succ);
   CuAssertIntEquals(tc, REL_DISP, mem->disp_type);
-  CuAssertTrue(tc, mem->disp.label == ifile->st->sym[0]);
 
   // negative address label: -newlab
   mem->disp_type = -1;
