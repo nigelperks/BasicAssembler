@@ -112,6 +112,7 @@ with Intel Object Module Format or any other format.
       -m            -- report dynamic memory allocations (for debugging)
       -o name       -- output to file name (A.COM by default)
       -p name       -- map file showing segment layout in image
+      -t            -- measure linking time (microseconds)
       -unittest     -- run unit tests (using CuTest) and quit
       -vvvv         -- 1-4 verbosity levels for debugging the linker
 

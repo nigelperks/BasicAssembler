@@ -143,6 +143,7 @@ static void help(void) {
   puts("  -me=N      max errors");
   puts("  -o name    output to file name");
   puts("  -q         quiet");
+  puts("  -t         time assembling");
   putchar('\n');
   puts("  --case-sensitive     case-sensitive symbols");
   puts("  --case-insensitive   case-insensitive symbols (default)");

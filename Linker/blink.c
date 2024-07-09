@@ -18,6 +18,7 @@
 #include "comfile.h"
 #include "binfile.h"
 #include "stringlist.h"
+#include "timer.h"
 
 #ifdef UNIT_TEST
 void RunAllTests(void);
@@ -34,6 +35,7 @@ int main(int argc, char* argv[]) {
   int verbose = 0;
   int format = COM_FORMAT;
   bool report_mem = false;
+  bool report_time = false;
   const char* mapfile = NULL;
 
   progname = "blink";
@@ -67,8 +69,6 @@ int main(int argc, char* argv[]) {
         else
           fatal("-f: output format missing\n");
       }
-      else if (strcmp(arg, "-m") == 0)
-        report_mem = true;
       else if (strcmp(arg, "-o") == 0) {
         if (++i < argc)
           output_name = argv[i];
@@ -85,6 +85,8 @@ int main(int argc, char* argv[]) {
         for (int j = 1; arg[j]; j++) {
           switch (arg[j]) {
             case 'h': case '?': help(); break;
+            case 'm': report_mem = true; break;
+            case 't': report_time = true; break;
             case 'v': verbose++; break;
             default: fatal("unknown option: %c\n", arg[j]); break;
           }
@@ -104,6 +106,10 @@ int main(int argc, char* argv[]) {
 
   if (output_name == NULL)
     output_name = default_output_name(format);
+
+  TIMER timer;
+
+  start_timer(&timer);
 
   SEGMENTED* segmented_program = new_segmented(output_name, case_sensitivity);
 
@@ -148,6 +154,11 @@ int main(int argc, char* argv[]) {
       fatal("output format known but unimplemented: %s\n", format_name(format));
   }
 
+  stop_timer(&timer);
+
+  if (report_time)
+    printf("Microseconds elapsed: %lld\n", elapsed_usec(&timer));
+
   delete_image(image);
   delete_segmented(segmented_program);
   delete_stringlist(files);
@@ -166,6 +177,7 @@ static void help(void) {
   puts("  -m          report memory usage");
   puts("  -o FILE     output file");
   puts("  -p FILE     map file");
+  puts("  -t          time linking");
 #ifdef UNIT_TEST
   puts("  -unittest   run unit tests");
 #endif
