@@ -49,9 +49,11 @@ typedef struct symbol {
 
 typedef struct {
   SYMBOL* hash[SYMBOL_HASH_SIZE];
-  SYMBOL_ID next_external_id;
   unsigned locals;
   bool case_sensitive;
+  SYMBOL* *externals;
+  unsigned externals_size;
+  unsigned externals_count;
 } SYMTAB;
 
 SYMTAB* new_symbol_table(bool case_sensitive);
@@ -100,6 +102,9 @@ typedef struct {
 
 SYMBOL* sym_first(SYMTAB*, SYM_FIND*);
 SYMBOL* sym_next(SYM_FIND*);
+
+SYMBOL* sym_first_external(SYMTAB*, SYM_FIND*);
+SYMBOL* sym_next_external(SYM_FIND*);
 
 void report_sym_hash(const SYMTAB*);
 

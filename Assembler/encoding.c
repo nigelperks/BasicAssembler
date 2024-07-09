@@ -186,10 +186,8 @@ static void emit_external(const SYMBOL*, OFILE*);
 
 static void emit_externals(SYMTAB* st, OFILE* ofile) {
   SYM_FIND find;
-  for (const SYMBOL* sym = sym_first(st, &find); sym; sym = sym_next(&find)) {
-    if (sym_external(sym))
-      emit_external(sym, ofile);
-  }
+  for (const SYMBOL* sym = sym_first_external(st, &find); sym; sym = sym_next_external(&find))
+    emit_external(sym, ofile);
 }
 
 static void emit_external(const SYMBOL* sym, OFILE* ofile) {

@@ -61,6 +61,7 @@ SYMTAB* new_symbol_table(bool case_sensitive) {
 
 void delete_symbol_table(SYMTAB* st) {
   if (st) {
+    efree(st->externals);
     for (unsigned i = 0; i < SYMBOL_HASH_SIZE; i++) {
       SYMBOL* next = NULL;
       for (SYMBOL* sym = st->hash[i]; sym; sym = next) {
@@ -130,14 +131,24 @@ SYMBOL* sym_insert_external(SYMTAB* st, const char* name, SEGNO seg, unsigned li
   assert(name != NULL);
   assert(seg != NO_SEG);
 
+  assert(st->externals_count <= st->externals_size);
+  if (st->externals_count == st->externals_size) {
+    st->externals_size = st->externals_size ? 2 * st->externals_size : 32;
+    st->externals = erealloc(st->externals, st->externals_size * sizeof st->externals[0]);
+  }
+  assert(st->externals_count < st->externals_size);
+
   SYMBOL* sym = insert(st, name, SYM_RELATIVE, lineno);
   sym->defined = DEFINED;
   sym->u.rel.val = 0;
   sym->u.rel.seg = seg;
   sym->u.rel.public = PRIVATE;
-  sym->u.rel.external_id = st->next_external_id++;
+  sym->u.rel.external_id = st->externals_count;
   assert(sym->u.rel.external_id >= 0);
   sym->u.rel.data_size = 0;
+
+  st->externals[st->externals_count++] = sym;
+
   return sym;
 }
 
@@ -287,7 +298,7 @@ void sym_define_section(SYMBOL* sym, int type, int ord) {
   sym->defined = TRUE;
 }
 
-static SYMBOL* valid_symbol(SYM_FIND* find) {
+static SYMBOL* valid_hashed_symbol(SYM_FIND* find) {
   while (find->sym == NULL) {
     find->h++;
     if (find->h >= SYMBOL_HASH_SIZE)
@@ -304,7 +315,7 @@ SYMBOL* sym_first(SYMTAB* st, SYM_FIND* find) {
   find->st = st;
   find->h = 0;
   find->sym = st->hash[0];
-  return valid_symbol(find);
+  return valid_hashed_symbol(find);
 }
 
 // Undefined behaviour if NULL returned last time.
@@ -313,7 +324,24 @@ SYMBOL* sym_next(SYM_FIND* find) {
   assert(find->sym != NULL);
 
   find->sym = find->sym->next;
-  return valid_symbol(find);
+  return valid_hashed_symbol(find);
+}
+
+SYMBOL* sym_first_external(SYMTAB* st, SYM_FIND* find) {
+  assert(st != NULL);
+  assert(find != NULL);
+
+  find->st = st;
+  find->h = 0;
+  return find->sym = st->externals_count ? st->externals[0] : NULL;
+}
+
+SYMBOL* sym_next_external(SYM_FIND* find) {
+  assert(find != NULL);
+  assert(find->h <= find->st->externals_count);
+  if (find->h < find->st->externals_count)
+    find->h++;
+  return find->h < find->st->externals_count ? find->st->externals[find->h] : NULL;
 }
 
 #define REPORT_COUNTS (8)
@@ -360,7 +388,9 @@ static void test_new_symbol_table(CuTest* tc) {
   CuAssertPtrNotNull(tc, st);
   CuAssertPtrEquals(tc, NULL, st->hash[0]);
   CuAssertPtrEquals(tc, NULL, st->hash[SYMBOL_HASH_SIZE - 1]);
-  CuAssertIntEquals(tc, 0, st->next_external_id);
+  CuAssertPtrEquals(tc, NULL, st->externals);
+  CuAssertIntEquals(tc, 0, st->externals_size);
+  CuAssertIntEquals(tc, 0, st->externals_count);
   CuAssertIntEquals(tc, 0, st->locals);
 
   delete_symbol_table(st);
@@ -414,14 +444,16 @@ static void test_external_id(CuTest* tc) {
   SYMBOL* sym;
 
   st = new_symbol_table(false);
-  CuAssertIntEquals(tc, 0, st->next_external_id);
+  CuAssertIntEquals(tc, 0, st->externals_count);
 
   sym = sym_insert_relative(st, "Kong", 1);
-  CuAssertIntEquals(tc, 0, st->next_external_id);
+  CuAssertIntEquals(tc, 0, st->externals_count);
   CuAssertIntEquals(tc, FALSE, sym_external(sym));
 
   sym = sym_insert_external(st, "Fred", 0, 2);
-  CuAssertIntEquals(tc, 1, st->next_external_id);
+  CuAssertTrue(tc, st->externals_size >= 1);
+  CuAssertIntEquals(tc, 1, st->externals_count);
+  CuAssertPtrEquals(tc, sym, st->externals[0]);
   CuAssertIntEquals(tc, TRUE, sym_external(sym));
   CuAssertIntEquals(tc, 0, sym_external_id(sym));
   CuAssertIntEquals(tc, 0, sym_seg(sym));
@@ -430,7 +462,8 @@ static void test_external_id(CuTest* tc) {
   CuAssertIntEquals(tc, 2, sym_data_size(sym));
 
   sym = sym_insert_external(st, "Mucky", 1, 3);
-  CuAssertIntEquals(tc, 2, st->next_external_id);
+  CuAssertIntEquals(tc, 2, st->externals_count);
+  CuAssertPtrEquals(tc, sym, st->externals[1]);
   CuAssertIntEquals(tc, TRUE, sym_external(sym));
   CuAssertIntEquals(tc, 1, sym_external_id(sym));
   CuAssertIntEquals(tc, 1, sym_seg(sym));
@@ -486,6 +519,47 @@ static void test_hash(CuTest* tc) {
   CuAssertIntEquals(tc, h1, h3);
 }
 
+static void test_find_externals(CuTest* tc) {
+  SYMTAB* st;
+  SYM_FIND find;
+  SYMBOL* sym;
+
+  st = new_symbol_table(false);
+
+  // empty
+  sym = sym_first_external(st, &find);
+  CuAssertPtrEquals(tc, NULL, sym);
+  CuAssertPtrEquals(tc, NULL, find.sym);
+  sym = sym_next_external(&find);
+  CuAssertPtrEquals(tc, NULL, sym);
+  CuAssertPtrEquals(tc, NULL, find.sym);
+
+  // externals in a different order than the hash order
+  SYMBOL* bbb = sym_insert_external(st, "bbb", 0, 1);
+  SYMBOL* ccc = sym_insert_relative(st, "ccc", 3);
+  SYMBOL* aaa = sym_insert_external(st, "aaa", 0, 2);
+
+  // check that the total order is aaa, bbb, ccc
+  sym = sym_first(st, &find);
+  CuAssertPtrEquals(tc, aaa, sym);
+  sym = sym_next(&find);
+  CuAssertPtrEquals(tc, bbb, sym);
+  sym = sym_next(&find);
+  CuAssertPtrEquals(tc, ccc, sym);
+  sym = sym_next(&find);
+  CuAssertPtrEquals(tc, NULL, sym);
+
+  // check that externals order is bbb, aaa
+  sym = sym_first_external(st, &find);
+  CuAssertPtrEquals(tc, bbb, sym);
+  sym = sym_next_external(&find);
+  CuAssertPtrEquals(tc, aaa, sym);
+  sym = sym_next_external(&find);
+  CuAssertPtrEquals(tc, NULL, sym);
+
+  delete_symbol_table(st);
+}
+
 CuSuite* symbol_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_new_symbol_table);
@@ -493,6 +567,7 @@ CuSuite* symbol_test_suite(void) {
   SUITE_ADD_TEST(suite, test_external_id);
   SUITE_ADD_TEST(suite, test_find);
   SUITE_ADD_TEST(suite, test_hash);
+  SUITE_ADD_TEST(suite, test_find_externals);
   return suite;
 }
 
