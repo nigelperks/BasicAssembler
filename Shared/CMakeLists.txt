@@ -5,6 +5,7 @@ add_library(shared
   instable.c
   object.c
   opclass.c
+  reader.c
   stringlist.c
   timer.c
   token.c

@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <assert.h>
 #include "object.h"
+#include "reader.h"
 #include "utils.h"
 
 // Arbitrary signature for this type of object file.
@@ -287,20 +288,20 @@ void save_object_file(const OFILE* ofile, const char* filename) {
   fclose(fp);
 }
 
-static void read_sig(FILE*, const char* filename);
-static void read_ver(FILE*, const char* filename);
-static void read_record(FILE*, const char* filename, int type, OREC*);
+static void read_sig(READER*);
+static void read_ver(READER*);
+static void read_record(READER*, int type, OREC*);
 
 OFILE* load_object_file(const char* filename) {
-  FILE* fp = efopen(filename, "rb", "reading object file");
+  READER* r = new_reader(filename);
   OFILE* ofile = new_ofile();
 
-  read_sig(fp, filename);
-  read_ver(fp, filename);
+  read_sig(r);
+  read_ver(r);
 
   int c;
-  while ((c = getc(fp)) != EOF)
-    read_record(fp, filename, c, next(ofile));
+  while ((c = read_char(r)) != EOF)
+    read_record(r, c, next(ofile));
 
   return ofile;
 }
@@ -313,24 +314,24 @@ static void write_ver(FILE* fp) {
   fwrite(VERSION, 1, sizeof VERSION, fp);
 }
 
-static void read_sig(FILE* fp, const char* filename) {
+static void read_sig(READER* r) {
   BYTE buf[sizeof SIGNATURE];
 
-  if (fread(buf, 1, sizeof buf, fp) != sizeof buf)
-    fatal("error reading object file signature: %s\n", filename);
+  if (read_buf(r, buf, sizeof buf) != sizeof buf)
+    fatal("error reading object file signature: %s\n", r->filename);
 
   if (memcmp(buf, SIGNATURE, sizeof SIGNATURE) != 0)
-    fatal("not a recognised object file: %s\n", filename);
+    fatal("not a recognised object file: %s\n", r->filename);
 }
 
-static void read_ver(FILE* fp, const char* filename) {
+static void read_ver(READER* r) {
   BYTE buf[sizeof VERSION];
 
-  if (fread(buf, 1, sizeof buf, fp) != sizeof buf)
-    fatal("error reading object file version: %s\n", filename);
+  if (read_buf(r, buf, sizeof buf) != sizeof buf)
+    fatal("error reading object file version: %s\n", r->filename);
 
   if (memcmp(buf, VERSION, sizeof VERSION) != 0)
-    fatal("incompatible object file version: %s\n", filename);
+    fatal("incompatible object file version: %s\n", r->filename);
 }
 
 static void putnum(FILE*, QWORD val, unsigned size);
@@ -369,8 +370,8 @@ static void write_record(FILE* fp, const OREC* rec) {
   }
 }
 
-static BYTE getbyte(FILE*, const char* filename);
-static BYTE* getdata(FILE*, const char* filename, size_t);
+static BYTE getbyte(READER*);
+static BYTE* getdata(READER*, size_t);
 
 // Write number little-endian.
 static void putnum(FILE* fp, QWORD val, unsigned size) {
@@ -381,18 +382,18 @@ static void putnum(FILE* fp, QWORD val, unsigned size) {
 }
 
 // Read number little-endian.
-static QWORD getnum(FILE* fp, const char* filename, unsigned size) {
+static QWORD getnum(READER* r, unsigned size) {
   QWORD val = 0;
   for (unsigned i = 0; i < size; i++) {
-    QWORD b = getbyte(fp, filename);
+    QWORD b = getbyte(r);
     b <<= (i * 8);
     val |= b;
   }
   return val;
 }
 
-static void read_record(FILE* fp, const char* filename, int type, OREC* rec) {
-  assert(fp != NULL);
+static void read_record(READER* r, int type, OREC* rec) {
+  assert(r != NULL);
   assert(type >= 0 && type < sizeof types / sizeof types[0]);
   assert(rec != NULL);
 
@@ -402,20 +403,20 @@ static void read_record(FILE* fp, const char* filename, int type, OREC* rec) {
     case OK_SIGNAL:
       break;
     case OK_BYTE:
-      rec->u.b = getbyte(fp, filename);
+      rec->u.b = getbyte(r);
       break;
     case OK_WORD:
-      rec->u.w = (WORD) getnum(fp, filename, 2);
+      rec->u.w = (WORD) getnum(r, 2);
       break;
     case OK_DWORD:
-      rec->u.d = (DWORD) getnum(fp, filename, 4);
+      rec->u.d = (DWORD) getnum(r, 4);
       break;
     case OK_QWORD:
-      rec->u.q = getnum(fp, filename, 8);
+      rec->u.q = getnum(r, 8);
       break;
     case OK_DATA:
-      rec->u.data.size = getbyte(fp, filename);
-      rec->u.data.buf = getdata(fp, filename, rec->u.data.size);
+      rec->u.data.size = getbyte(r);
+      rec->u.data.buf = getdata(r, rec->u.data.size);
       break;
     default:
       fatal("internal error: %s: %d: unknown object record type: %d\n", __FILE__, __LINE__, rec->type);
@@ -423,19 +424,19 @@ static void read_record(FILE* fp, const char* filename, int type, OREC* rec) {
   }
 }
 
-static BYTE getbyte(FILE* fp, const char* filename) {
-  int c = getc(fp);
+static BYTE getbyte(READER* r) {
+  int c = read_char(r);
   if (c == EOF)
-    fatal("unexpected end of file: %s\n", filename);
+    fatal("unexpected end of file: %s\n", r->filename);
   assert(c >= 0 && c <= 0xff);
   return c;
 }
 
-static BYTE* getdata(FILE* fp, const char* filename, size_t sz) {
+static BYTE* getdata(READER* r, size_t sz) {
   BYTE* buf = emalloc(sz);
 
-  if (fread(buf, 1, sz, fp) != sz)
-    fatal("unexpected end of file: %s\n", filename);
+  if (read_buf(r, buf, sz) != sz)
+    fatal("unexpected end of file: %s\n", r->filename);
 
   return buf;
 }
