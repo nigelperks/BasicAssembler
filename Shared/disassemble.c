@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Decode and disassemble an instruction in a buffer.
 
 #include <stdio.h>
@@ -505,7 +505,7 @@ static void print_operand(int opno, int flag, unsigned rm_size, int sreg_overrid
     check_operand_type(opno, op, OT_REG);
     fputs(reg8_name(op->val.reg), stdout);
     break;
-  case OF_REG16: 
+  case OF_REG16:
     check_operand_type(opno, op, OT_REG);
     fputs(reg16_name(op->val.reg), stdout);
     break;
@@ -615,7 +615,7 @@ static void print_hex_word(DWORD w) {
 
 static void print_near_relative(DWORD disp_base_addr, const DWORD disp_word, unsigned disp_size) {
   assert(disp_size == 1 || disp_size == 2);
-  
+
   DWORD dest;
   if (disp_size == 1) {
     assert(disp_word <= 0xff);

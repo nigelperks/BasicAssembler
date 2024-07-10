@@ -1,5 +1,5 @@
 // EXE analysis tool
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Low-level file functions.
 
 #include <assert.h>

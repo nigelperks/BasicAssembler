@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // String list.
 
 // Reminder: the reason for coding in C rather than C++ and its library

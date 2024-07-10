@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // MS-DOS EXE file format.
 
 #ifndef EXEFILE_H

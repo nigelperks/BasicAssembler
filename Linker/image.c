@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Build program image.
 
 #include <stdlib.h>
@@ -139,6 +139,11 @@ static void set_stack(IMAGE_STACK* image_stack, DWORD image_address, const STACK
   image_stack->set = TRUE;
 }
 
+// Print to the map file a description of the given segment/group.
+// Print a header line showing its address in the image, size, name, type:
+// 000000 000107 MAIN (SEGMENT)
+// Print a line per constituent segment loaded from an object file:
+// 000000 000102 MAIN file1.obj
 static void fprint_map(FILE* fp, const SEGMENTED* prog, DWORD addr, const SEGMENT* seg) {
   assert(fp != NULL);
   assert(seg != NULL);
@@ -162,6 +167,9 @@ static void fprint_map(FILE* fp, const SEGMENTED* prog, DWORD addr, const SEGMEN
   putc('\n', fp);
 }
 
+// Align the end of the current image for the segment: require at least 2^4 alignment.
+// Append the segment's data or uninitialised space to the image.
+// Write line to map file describing the placement of the segment in the image.
 static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, VECTOR* bases, FILE* mapfile, int verbose) {
   SEGMENT* seg = get_segment(prog->segs, segno);
 
@@ -222,11 +230,15 @@ static void add_image_segment(IMAGE* image, const SEGMENTED* prog, SEGNO segno, 
   }
 }
 
+// Resolve segment address fixup by calculating the holding address in the image
+// and writing in the addressed segment address, relative to the start of the image.
 static void resolve_segment_fixup(IMAGE* image, FIXUP* p, unsigned i, VECTOR* bases, int verbose) {
   if (verbose >= 3)
     printf("FIXUP %u: in seg %d at 0x%04x addressing seg %d\n",
         i, (int)p->holding_seg, (unsigned)p->holding_offset, (int)p->u.seg.addressed_segno);
 
+  // Calculate the segment address of the holding segment, within the image.
+  // The holding segment:offset address within the image is written to an EXE relocation table.
   assert(p->holding_seg != NO_SEG && (size_t)p->holding_seg < bases->size);
   DWORD holding_base = bases->val[p->holding_seg];
   assert(holding_base % 16 == 0);
@@ -235,6 +247,8 @@ static void resolve_segment_fixup(IMAGE* image, FIXUP* p, unsigned i, VECTOR* ba
     printf("FIXUP %u: holding seg addr 0x%04x\n", i, (unsigned)holding_seg_addr);
   p->u.seg.holding_seg_addr = (WORD)holding_seg_addr;
 
+  // Calculate the segment address of the addressed segment, within the image,
+  // and write it at the location to fix up.
   assert(p->u.seg.addressed_segno != NO_SEG && (size_t)p->u.seg.addressed_segno < bases->size);
   DWORD addressed_base = bases->val[p->u.seg.addressed_segno] + p->u.seg.addressed_base;
   assert(addressed_base % 16 == 0);
@@ -248,6 +262,8 @@ static void resolve_segment_fixup(IMAGE* image, FIXUP* p, unsigned i, VECTOR* ba
   write_word_le(image->data + image_addr, (WORD)addressed_seg_addr);
 }
 
+// Resolve group segment address fixup by calculating the holding address in the image
+// and writing in the addressed segment address, relative to the start of the image.
 static void resolve_group_fixup(IMAGE* image, FIXUP* p, unsigned i, VECTOR* bases, GROUP_LIST* groups, int verbose) {
   if (verbose >= 3)
     printf("FIXUP %u: in seg %d at 0x%04x addressing group %d\n",
@@ -278,6 +294,8 @@ static void resolve_group_fixup(IMAGE* image, FIXUP* p, unsigned i, VECTOR* base
   write_word_le(image->data + image_addr, (WORD)addressed_seg_addr);
 }
 
+// Resolve segment and group address fixups by calculating the holding addresses in the image
+// and writing in the addressed segment address, relative to the start of the image.
 static void resolve_segment_fixups(IMAGE* image, FIXUPS* fixups, VECTOR* bases, GROUP_LIST* groups, int verbose) {
   assert(fixups != NULL);
   assert(bases != NULL);
@@ -298,6 +316,10 @@ static void resolve_segment_fixups(IMAGE* image, FIXUPS* fixups, VECTOR* bases, 
 
 static void check_start(const SEGMENTED* prog);
 
+// Build a program image from the distinct segments and groups,
+// ready for output to 16-bit file formats that include such an image.
+// If a map file is required, show in it how each physical segment
+// is made up from segments defined in object files, and hence in source files.
 IMAGE* build_image(const SEGMENTED* prog, const char* mapfile, int verbose) {
   if (verbose)
     puts("Build image");
@@ -314,6 +336,8 @@ IMAGE* build_image(const SEGMENTED* prog, const char* mapfile, int verbose) {
 
   FILE* mfp = mapfile ? efopen(mapfile, "w", "map file writing") : NULL;
 
+  // Append segment data or uninitialised space, aligned, to the image.
+  // Record the base address of each segment/group within the image.
   add_image_segment(image, prog, segno, bases, mfp, verbose);
 
   while ((segno = next_proper_segment(prog->segs, segno)) != NO_SEG)
@@ -322,6 +346,8 @@ IMAGE* build_image(const SEGMENTED* prog, const char* mapfile, int verbose) {
   if (mfp)
     fclose(mfp);
 
+  // Fill in the segment addresses of segment and group address fixups,
+  // relative to the start of the image.
   resolve_segment_fixups(image, prog->fixups, bases, prog->groups, verbose);
 
   delete_vector(bases);

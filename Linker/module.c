@@ -88,16 +88,19 @@ OBJ_END_START           ; end specification of program start
 #include <assert.h>
 #include "module.h"
 
+// Verbosity level at which object records are printed as they are processed.
 #define VERBOSE_OBJECTS (3)
 
+// Current state of object file processing.
 typedef struct {
-  const char* module_name;
-  unsigned pos;
-  int segno;
-  SEGMENT* seg;
-  int module_casing;
+  const char* module_name; // module name for error-reporting
+  unsigned pos; // current position in object file (record number in OFILE)
+  int segno; // current open segment number
+  SEGMENT* seg; // current open segment
+  int module_casing; // case-sensitivity of the module as flagged within the module (default insensitive)
 } STATE;
 
+// Initialise processing state when beginning to process an object file.
 static void init_state(STATE* state, const char* module_name) {
   state->module_name = module_name;
   state->pos = 0;
@@ -106,8 +109,10 @@ static void init_state(STATE* state, const char* module_name) {
   state->module_casing = CASE_INSENSITIVE;
 }
 
+// Process a record at top level of object file (not within another record).
 static void process_root_record(STATE*, const OFILE*, SEGMENTED*, int verbose);
 
+// Process an object file into a SEGMENTED structure of segments, groups, symbols, fixups, etc.
 SEGMENTED* build_module_segments(const OFILE* ofile, int case_sensitivity, int verbose, const char* module_name) {
   SEGMENTED* module = new_segmented(module_name, case_sensitivity);
   STATE state;
@@ -123,9 +128,12 @@ SEGMENTED* build_module_segments(const OFILE* ofile, int case_sensitivity, int v
   if (state.module_casing != case_sensitivity)
     fatal("case sensitivity mismatch between linker options and module: %s\n", module_name);
 
+  // Once all segments have been loaded from the file,
+  // their size is known and can be recorded in segment and image layout
+  // for the map file.
   for (SEGNO i = 0; i < module->segs->used; i++) {
     if (module->segs->seg[i])
-      init_segment_layout(module->segs->seg[i], module_name);
+      initial_segment_layout(module->segs->seg[i], module_name);
   }
 
   return module;
@@ -138,6 +146,7 @@ static void define_public(STATE*, const OFILE*, SEGMENTED*, int verbose);
 static void process_segment_fragment(STATE*, const OFILE*, SEGMENTED*, int verbose);
 static void define_start(STATE*, const OFILE*, SEGMENTED*, int verbose);
 
+// Process a record at top level of object file (not within another record).
 static void process_root_record(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
@@ -177,12 +186,13 @@ static void process_root_record(STATE* state, const OFILE* ofile, SEGMENTED* seg
   }
 }
 
+// Process group definition: group number, name.
 static void define_group(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_BEGIN_GROUP);
 
@@ -228,12 +238,13 @@ static void define_group(STATE* state, const OFILE* ofile, SEGMENTED* segs, int 
   fatal("group definition open at end of file\n");
 }
 
+// Process segment definition: segment number, name, attributes.
 static void define_segment(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_BEGIN_SEGMENT);
 
@@ -313,12 +324,15 @@ static void print_data(const BYTE* data, size_t size) {
 
 static void emit_num(SEGMENT*, QWORD val, unsigned size);
 
+// Process a segment "fragment" in the object file,
+// corresponding to a source region SEGMENT ... ENDS.
+// The segment being opened must have been defined already in BEGIN_SEGMENT ... END_SEGMENT.
 static void process_segment_fragment(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_OPEN_SEGMENT);
   if (objbyte(rec) >= segment_list_count(segs->segs))
@@ -397,6 +411,7 @@ static void process_segment_fragment(STATE* state, const OFILE* ofile, SEGMENTED
   fatal("segment fragment open at end of file\n");
 }
 
+// Emit number, of specified size in bytes, to segment being loaded.
 static void emit_num(SEGMENT* seg, QWORD val, unsigned size) {
   BYTE buf[10];
   assert(size <= sizeof buf);
@@ -408,12 +423,18 @@ static void emit_num(SEGMENT* seg, QWORD val, unsigned size) {
   load_segment_data(seg, buf, i);
 }
 
+// Within segment fragment, read in fixup of type FT_OFFSET:
+// an offset to be adjusted when the segment into which it offsets is combined:
+// - offset position = location in segment being loaded of the offset to be adjusted
+// - segment number = number of segment that the offset is an offset into
+// I call the segment holding the offset the "holding segment",
+// the segment that the offset is an offset into the "addressed segment".
 static void process_offset_info(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_BEGIN_OFFSET);
 
@@ -453,12 +474,17 @@ static void process_offset_info(STATE* state, const OFILE* ofile, SEGMENTED* seg
   fatal("end of file: unterminated offset information\n");
 }
 
+// Within segment fragment, read in fixup of type FT_EXTERNAL:
+// a location to be resolved with a public symbol value or jump displacement:
+// - offset position = location in segment being loaded of the value to be filled in
+// - external symbol ID = ID of external symbol declared in this object file: the symbol whose value to use
+// - whether the offset used should be PC-relative for a jump, or absolute for data
 static void process_extern_use(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_BEGIN_EXTRN_USE);
 
@@ -502,12 +528,14 @@ static void process_extern_use(STATE* state, const OFILE* ofile, SEGMENTED* segs
   fatal("end of file: unterminated extern use\n");
 }
 
+// Process external symbol declaration: ID, name, segment.
+// The external symbol must be resolved to a public symbol in the same public segment.
 static void define_external(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_BEGIN_EXTRN_DEF);
 
@@ -560,12 +588,14 @@ static void define_external(STATE* state, const OFILE* ofile, SEGMENTED* segs, i
   fatal("external symbol definition open at end of file\n");
 }
 
+// Process public symbol definition: name, segment, offset value.
+// The external symbol must be resolved to a public symbol in the same public segment.
 static void define_public(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_BEGIN_PUBLIC);
 
@@ -618,12 +648,13 @@ static void define_public(STATE* state, const OFILE* ofile, SEGMENTED* segs, int
   fatal("public symbol definition open at end of file\n");
 }
 
+// Load the execution start value, as specified by END: segment, offset.
 static void define_start(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_BEGIN_START);
 
@@ -666,12 +697,19 @@ static void define_start(STATE* state, const OFILE* ofile, SEGMENTED* segs, int 
   fatal("start symbol definition open at end of file\n");
 }
 
+// Within segment fragment, read in fixup of type FT_GROUP_ABSOLUTE_JUMP,
+// to resolve a jump to an absolute offset in a group, of the form:
+// JMP CS:1234h
+// The offset in the linked executable must be PC-relative.
+// Load:
+// - position of the value in the segment being loaded
+// - group number.
 static void process_group_absolute_jump(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_BEGIN_GROUP_ABS_JUMP);
 
@@ -711,12 +749,16 @@ static void process_group_absolute_jump(STATE* state, const OFILE* ofile, SEGMEN
   fatal("end of file: unterminated group absolute jump\n");
 }
 
+// Within segment fragment, read in fixup of type FT_SEGMENT:
+// location to be filled with segment address of addressed segment:
+// - position of the value in the segment being loaded
+// - segment number of the segment whose address to use.
 static void process_segment_address_use(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_BEGIN_SEG_ADDR);
 
@@ -756,12 +798,16 @@ static void process_segment_address_use(STATE* state, const OFILE* ofile, SEGMEN
   fatal("end of file: unterminated segment address use\n");
 }
 
+// Within segment fragment, read in fixup of type FT_GROUP:
+// location to be filled with segment address of addressed group:
+// - position of the value in the segment being loaded
+// - group number of the group whose segment address to use.
 static void process_group_address_use(STATE* state, const OFILE* ofile, SEGMENTED* segs, int verbose) {
   assert(state != NULL);
   assert(ofile != NULL);
   assert(segs != NULL);
   assert(state->pos < ofile->used);
-  
+
   const OREC* rec = ofile->recs + state->pos;
   assert(rec->type == OBJ_BEGIN_GROUP_ADDR);
 

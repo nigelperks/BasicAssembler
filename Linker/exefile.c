@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // MS-DOS EXE file format.
 
 #include <stdlib.h>
@@ -20,8 +20,10 @@ void delete_buildexe(BUILDEXE* exe) {
 #define HEADER_SIZE (HEADER_PARAGRAPHS * PARA_SIZE)
 #define HEADER_PAGES (HEADER_SIZE / PAGE_SIZE)
 
-static RELOC_ITEM* build_reloc_table(const WORD exRelocItems, FIXUPS*); 
+static RELOC_ITEM* build_reloc_table(const WORD exRelocItems, FIXUPS*);
 
+// Take ownership of image for an EXE file.
+// Build EXE header and relocation table.
 BUILDEXE* build_exe(SEGMENTED* prog, IMAGE* image) {
   assert(prog != NULL);
   assert(image != NULL);
@@ -39,7 +41,7 @@ BUILDEXE* build_exe(SEGMENTED* prog, IMAGE* image) {
   exe->header.exSignature = 0x5A4D;
   exe->header.exExtraBytes = image->hi % PAGE_SIZE;
   exe->header.exPages = HEADER_PAGES + (WORD)(image->hi / PAGE_SIZE) + (image->hi % PAGE_SIZE != 0);
-  
+
   size_t n = segment_and_group_fixups(prog->fixups);
   if (n) {
     if (n > (WORD)(-1))
@@ -77,6 +79,8 @@ BUILDEXE* build_exe(SEGMENTED* prog, IMAGE* image) {
   return exe;
 }
 
+// Build EXE relocation table of segment:offset addresses in the image
+// which hold a physical segment address to be modified at load time.
 static RELOC_ITEM* build_reloc_table(const WORD n, FIXUPS* fixups) {
   assert(n != 0);
   RELOC_ITEM* rt = emalloc(n * sizeof rt[0]);

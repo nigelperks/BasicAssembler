@@ -1,5 +1,5 @@
 // EXE analysis tool
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Memory dump.
 
 #include <ctype.h>

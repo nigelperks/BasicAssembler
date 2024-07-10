@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Linker symbol table.
 
 #ifndef SYMBOL_H
@@ -17,11 +17,12 @@ typedef short GROUPNO;
 #define NO_SEG (-1)
 #define NO_GROUP (-1)
 
+// Linker symbols are relative (address) labels, not absolute (EQU) definitions.
 typedef struct {
   char* name;
-  DWORD offset;
-  SEGNO seg;
-  BOOL defined;
+  DWORD offset; // symbol value, offset in its segment
+  SEGNO seg; // segment in which the symbol is a label
+  BOOL defined; // whether defined; if not, external to be resolved
 } SYMBOL;
 
 typedef struct {

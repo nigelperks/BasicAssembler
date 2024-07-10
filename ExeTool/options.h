@@ -1,5 +1,5 @@
 // EXE analysis tool
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Command line options.
 
 #ifndef OPTIONS_H

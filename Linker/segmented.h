@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Segmented program: segments, groups, symbols.
 
 #ifndef SEGMENTED_H

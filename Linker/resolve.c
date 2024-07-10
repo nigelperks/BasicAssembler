@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Resolve fixups.
 
 #include <assert.h>
@@ -9,6 +9,10 @@ static unsigned report_undefined_symbols(SYMTAB*);
 static BOOL resolve_external(unsigned ext_index, const FIXUP*, SYMTAB*, SEGMENT_LIST*, int verbose);
 static BOOL resolve_group_absolute_jump(unsigned fixup_index, const FIXUP*, SEGMENT_LIST*, int verbose);
 
+// Check that all external symbols have been resolved (defined).
+// Resolve the fixups that require physical segments to have their final size
+// but can be done at link time: external symbol values, absolute jump offset in group.
+// (Run-time physical segment addresses can only be filled in at load time.)
 void resolve_fixups(SEGMENTED* segs, int verbose) {
   assert(segs != NULL);
 
@@ -23,10 +27,14 @@ void resolve_fixups(SEGMENTED* segs, int verbose) {
     const FIXUP* fix = fixup(segs->fixups, i);
     switch (fix->type) {
       case FT_EXTERNAL:
+        // Fill in the final value of the symbol or,
+        // for a jump, its PC-relative displacement.
         if (!resolve_external(i, fix, segs->st, segs->segs, verbose))
           errors++;
         break;
       case FT_GROUP_ABSOLUTE_JUMP:
+        // Convert absolute jump address within a group, e.g. CS:1234h,
+        // into PC-relative displacement.
         if (!resolve_group_absolute_jump(i, fix, segs->segs, verbose))
           errors++;
         break;
@@ -47,6 +55,8 @@ static unsigned report_undefined_symbols(SYMTAB* st) {
   return errors;
 }
 
+// Resolve an external fixup.
+// Fill in the value of the symbol or, for a jump, its PC-relative displacement.
 static BOOL resolve_external(unsigned i, const FIXUP* e, SYMTAB* st, SEGMENT_LIST* segs, int verbose) {
   assert(e != NULL);
   assert(e->type == FT_EXTERNAL);
@@ -73,20 +83,26 @@ static BOOL resolve_external(unsigned i, const FIXUP* e, SYMTAB* st, SEGMENT_LIS
   }
 
   if (e->u.ext.jump) {
+    // The stored displacement will be relative to the end of the instruction containing it.
+
+    // This fixup is not for inter-segment jumps,
+    // only for a 16-bit signed displacement within a segment.
+    // TODO: check that inter-segment jumps are handled elsewhere.
     if (sym_seg(st, e->u.ext.id) != e->holding_seg) {
       fprintf(stderr, "Relative jump inter-segment fixup: %s\n", sym_name(st, e->u.ext.id));
       return FALSE;
     }
 
-    DWORD eoi = e->holding_offset + 2;
-    long disp = (long)sym_offset(st, e->u.ext.id) - (long)eoi;
+    DWORD instr_end = e->holding_offset + 2; // 16-bit displacement at end of instruction
+    long disp = (long)sym_offset(st, e->u.ext.id) - (long)instr_end;
     WORD val = (WORD) disp;
     if (verbose >= 3)
       printf("EXTUSE %u: displacement from 0x%04x to symbol 0x%04x = %ld => 0x%04x\n",
-           i, (unsigned)eoi, (unsigned)sym_offset(st, e->u.ext.id), disp, (unsigned)val);
+           i, (unsigned)instr_end, (unsigned)sym_offset(st, e->u.ext.id), disp, (unsigned)val);
     write_word_le(seg->data + e->holding_offset, val);
   }
   else {
+    // The stored offset is relative to start of segment, not PC-relative.
     WORD val = (WORD) sym_offset(st, e->u.ext.id);
     if (verbose >= 3)
       printf("EXTUSE %u: symbol 0x%04x\n", i, (unsigned) val);
@@ -96,6 +112,8 @@ static BOOL resolve_external(unsigned i, const FIXUP* e, SYMTAB* st, SEGMENT_LIS
   return TRUE;
 }
 
+// An absolute jump address within a group's physical segment, e.g. CS:1234h,
+// must be changed into a displacement relative to the end of the jump instruction.
 static BOOL resolve_group_absolute_jump(unsigned j, const FIXUP* fix, SEGMENT_LIST* segs, int verbose) {
   assert(fix->type == FT_GROUP_ABSOLUTE_JUMP);
 

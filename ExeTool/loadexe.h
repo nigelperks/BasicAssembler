@@ -1,5 +1,5 @@
 // EXE analysis tool
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Load EXE file.
 
 #ifndef LOADEXE_H

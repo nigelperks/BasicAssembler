@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Linker segment-handling.
 
 #ifndef SEGMENT_H
@@ -7,24 +7,13 @@
 
 #include "utils.h"
 #include "symbol.h"
+#include "segment_layout.h"
 
 #define DEFAULT_SEGMENT_P2ALIGN (4)
 #define MAX_SEGMENT_P2ALIGN (12)
 
-struct layout_entry {
-  char* segment_name;
-  char* module_name;
-  DWORD addr;
-  DWORD size;
-};
-
-#define MAX_SEGMENT_MAP (64) // TODO: extendable
-
-struct segment_layout {
-  struct layout_entry entries[MAX_SEGMENT_MAP];
-  unsigned count;
-};
-
+// A segment in the linking process might be a segment loaded from one object file,
+// or a public segment or group combining several such segments.
 typedef struct {
   char* name;
   BOOL public;
@@ -34,12 +23,16 @@ typedef struct {
 
   unsigned long pc; // where to load next data; set by ORG; valid only during loading
   BYTE* data;
-  MemSize allocated;
-  DWORD lo;
-  DWORD hi;
+  MemSize allocated; // memory allocated to data
+  DWORD lo; // lowest address in segment to which data has been written
+  DWORD hi; // lowest address from which no data has been written
 
-  DWORD space; // including space after hi to align the uninitialised data
+  // uninitialised space after hi,
+  // including any padding after hi to align the uninitialised data
+  DWORD space;
 
+  // layout of constituent segments within this segment,
+  // for map file
   struct segment_layout layout;
 } SEGMENT;
 
@@ -75,7 +68,7 @@ void load_segment_space(SEGMENT*, unsigned size);
 
 void append_segment(SEGMENT* dest, const SEGMENT* src);
 
-void init_segment_layout(SEGMENT*, const char* module_name);
+void initial_segment_layout(SEGMENT*, const char* module_name);
 void fprint_segment_layout(FILE*, const SEGMENT*, const DWORD base, const unsigned indent);
 
 #endif // SEGMENT_H

@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // COM image output.
 
 #include <assert.h>
@@ -26,7 +26,7 @@ void output_com(const IMAGE* image, const char* filename) {
 
   if (image->start.seg != 0 || image->start.offset != 0x100)
     fatal("invalid start address for COM file\n");
-  
+
   if (image->hi - image->lo > MAX_COM_FILE_SIZE)
     fatal("image too big for COM file: size %lu, max %lu\n", (unsigned long)(image->hi - image->lo), (unsigned long)MAX_COM_FILE_SIZE);
 

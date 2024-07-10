@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Information for fixing up inter-segment access.
 
 #ifndef FIXUP_H
@@ -18,8 +18,8 @@ enum fixup_type {
   FT_OFFSET,  // location holds offset in segment, to be adjusted as segment gets combined
   FT_EXTERNAL,  // location holds zero, to be resolved with public symbol value or jump displacement
   FT_GROUP_ABSOLUTE_JUMP,  // location holds the target offset within the target group
-  FT_SEGMENT,  // location to be filled with segment address of addressed segment
-  FT_GROUP,  // location to be filled with segment address of addressed group
+  FT_SEGMENT,  // location to be filled with physical segment address of segment (load time)
+  FT_GROUP,  // location to be filled with physical segment address of group (load time)
 };
 
 const char* fixup_type_name(int);

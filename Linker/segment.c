@@ -1,31 +1,11 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Segment-handling in linker.
 
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include "segment.h"
-
-static void add_entry(struct segment_layout * layout, const char* segment_name, const char* module_name, DWORD addr, DWORD size) {
-  assert(layout != NULL);
-  if (layout->count >= MAX_SEGMENT_MAP)
-    fatal("internal error: segment map full\n");
-  struct layout_entry * e = layout->entries + layout->count++;
-  e->segment_name = estrdup(segment_name);
-  e->module_name = estrdup(module_name);
-  e->addr = addr;
-  e->size = size;
-}
-
-static void clear_layout(struct segment_layout * layout) {
-  assert(layout != NULL);
-  for (unsigned i = 0; i < layout->count; i++) {
-    efree(layout->entries[i].segment_name);
-    efree(layout->entries[i].module_name);
-  }
-  layout->count = 0;
-}
 
 SEGMENT* new_segment(const char* name, BOOL public, BOOL stack, GROUPNO group) {
   SEGMENT* seg = emalloc(sizeof *seg);
@@ -44,7 +24,7 @@ SEGMENT* new_segment(const char* name, BOOL public, BOOL stack, GROUPNO group) {
 
   seg->space = 0;
 
-  seg->layout.count = 0;
+  init_segment_layout(&seg->layout);
 
   return seg;
 }
@@ -53,7 +33,7 @@ void delete_segment(SEGMENT* seg) {
   if (seg) {
     efree(seg->name);
     efree(seg->data);
-    clear_layout(&seg->layout);
+    clear_segment_layout(&seg->layout);
     efree(seg);
   }
 }
@@ -171,6 +151,8 @@ static void ensure_writeable(SEGMENT* seg, MemSize offset, MemSize size) {
   }
 }
 
+// Write size bytes from buffer to segment at offset,
+// first ensuring that the relevant memory is allocated in the segment.
 void write_segment(SEGMENT* seg, DWORD offset, const BYTE* buf, unsigned size) {
   if (size == 0)
     return;
@@ -184,11 +166,13 @@ void write_segment(SEGMENT* seg, DWORD offset, const BYTE* buf, unsigned size) {
   memcpy(seg->data + offset, buf, size);
 }
 
+// Write data to current PC in segment during object file loading.
 void load_segment_data(SEGMENT* seg, const BYTE* buf, unsigned size) {
   write_segment(seg, seg->pc, buf, size);
   seg->pc += size;
 }
 
+// Allocate uninitialised space in segment during object file loading.
 void load_segment_space(SEGMENT* seg, unsigned size) {
   assert(seg != NULL);
   if (seg->space + size < seg->space)
@@ -196,16 +180,17 @@ void load_segment_space(SEGMENT* seg, unsigned size) {
   seg->space += size;
 }
 
-static void append_layout(struct segment_layout * dest, const struct segment_layout * src, const DWORD base);
-
+// Append source segment memory content to the end of the destination segment.
 // Alignment must be done already by caller.
+// Add source uninitialised data space to destination uninitialised data space.
+// Update layout information in the destination for the map file.
 void append_segment(SEGMENT* dest, const SEGMENT* src) {
   assert(dest != NULL);
   assert(dest->lo <= dest->hi);
   assert(src != NULL);
   assert(src->lo <= src->hi);
 
-  append_layout(&dest->layout, &src->layout, dest->hi + dest->space);
+  append_segment_layout(&dest->layout, &src->layout, dest->hi + dest->space);
 
   if (src->hi > src->lo) {
     if (dest->space > 0)
@@ -239,19 +224,24 @@ void space_out(SEGMENT* seg, unsigned p2align) {
   seg->space += p2gap(seg->hi + seg->space, p2align);
 }
 
-void init_segment_layout(SEGMENT* seg, const char* module_name) {
+// Initialise segment layout information for the given segment loaded from an object file:
+// one layout entry for the whole loaded segment.
+void initial_segment_layout(SEGMENT* seg, const char* module_name) {
   assert(seg != NULL);
-  assert(module_name);
   if (seg->layout.count > 0)
     fatal("internal error: init_segment_layout: already initialised: %s\n", module_name);
-  struct layout_entry * e = seg->layout.entries;
-  e->segment_name = estrdup(seg->name);
-  e->module_name = estrdup(module_name);
-  e->addr = 0;
-  e->size = seg->hi + seg->space;
-  seg->layout.count = 1;
+
+  add_segment_layout_entry(&seg->layout, seg->name, module_name, 0, seg->hi + seg->space);
 }
 
+// Print the layout of the segment or group to the map file:
+// the constituent segments loaded from object files.
+// The layout of a group might include different segment names and object files.
+// The layout of a group or public segment might include different object files.
+// Parameter base = address of seg in image.
+// Address of constituent segment (layout entry) in image = base address + entry address within seg.
+// Example:
+// 000110 000015 SEG1 file1.obj
 void fprint_segment_layout(FILE* fp, const SEGMENT* seg, const DWORD base, const unsigned indent) {
   assert(fp != NULL);
   assert(seg != NULL);
@@ -262,13 +252,6 @@ void fprint_segment_layout(FILE* fp, const SEGMENT* seg, const DWORD base, const
     for (unsigned j = 0; j < indent; j++)
       putc(' ', fp);
     fprintf(fp, "%06x %06x %s %s\n", base + e->addr, size, s_name, m_name);
-  }
-}
-
-static void append_layout(struct segment_layout * dest, const struct segment_layout * src, const DWORD base) {
-  for (const struct layout_entry * e = src->entries; e < src->entries + src->count; e++) {
-    const char* m_name = e->module_name ? e->module_name : "";
-    add_entry(dest, e->segment_name, m_name, base + e->addr, e->size);
   }
 }
 

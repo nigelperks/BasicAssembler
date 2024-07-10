@@ -1,5 +1,5 @@
 // Basic Object Files Tools
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-24 Nigel Perks
 // Dump the object files of custom format.
 
 #include <stdio.h>

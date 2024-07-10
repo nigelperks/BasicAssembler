@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // List of groups.
 
 #ifndef GROUPLIST_H
@@ -8,11 +8,17 @@
 #include "utils.h"
 #include "symbol.h"
 
+// A group is formed in the linker by consolidating its member segments into one "main segment".
+// So the identity of a group in the linker consists of its name and main segment reference.
+// Group number is not part of this structure, but is an ordinal number, the position in the group list.
 typedef struct {
   char* name;
   SEGNO main_segno;
 } GROUP;
 
+// List of groups defined in object files.
+// Initially the list of groups from one object file.
+// Group lists are merged during linking.
 typedef struct {
   GROUP* groups;
   unsigned allocated;

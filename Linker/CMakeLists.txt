@@ -13,6 +13,7 @@ add_executable(blink
   resolve.c
   seglist.c
   segment.c
+  segment_layout.c
   segmented.c
   symbol.c
 )

@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Consolidate groups in a segmented program.
 
 #ifndef CONSOLIDATE_H

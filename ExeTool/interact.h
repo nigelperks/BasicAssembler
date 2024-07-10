@@ -1,5 +1,5 @@
 // EXE analysis tool
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-24 Nigel Perks
 // Interactive disassembly and data dump.
 
 #ifndef INTERACT_H

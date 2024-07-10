@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // List of segments.
 
 #include <stdlib.h>
@@ -79,6 +79,8 @@ SEGNO find_public_segment(const SEGMENT_LIST* list, const char* name) {
   return NO_SEG;
 }
 
+// Find a stack segment of the given name.
+// Return the segment number in the list, or NO_SEG if not found.
 SEGNO find_stack_segment(const SEGMENT_LIST* list, const char* name) {
   assert(list != NULL);
   assert(name != NULL);
@@ -142,6 +144,8 @@ SEGNO reserve_segment(SEGMENT_LIST* list) {
   return insert(list);
 }
 
+// Delete the segment at the given position in the list,
+// leaving that position empty.
 void remove_segment(SEGMENT_LIST* list, SEGNO index) {
   assert(list != NULL);
   assert(index < list->used);
@@ -162,11 +166,14 @@ unsigned segment_p2align(const SEGMENT_LIST* list, SEGNO i) {
   return list->seg[i]->p2align;
 }
 
+// Return the number of the first actual segment in the list,
+// the first occupied list index; NO_SEG if none.
 SEGNO first_proper_segment(SEGMENT_LIST* list) {
   assert(list != NULL);
   return next_proper_segment(list, -1);
 }
 
+// Return the next occupied list index after segno; NO_SEG if none.
 SEGNO next_proper_segment(SEGMENT_LIST* list, SEGNO segno) {
   assert(list != NULL);
 

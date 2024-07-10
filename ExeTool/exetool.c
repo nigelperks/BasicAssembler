@@ -1,5 +1,5 @@
 // EXE analysis tool
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // exetool main.
 
 #include <stdio.h>
@@ -143,7 +143,7 @@ static void dump_exe(const OPTIONS* opt)
             fwrite(buf, 1, image_size, img);
             fclose(img);
             img = fopen("IMAGE___.COM", "wb");
-            if (image_size >= 0x100)            
+            if (image_size >= 0x100)
                 fwrite(buf + 0x100, 1, image_size - 0x100, img);
             fclose(img);
         }

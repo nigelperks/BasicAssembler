@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // The logic for processing one object module,
 // using the mechanisms of OFILE and SEGMENTS.
 

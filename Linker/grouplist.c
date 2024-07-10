@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // List of groups.
 
 #include <stdlib.h>
@@ -67,6 +67,10 @@ BOOL group_defined(GROUP_LIST* list, const char* name) {
   return group_index(list, name) != NO_GROUP;
 }
 
+// Add group name to group list.
+// The group will thereafter identified by ordinal number within the list.
+// Therefore the caller must perform any checking
+// that the number of groups in the list equals the next desired group number.
 unsigned add_group(GROUP_LIST* list, const char* name) {
   if (group_defined(list, name))
     fatal("duplicate group name: %s\n", name);

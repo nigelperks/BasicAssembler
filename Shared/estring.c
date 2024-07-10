@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-24 Nigel Perks
 // Extendable string in C.
 
 #include <string.h>

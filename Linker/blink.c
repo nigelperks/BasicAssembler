@@ -113,23 +113,32 @@ int main(int argc, char* argv[]) {
 
   SEGMENTED* segmented_program = new_segmented(output_name, case_sensitivity);
 
+  // Load object files into the SEGMENTED program structure.
   for (unsigned i = 0; i < stringlist_count(files); i++) {
     if (verbose)
       printf("Load object file: %s\n", stringlist_item(files, i));
     OFILE* ofile = load_object_file(stringlist_item(files, i));
 
+    // Process the object file records into a SEGMENTED structure for the module.
     SEGMENTED* module_segments = build_module_segments(ofile, case_sensitivity, verbose, stringlist_item(files, i));
 
+    // Add private segments, and combine public segments, in the module, into program segments,
+    // modifying the module's fixups appropriately and adding them to the program's fixups.
     incorporate_module(segmented_program, module_segments, verbose);
 
     delete_segmented(module_segments);
     delete_ofile(ofile);
   }
 
+  // Consolidate segments into groups.
   consolidate_groups_and_stack(segmented_program, verbose);
 
+  // Resolve external symbol values, checking all have been defined.
+  // Convert absolute jump offsets in groups to PC-relative displacements.
   resolve_fixups(segmented_program, verbose);
 
+  // Build a program image from the distinct segments and groups,
+  // writing a map file if required.
   IMAGE* image = build_image(segmented_program, mapfile, verbose);
 
   if (verbose)
@@ -137,10 +146,14 @@ int main(int argc, char* argv[]) {
 
   switch (format) {
     case BIN_FORMAT:
+      // Check that there are no segment address fixups to be performed at load time.
+      // A raw binary file does not support that.
       check_no_fixups(segmented_program, "BIN");
       output_bin(image, output_name);
       break;
     case COM_FORMAT:
+      // Check that there are no segment address fixups to be performed at load time.
+      // A bare COM file does not support that.
       check_no_fixups(segmented_program, "COM");
       output_com(image, output_name);
       break;

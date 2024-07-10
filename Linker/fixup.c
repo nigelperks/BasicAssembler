@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Information for fixups and relocation.
 
 #include <stdlib.h>
@@ -77,6 +77,8 @@ static void expand(FIXUPS* p, unsigned ext) {
   assert(p->allocated - p->used >= ext);
 }
 
+// Add source fixups to destination.
+// Straight copy: the source offsets must already be appropriate for the destination.
 void append_fixups(FIXUPS* dest, FIXUPS* source) {
   assert(dest != NULL);
   assert(source != NULL);
@@ -219,7 +221,7 @@ static void test_insert_externals(CuTest* tc) {
   CuAssertIntEquals(tc, 0x1030, ext->offsets[0].holding_offset);
   CuAssertIntEquals(tc, 7, ext->offsets[0].u.ext.id);
   CuAssertIntEquals(tc, FALSE, ext->offsets[0].u.ext.jump);
-  
+
   CuAssertTrue(tc, fixup(ext, 0) == ext->offsets);
   CuAssertSizeEquals(tc, 1, fixups_count(ext));
 

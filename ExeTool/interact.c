@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-24 Nigel Perks
 // Interactive EXE disassembler.
 
 #include <stdio.h>
@@ -226,7 +226,7 @@ static void spread(WORD* list, unsigned *count, unsigned pos) {
   check_count(*count);
   for (unsigned i = *count; i > pos; i--)
     list[i] = list[i-1];
-  ++*count;  
+  ++*count;
 }
 
 static void check_count(unsigned count) {

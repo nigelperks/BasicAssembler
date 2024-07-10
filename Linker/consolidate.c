@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Consolidate segmented program into groups.
 
 #include <stdlib.h>
@@ -9,6 +9,8 @@
 static void build_group(SEGMENTED* prog, SEGNO first_segment, SEGMENT* first_seg, int verbose);
 static void set_stack(SEGMENTED* prog, SEGNO, const SEGMENT*, int verbose);
 
+// Determine which segment is the program's stack segment.
+// Consolidate the segments comprising a group into one SEGMENT structure.
 void consolidate_groups_and_stack(SEGMENTED* prog, int verbose) {
   assert(prog != NULL);
   assert(prog->stack.segno == NO_SEG);
@@ -19,15 +21,21 @@ void consolidate_groups_and_stack(SEGMENTED* prog, int verbose) {
   for (SEGNO i = 0; i < segment_list_count(prog->segs); i++) {
     SEGMENT* seg = get_segment(prog->segs, i);
 
+    // The segment at slot i might have been deleted
+    // when it was combined with another segment (same public segment name)
+    // or consolidated into the main segment of its group
+    // so check for NULL.
     if (seg != NULL) {
       if (seg_stack(seg))
-        set_stack(prog, i, seg, verbose);
+        set_stack(prog, i, seg, verbose); // fatal if multiple stack segments
       if (seg_group(seg) != NO_GROUP)
-        build_group(prog, i, seg, verbose);
+        build_group(prog, i, seg, verbose); // consolidate the group in this "main segment"
     }
   }
 }
 
+// Make the given segment the program's stack segment.
+// Fatal error if program already has a stack segment.
 static void set_stack(SEGMENTED* prog, SEGNO segno, const SEGMENT* seg, int verbose) {
   assert(seg != NULL && seg_stack(seg));
 
@@ -49,6 +57,8 @@ static void set_stack(SEGMENTED* prog, SEGNO segno, const SEGMENT* seg, int verb
 
 static void join_segments(SEGMENTED*, SEGNO destno, SEGMENT* dest, SEGNO sourceno, SEGMENT* source, int verbose);
 
+// Make the specified segment the "main segment" of its group,
+// adding to that main segment all other segments in the group.
 static void build_group(SEGMENTED* prog, SEGNO first_segno, SEGMENT* first_seg, int verbose) {
   assert(prog != NULL);
   assert(first_segno < segment_list_count(prog->segs));
@@ -72,7 +82,7 @@ static void build_group(SEGMENTED* prog, SEGNO first_segno, SEGMENT* first_seg, 
         printf("Consolidate into group: segment %d: %s\n", (int)i, seg_name(seg));
       if (segment_has_data(seg) || seg_space(seg))
         join_segments(prog, first_segno, first_seg, i, seg, verbose);
-      remove_segment(prog->segs, i);
+      remove_segment(prog->segs, i); // empty that slot in the segment list
     }
   }
 }
@@ -123,34 +133,55 @@ static void join_segments(SEGMENTED* prog, SEGNO dest_segno, SEGMENT* dest_seg, 
   if (prog->stack.segno == source_segno)
     update_stack(&prog->stack, dest_segno, dest_seg, verbose);
 
+  // Update fixups' holding segment and holding address
+  // to refer to consolidated group main segments.
+  // Update stored offsets to be relative to their group main segments.
   update_fixups(prog, source_segno, dest_segno, segment_end(dest_seg), verbose);
 
+  // Change label addresses in the source segment
+  // into addresses in the consolidated group main segment.
   update_symbol_definitions_for_new_segment_number_and_base(
       prog->st, source_segno, dest_segno, segment_end(dest_seg));
 
+  // Append segment memory content to the end of the group main segment.
+  // Add segment's uninitialised data space to group's uninitialised data space.
+  // Update layout information in the destination for the map file.
   append_segment(dest_seg, source_seg);
 
   const unsigned long size = segment_end(dest_seg);
   if (size > 0x10000UL)
-    fatal("consolidated segment '%s' is too big: %lu = %0xh bytes\n", seg_name(dest_seg), size, size);
+    fatal("consolidated segment '%s' is too big: %lu = %0lxh bytes\n", seg_name(dest_seg), size, size);
 }
 
-static void update_start(START* start, SEGNO new_segno, const SEGMENT* new_seg, int verbose) {
-  start->segno = new_segno;
-  start->offset += segment_end(new_seg);
+// Update the execution start segment:offset.
+// The start segment will be added to the destination segment (group).
+// So the starting offset must be increased by the current size of the destination.
+static void update_start(START* start, SEGNO dest_segno, const SEGMENT* dest_seg, int verbose) {
+  start->segno = dest_segno;
+  start->offset += segment_end(dest_seg);
   if (verbose >= 2)
     printf("Redefine start address: program segment %d: %s; offset 0x%04x\n",
-           (int)new_segno, seg_name(new_seg), (unsigned)start->offset);
+           (int)dest_segno, seg_name(dest_seg), (unsigned)start->offset);
 }
 
-static void update_stack(STACK* stack, SEGNO new_segno, const SEGMENT* new_seg, int verbose) {
-  stack->segno = new_segno;
-  stack->offset += segment_end(new_seg);
+// Update the stack segment:offset.
+// The stack segment will be added to the destination segment (group).
+// When the stack is no longer an entire physical segment, its offset might be non-zero.
+static void update_stack(STACK* stack, SEGNO dest_segno, const SEGMENT* dest_seg, int verbose) {
+  stack->segno = dest_segno;
+  stack->offset += segment_end(dest_seg);
   if (verbose >= 2)
     printf("Redefine stack location: program segment %d: %s; offset 0x%04x\n",
-           (int)new_segno, seg_name(new_seg), (unsigned)stack->offset);
+           (int)dest_segno, seg_name(dest_seg), (unsigned)stack->offset);
 }
 
+// When adding a segment of a group into the group's main segment,
+// an offset in memory relative to the added segment
+// must be made relative to the main segment.
+// The added segment's fixups must be updated
+// to refer to the new holding segment and holding address.
+// Parameter base = base address in destination segment for source segment,
+//                  i.e. current end of destination segment
 static void update_fixups(SEGMENTED* prog, SEGNO source_segno, SEGNO dest_segno, DWORD base, int verbose) {
   if (verbose >= 2)
     printf("Update fixups to consolidate seg %d into seg %d at base 0x%04x\n",
@@ -186,10 +217,14 @@ static void update_fixups(SEGMENTED* prog, SEGNO source_segno, SEGNO dest_segno,
 
     SEGMENT* holding_seg = get_segment(prog->segs, i->holding_seg);
     DWORD offset_value = read_word_le(seg_data(holding_seg) + i->holding_offset);
+    if (verbose >= 3)
+      printf("FIXUP %u: offset value 0x%04x\n", j, (unsigned) offset_value);
 
     switch (i->type) {
       case FT_OFFSET:
         if (i->u.addressed_segno == source_segno) {
+          // The stored offset is relative to the segment being added to the main segment.
+          // Make the offset relative to the main segment.
           DWORD new_offset = offset_value + base;
           if (verbose >= 3) {
             printf("FIXUP %u: value 0x%04x -> 0x%04x, addressed seg %d -> %d\n",
@@ -203,21 +238,30 @@ static void update_fixups(SEGMENTED* prog, SEGNO source_segno, SEGNO dest_segno,
         }
         break;
       case FT_EXTERNAL:
+        // The external symbol value can only be filled in after consolidating groups,
+        // when segments are at their final location.
+        // Meanwhile the stored offset value should be zero.
         if (offset_value != 0) {
           fprintf(stderr, "Location of external reference does not hold 0: "
                           "seg %d, offset 0x%04x, value 0x%04x\n",
-              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);      
+              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);
           exit(EXIT_FAILURE);
         }
         break;
       case FT_GROUP_ABSOLUTE_JUMP:
-        // handled in resolve
+        // The stored absolute jump target within a group
+        // can only be finalised to a PC-relative jump displacement
+        // after consolidating groups, in the resolve stage.
+        // Meanwhile the stored offset value is the absolute offset in the group.
         break;
       case FT_SEGMENT:
+        // The physical segment address of the segment is resolved
+        // when the program image is built, and finalised at load time.
+        // Meanwhile the stored value should be zero.
         if (offset_value != 0) {
           fprintf(stderr, "Location of segment reference does not hold 0: "
                           "seg %d, offset 0x%04x, value 0x%04x\n",
-              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);      
+              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);
           exit(EXIT_FAILURE);
         }
         if (i->u.seg.addressed_segno == source_segno) {
@@ -226,10 +270,13 @@ static void update_fixups(SEGMENTED* prog, SEGNO source_segno, SEGNO dest_segno,
         }
         break;
       case FT_GROUP:
+        // The physical segment address of the group is resolved
+        // when the program image is built, and finalised at load time.
+        // Meanwhile the stored value should be zero.
         if (offset_value != 0) {
           fprintf(stderr, "Location of group reference does not hold 0: "
                           "seg %d, offset 0x%04x, value 0x%04x\n",
-              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);      
+              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);
           exit(EXIT_FAILURE);
         }
         break;
@@ -237,11 +284,20 @@ static void update_fixups(SEGMENTED* prog, SEGNO source_segno, SEGNO dest_segno,
         assert(0 && "unexpected fixup type");
     }
 
+    // It is not only a stored offset value that must be changed,
+    // when it is changed to refer to a different segment.
+    // The holding segment number and offset must also be changed.
     if (i->holding_seg == source_segno) {
-      i->holding_seg = dest_segno;
       DWORD new_holding_offset = base + i->holding_offset;
+      if (verbose >= 3) {
+        printf("FIXUP %u: in seg %d at 0x%04x -> seg %d (base 0x%04x) at 0x%04x\n",
+            j,
+            (int) i->holding_seg, (unsigned) i->holding_offset,
+            (int) dest_segno, (unsigned) base, (unsigned) new_holding_offset);
+      }
       if (new_holding_offset > (WORD)(-1))
         fatal("offset out of 16-bit range (E)\n"); // TODO: useful message
+      i->holding_seg = dest_segno;
       i->holding_offset = (WORD) new_holding_offset;
     }
   }
@@ -250,13 +306,16 @@ static void update_fixups(SEGMENTED* prog, SEGNO source_segno, SEGNO dest_segno,
     dump_segments(prog->segs);
 }
 
-// (name, segno, offset)
+// A symbol in the linker is a relative symbol (address label), (name, segno, offset).
+// Change a label in the source segment into one in the consolidated group main segment.
 static void update_symbol_definitions_for_new_segment_number_and_base(
     SYMTAB* st, SEGNO source_segno, SEGNO dest_segno, DWORD base) {
   for (SYMBOL_ID i = 0; i < sym_count(st); i++) {
     SYMBOL* sym = symbol(st, i);
     if (sym->seg == source_segno) {
       sym->seg = dest_segno;
+      // The symbol only has an offset to be modified if it is a defined symbol.
+      // Otherwise it is an external whose value is yet to be determined.
       if (sym->defined) {
         DWORD new_offset = sym->offset + base;
         if (new_offset > (WORD)(-1))
@@ -304,7 +363,7 @@ static void test_update_offsets(CuTest* tc) {
   CuAssertIntEquals(tc, 0, offset0->u.addressed_segno);
   CuAssertIntEquals(tc, 0x53, seg0->data[LO0 + 2]);
   CuAssertIntEquals(tc, 0x64, seg0->data[LO0 + 3]);
-  
+
   // 0xb9a8 will be at same place but addressing segment 0 with new base => 0xbaa8
   CuAssertIntEquals(tc, 0, offset1->holding_seg);
   CuAssertIntEquals(tc, LO0 + 7, offset1->holding_offset);
@@ -356,21 +415,21 @@ static void test_update_externals(CuTest* tc) {
   const WORD BASE = 0x100;
 
   update_fixups(prog, 1, 0, BASE, 0);
- 
+
   // First, in seg 0, data offset, will remain the same
   FIXUP* ext0 = fixup(prog->fixups, e0);
   CuAssertIntEquals(tc, 0, ext0->holding_seg);
   CuAssertIntEquals(tc, LO0 + 3, ext0->holding_offset);
   CuAssertIntEquals(tc, 0x00, seg0->data[LO0 + 3]);
   CuAssertIntEquals(tc, 0x00, seg0->data[LO0 + 4]);
- 
+
   // Second, in seg 0, jump displacement, will remain the same
   FIXUP* ext1 = fixup(prog->fixups, e1);
   CuAssertIntEquals(tc, 0, ext1->holding_seg);
   CuAssertIntEquals(tc, LO0 + 8, ext1->holding_offset);
   CuAssertIntEquals(tc, 0x00, seg0->data[LO0 + 8]);
   CuAssertIntEquals(tc, 0x00, seg0->data[LO0 + 9]);
- 
+
   // Third, in seg 1, data offset, will have new position in seg 0, same value
   FIXUP* ext2 = fixup(prog->fixups, e2);
   CuAssertIntEquals(tc, 0, ext2->holding_seg);
@@ -415,7 +474,7 @@ static void test_update_symbols(CuTest* tc) {
   CuAssertIntEquals(tc, 0, sym_seg(st, 2));
   CuAssertIntEquals(tc, 0, sym_offset(st, 2));
 
-  delete_symbol_table(st); 
+  delete_symbol_table(st);
 }
 
 CuSuite* consolidate_test_suite(void) {

@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Utility types and functions.
 
 #include <stdio.h>
@@ -232,8 +232,8 @@ static void test_endian(CuTest* tc) {
   write_word_le(buf + 4, VAL);
   CuAssertIntEquals(tc, LO, buf[4]);
   CuAssertIntEquals(tc, HI, buf[5]);
-  CuAssertIntEquals(tc, VAL, read_word_le(buf + 4));  
-} 
+  CuAssertIntEquals(tc, VAL, read_word_le(buf + 4));
+}
 
 static void test_p2aligned(CuTest* tc) {
   CuAssertLongLongEquals(tc, 0, p2aligned(0, 0));

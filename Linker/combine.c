@@ -1,22 +1,38 @@
 // Basic Linker
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Incorporate module into program and combine public segments.
 
 #include <stdlib.h>
 #include <assert.h>
 #include "combine.h"
 
-// where a segment will go to when incorporated into a segment list
-struct segment_map {
+// As each module is loaded from an object file, it is incorporated
+// in the program being built up.
+//
+// Each module segment either becomes a new program segment
+// or is combined into an existing program segment (public segments of the same name).
+// A map is created from module segment to program segment.
+//
+// A map is also created from module group number to program group number.
+// When a module group's name is not yet in the program group list,
+// a new program group of that name is added.
+
+// The destination segment and address, in the program segment list,
+// of a particular module segment.
+struct segment_destination {
   SEGNO segno;
-  DWORD base;
+  DWORD addr;
 };
 
+// The destination segment and address, in the program segment list,
+// of each module segment.
 typedef struct {
   unsigned size;
-  struct segment_map map[];
+  struct segment_destination map[];
 } SEGMENT_MAP;
 
+// Create a segment map of the specified size (number of module segments).
+// Initialise each destination segment to NO_SEG, address to zero.
 static SEGMENT_MAP* new_segment_map(unsigned size) {
   SEGMENT_MAP* map = ecalloc(sizeof *map + size * sizeof map->map[0]);
   map->size = size;
@@ -46,28 +62,44 @@ static void move_segments_data(SEGMENT_LIST* prog, SEGMENT_LIST* module, SEGMENT
 
 static void define_start(START* prog_start, START* module_start, SEGMENT_MAP* module_to_program_seg_map, SEGMENT_LIST* prog_segs, int verbose);
 
+// Incorporate a loaded module into the program being built up.
+// Both are represented by SEGMENTED structures.
 void incorporate_module(SEGMENTED* prog, SEGMENTED* module, int verbose) {
   if (verbose)
     printf("Incorporate module %s into %s\n", module->name, prog->name);
 
+  // Add module group names to program group list when they are not already in it.
+  // Obtain destination program group number for each module group number.
   VECTOR* module_to_program_group_map = add_module_groups_to_program(
       prog->groups, module->groups, verbose);
 
+  // Add module segments to program segment list as required.
+  // Obtain destination segment number and address for each module segment.
+  // This does not copy segment memory.
   SEGMENT_MAP* module_to_program_seg_map = add_module_segments_to_program(
       prog->segs, module->segs, module_to_program_group_map, prog->groups, module->name, verbose);
 
+  // If the module specifies a start address, set the program's start address from it.
   define_start(&prog->start, &module->start, module_to_program_seg_map, prog->segs, verbose);
 
+  // Update fixups' holding segment and holding address to refer to program segments.
+  // Update stored offsets to be relative to their program segments.
   retarget_module_fixups_to_program(module->fixups, module->segs,
       module_to_program_seg_map, module->groups, module_to_program_group_map,
       verbose);
 
-  VECTOR* module_to_program_symbol_map = add_module_symbols_to_program(prog->st, module->st, prog->segs, module_to_program_seg_map, verbose);
+  // Modify module symbols to be program symbols with program segment and offset.
+  VECTOR* module_to_program_symbol_map = add_module_symbols_to_program(
+      prog->st, module->st, prog->segs, module_to_program_seg_map, verbose);
 
+  // Having mapped each module symbol into the program symbol table,
+  // modify external fixups' symbol ID to be the ID in the program symbol table.
   update_module_externals_symbol_id(module->fixups, module_to_program_symbol_map);
 
+  // Append each module segment's memory content to the appropriate program segment.
   move_segments_data(prog->segs, module->segs, module_to_program_seg_map, module->name, verbose);
 
+  // Add the module fixups, already modified above for the program segments.
   append_fixups(prog->fixups, module->fixups);
 
   delete_vector(module_to_program_symbol_map);
@@ -75,12 +107,14 @@ void incorporate_module(SEGMENTED* prog, SEGMENTED* module, int verbose) {
   delete_vector(module_to_program_group_map);
 }
 
+// If the module specifies a start address, set the program's start address from it.
+// Fatal error if module has a start address when program already has one.
 static void define_start(START* prog_start, START* module_start, SEGMENT_MAP* module_to_program_seg_map, SEGMENT_LIST* prog_segs, int verbose) {
   if (module_start->segno != NO_SEG) {
     if (prog_start->segno != NO_SEG)
       fatal("multiple start addresses"); // TODO: more detailed message
     prog_start->segno = module_to_program_seg_map->map[module_start->segno].segno;
-    prog_start->offset = module_to_program_seg_map->map[module_start->segno].base + module_start->offset;
+    prog_start->offset = module_to_program_seg_map->map[module_start->segno].addr + module_start->offset;
     if (verbose >= 2)
       printf("Define start address: program segment %d: %s; offset 0x%04x\n",
           (int)prog_start->segno, segment_name(prog_segs, prog_start->segno), (unsigned)prog_start->offset);
@@ -125,7 +159,10 @@ static void add_module_segment_to_program(SEGMENT_LIST* program_segs,
 // Add module segments to program where necessary,
 // combining public segments of matching name.
 // Produce a map from module segment number to program segment.
-static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, SEGMENT_LIST* module_segs, VECTOR* module_to_program_group_map, const GROUP_LIST* program_groups, const char* module_name, int verbose) {
+// Segment memory is not copied.
+static SEGMENT_MAP* add_module_segments_to_program(
+    SEGMENT_LIST* program_segs, SEGMENT_LIST* module_segs, VECTOR* module_to_program_group_map,
+    const GROUP_LIST* program_groups, const char* module_name, int verbose) {
   assert(program_segs != NULL);
   assert(module_segs != NULL);
   assert(module_to_program_group_map != NULL);
@@ -135,7 +172,8 @@ static SEGMENT_MAP* add_module_segments_to_program(SEGMENT_LIST* program_segs, S
   SEGMENT_MAP* map = new_segment_map(segment_list_count(module_segs));
 
   for (SEGNO i = 0; i < segment_list_count(module_segs); i++)
-    add_module_segment_to_program(program_segs, module_segs, i, module_to_program_group_map, program_groups, map, module_name, verbose);
+    add_module_segment_to_program(program_segs, module_segs, i, module_to_program_group_map,
+                                  program_groups, map, module_name, verbose);
 
   return map;
 }
@@ -146,6 +184,10 @@ static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module
 
 static void check_alignment(const SEGMENT* module_seg, const SEGMENT* program_seg, const char* module_name);
 
+// Map the module segment into the program,
+// adding the destination segment and address to the segment map.
+// If the program does not already have a segment of the required name and attributes,
+// add one. Segment memory is not copied.
 static void add_module_segment_to_program(SEGMENT_LIST* program_segs,
                                           const SEGMENT_LIST* module_segs,
                                           SEGNO module_segno,
@@ -168,10 +210,15 @@ static void add_module_segment_to_program(SEGMENT_LIST* program_segs,
   const SEGMENT* program_seg = get_segment(program_segs, psegno);
   check_alignment(module_seg, program_seg, module_name);
   segment_map->map[module_segno].segno = psegno;
-  segment_map->map[module_segno].base = segment_end_p2aligned(program_seg, seg_p2align(module_seg));
+  segment_map->map[module_segno].addr = segment_end_p2aligned(program_seg, seg_p2align(module_seg));
 }
 
-static SEGNO add_public_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, const char* module_name, int verbose) {
+// If the program already has a public segment of the same name as the module segment,
+// check that they belong to the same group, so will have the same segment address.
+// Otherwise add a public segment of the required name to the program.
+static SEGNO add_public_segment(
+    SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups,
+    GROUPNO program_group, const char* module_name, int verbose) {
   SEGNO psegno = find_public_segment(program_segs, seg_name(module_seg));
   if (psegno == NO_SEG)
     psegno = add_program_segment(program_segs, module_seg, program_group, module_name, verbose);
@@ -189,7 +236,13 @@ static SEGNO add_public_segment(SEGMENT_LIST* program_segs, const SEGMENT* modul
   return psegno;
 }
 
-static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups, GROUPNO program_group, const char* module_name, int verbose) {
+// If the program already has a stack segment of the same name as the module segment,
+// check that they belong to the same group, so will have the same segment address.
+// Otherwise add a stack segment of the required name to the program.
+// The linker checks there is only one stack segment when consolidating groups.
+static SEGNO add_stack_segment(
+    SEGMENT_LIST* program_segs, const SEGMENT* module_seg, const GROUP_LIST* program_groups,
+    GROUPNO program_group, const char* module_name, int verbose) {
   SEGNO psegno = find_stack_segment(program_segs, seg_name(module_seg));
   if (psegno == NO_SEG)
     psegno = add_program_segment(program_segs, module_seg, program_group, module_name, verbose);
@@ -207,6 +260,7 @@ static SEGNO add_stack_segment(SEGMENT_LIST* program_segs, const SEGMENT* module
   return psegno;
 }
 
+// Add new program segment with name and attributes (public, stack, alignment, group) of given seg.
 static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT* seg, GROUPNO group, const char* module_name, int verbose) {
   if (seg_public(seg) && seg_stack(seg))
     fatal("segment is both PUBLIC and STACK: %s\n", seg_name(seg));
@@ -218,6 +272,8 @@ static SEGNO add_program_segment(SEGMENT_LIST* program, const SEGMENT* seg, GROU
   return psegno;
 }
 
+// Check that the required alignment of a module segment
+// does not exceed the required alignment of its destination program segment.
 static void check_alignment(const SEGMENT* module_seg, const SEGMENT* program_seg, const char* module_name) {
   if (seg_p2align(module_seg) > seg_p2align(program_seg))
       fatal("module '%s' segment '%s' with alignment 2^%u cannot be combined with public segment '%s' with alignment 2^%u\n",
@@ -227,7 +283,12 @@ static void check_alignment(const SEGMENT* module_seg, const SEGMENT* program_se
 static SYMBOL_ID add_module_symbol_to_program(SYMTAB* prog_st, const SYMTAB* module_st, SYMBOL_ID module_id,
     SEGMENT_LIST* prog_segs, SEGMENT_MAP* module_to_program_seg_map, int verbose);
 
-// (name, segno, offset)
+// A symbol in the linker is an address label (name, segno, offset).
+// Modify module symbols to be program symbols:
+// change their segment and offset into the corresponding program segment and offset.
+// If a module symbol name does not exist in the program, add it;
+// otherwise check for multiple definition vs public/extern reconciliation.
+// Return a mapping from module symbol ID to the symbol's ID in the program symbol table.
 static VECTOR* add_module_symbols_to_program(SYMTAB* prog_st, const SYMTAB* module_st,
     SEGMENT_LIST* prog_segs, SEGMENT_MAP* module_to_program_seg_map, int verbose) {
   VECTOR* sym_map = new_vector(sym_count(module_st));
@@ -239,6 +300,10 @@ static VECTOR* add_module_symbols_to_program(SYMTAB* prog_st, const SYMTAB* modu
 
 static void print_symbol(SYMBOL_ID, const SYMBOL*);
 
+// Modify a module symbol (address label) to be a program symbol:
+// change its segment and offset into the corresponding program segment and offset.
+// If the symbol name does not exist in the program, add it;
+// otherwise check for multiple definition vs public/extern reconciliation.
 static SYMBOL_ID add_module_symbol_to_program(SYMTAB* prog_st, const SYMTAB* module_st, SYMBOL_ID module_id,
     SEGMENT_LIST* prog_segs, SEGMENT_MAP* module_to_program_seg_map, int verbose) {
   const SYMBOL* module_sym = const_symbol(module_st, module_id);
@@ -253,7 +318,7 @@ static SYMBOL_ID add_module_symbol_to_program(SYMTAB* prog_st, const SYMTAB* mod
   if (verbose >= 3)
     printf("SYMBOL %d: move to seg %d\n", (int)module_id, (int)new_segno);
 
-  const DWORD base = module_to_program_seg_map->map[module_sym->seg].base;
+  const DWORD base = module_to_program_seg_map->map[module_sym->seg].addr;
   DWORD new_offset = module_sym->offset + base;
   if (verbose >= 3)
     printf("SYMBOL %d: move to base 0x%04lx -> 0x%04lx\n", (int)module_id, (unsigned long)base, (unsigned long)new_offset);
@@ -294,11 +359,16 @@ static void print_symbol(SYMBOL_ID id, const SYMBOL* sym) {
   putchar('\n');
 }
 
+// Having combined module segments into program segments,
+// an offset in memory relative to the module segment
+// must be made relative to its program segment.
+// The module's fixups must be updated
+// to refer to the new holding segment and holding address.
 static void retarget_module_fixups_to_program(FIXUPS* module_fixups,
     SEGMENT_LIST* module_segs, SEGMENT_MAP* module_to_program_seg_map,
     GROUP_LIST* module_groups, VECTOR* module_to_program_group_map, int verbose) {
   if (verbose >= 2)
-    puts("Update module fixups for program segment numbers and bases");
+    puts("Update module fixups for program segment numbers and addresses");
 
   for (unsigned j = 0; j < fixups_count(module_fixups); j++) {
     FIXUP* i = fixup(module_fixups, j);
@@ -341,9 +411,12 @@ static void retarget_module_fixups_to_program(FIXUPS* module_fixups,
 
     switch (i->type) {
       case FT_OFFSET: {
+        // The stored offset is relative to the module segment start.
+        // The module segment is placed in a program segment.
+        // Make the offset relative to the program segment start.
         assert(i->u.addressed_segno >= 0 && i->u.addressed_segno < (int) module_to_program_seg_map->size);
         SEGNO addressed_destno = module_to_program_seg_map->map[i->u.addressed_segno].segno;
-        DWORD addressed_base = module_to_program_seg_map->map[i->u.addressed_segno].base;
+        DWORD addressed_base = module_to_program_seg_map->map[i->u.addressed_segno].addr;
         DWORD new_offset = offset_value + addressed_base;
         if (verbose >= 3) {
           printf("FIXUP %u: offset value 0x%04x -> address seg %d base 0x%04x => 0x%04x\n",
@@ -357,21 +430,48 @@ static void retarget_module_fixups_to_program(FIXUPS* module_fixups,
         break;
       }
       case FT_EXTERNAL:
+        // The external symbol value can only be filled in after consolidating groups,
+        // when segments are at their final location.
+        // Meanwhile the stored offset value should be zero.
         if (offset_value != 0) {
           fprintf(stderr, "Location of external reference does not hold 0: "
                           "seg %d, offset 0x%04x, value 0x%04x\n",
-              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);      
+              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);
           exit(EXIT_FAILURE);
         }
         break;
       case FT_GROUP_ABSOLUTE_JUMP:
+        // The stored absolute jump target within a group
+        // can only be finalised to a PC-relative jump displacement
+        // after consolidating groups, in the resolve stage.
+        // Meanwhile the stored offset value is the absolute offset in the group.
         break;
       case FT_SEGMENT:
-      case FT_GROUP:
+        // The physical segment address of the segment is resolved
+        // when the program image is built, and finalised at load time.
+        // Meanwhile the stored value should be zero.
         if (offset_value != 0) {
           fprintf(stderr, "Location of segment reference does not hold 0: "
                           "seg %d, offset 0x%04x, value 0x%04x\n",
-              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);      
+              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);
+          exit(EXIT_FAILURE);
+        }
+        // TODO: check if we need the following code as in consolidate.c
+#if 0
+        if (i->u.seg.addressed_segno == source_segno) {
+          i->u.seg.addressed_segno = dest_segno;
+          i->u.seg.addressed_base = base;
+        }
+#endif
+        break;
+      case FT_GROUP:
+        // The physical segment address of the group is resolved
+        // when the program image is built, and finalised at load time.
+        // Meanwhile the stored value should be zero.
+        if (offset_value != 0) {
+          fprintf(stderr, "Location of group reference does not hold 0: "
+                          "seg %d, offset 0x%04x, value 0x%04x\n",
+              (int) i->holding_seg, (unsigned) i->holding_offset, (unsigned) offset_value);
           exit(EXIT_FAILURE);
         }
         break;
@@ -379,25 +479,31 @@ static void retarget_module_fixups_to_program(FIXUPS* module_fixups,
         assert(0 && "unexpected fixup type");
     }
 
+    // It is not only a stored offset value that must be changed,
+    // when it is changed to refer to a different segment.
+    // The holding segment number and offset must also be changed.
     SEGNO holding_destno = module_to_program_seg_map->map[i->holding_seg].segno;
-    DWORD holding_base = module_to_program_seg_map->map[i->holding_seg].base;
-    DWORD new_offset = holding_base + i->holding_offset;
+    DWORD holding_base = module_to_program_seg_map->map[i->holding_seg].addr;
+    DWORD holding_offset = holding_base + i->holding_offset;
     if (verbose >= 3) {
       printf("FIXUP %u: in seg %d at 0x%04x -> seg %d (base 0x%04x) at 0x%04x\n",
           j,
           (int) i->holding_seg, (unsigned) i->holding_offset,
-          (int) holding_destno, (unsigned) holding_base, (unsigned) new_offset);
+          (int) holding_destno, (unsigned) holding_base, (unsigned) holding_offset);
     }
-    if (new_offset > (WORD)(-1))
+    if (holding_offset > (WORD)(-1))
       fatal("offset out of 16-bit range (B)\n"); // TODO: useful message
     i->holding_seg = holding_destno;
-    i->holding_offset = (WORD) new_offset;
+    i->holding_offset = (WORD) holding_offset;
   }
 
   if (verbose >= 4)
     dump_segments(module_segs);
 }
 
+// An EXTERNAL fixup points to a location to receive the value of an external symbol.
+// The fixup contains the symbol's ID in the module symbol table.
+// Modify the symbol ID to be the ID in the program symbol table.
 static void update_module_externals_symbol_id(FIXUPS* fixups, VECTOR* module_to_program_symbol_map) {
   for (unsigned i = 0; i < fixups_count(fixups); i++) {
     FIXUP* e = fixup(fixups, i);
@@ -406,7 +512,7 @@ static void update_module_externals_symbol_id(FIXUPS* fixups, VECTOR* module_to_
   }
 }
 
-static void combine(SEGMENT* dest, SEGMENT* source, const char* module_name, int verbose);
+static void append(SEGMENT* dest, SEGMENT* source, const char* module_name, int verbose);
 
 // Note this does not use the base values in the segment map,
 // it just appends to the end of the destination segments.
@@ -414,12 +520,17 @@ static void move_segments_data(SEGMENT_LIST* prog, SEGMENT_LIST* module, SEGMENT
   for (SEGNO i = 0; i < segment_list_count(module); i++) {
     SEGMENT* source = get_segment(module, i);
     SEGMENT* dest = get_segment(prog, seg_map->map[i].segno);
-    combine(dest, source, module_name, verbose);
+    append(dest, source, module_name, verbose);
     remove_segment(module, i);
   }
 }
 
-static void combine(SEGMENT* dest, SEGMENT* source, const char* module_name, int verbose) {
+// Append source segment memory content to the end of the destination segment,
+// first aligning the end of the destination.
+// Add source uninitialised data space to destination uninitialised data space.
+// For now, a segment may not contain both initialised and uninitialised data.
+// Update layout information in the destination for the map file.
+static void append(SEGMENT* dest, SEGMENT* source, const char* module_name, int verbose) {
   assert(dest != NULL);
   assert(source != NULL);
   assert(module_name != NULL);
@@ -474,13 +585,13 @@ static void test_new_segment_map(CuTest* tc) {
   map = new_segment_map(4);
   CuAssertPtrNotNull(tc, map);
   CuAssertIntEquals(tc, 4, map->size);
-  CuAssertIntEquals(tc, 0, map->map[0].base);
+  CuAssertIntEquals(tc, 0, map->map[0].addr);
   CuAssertIntEquals(tc, NO_SEG, map->map[0].segno);
-  CuAssertIntEquals(tc, 0, map->map[1].base);
+  CuAssertIntEquals(tc, 0, map->map[1].addr);
   CuAssertIntEquals(tc, NO_SEG, map->map[1].segno);
-  CuAssertIntEquals(tc, 0, map->map[2].base);
+  CuAssertIntEquals(tc, 0, map->map[2].addr);
   CuAssertIntEquals(tc, NO_SEG, map->map[2].segno);
-  CuAssertIntEquals(tc, 0, map->map[3].base);
+  CuAssertIntEquals(tc, 0, map->map[3].addr);
   CuAssertIntEquals(tc, NO_SEG, map->map[3].segno);
   delete_segment_map(map);
 }
@@ -581,11 +692,11 @@ static void test_add_segments_no_groups(CuTest* tc) {
   CuAssertPtrNotNull(tc, map);
   CuAssertIntEquals(tc, 3, map->size);
   CuAssertIntEquals(tc, 3, map->map[0].segno);
-  CuAssertIntEquals(tc, 0, map->map[0].base);
+  CuAssertIntEquals(tc, 0, map->map[0].addr);
   CuAssertIntEquals(tc, 4, map->map[1].segno);
-  CuAssertIntEquals(tc, 0, map->map[1].base);
+  CuAssertIntEquals(tc, 0, map->map[1].addr);
   CuAssertIntEquals(tc, 2, map->map[2].segno);
-  CuAssertIntEquals(tc, 0x20, map->map[2].base);
+  CuAssertIntEquals(tc, 0x20, map->map[2].addr);
 
   CuAssertIntEquals(tc, 5, segment_list_count(program));
 
@@ -646,11 +757,11 @@ static void test_add_segments_with_groups(CuTest* tc) {
   CuAssertPtrNotNull(tc, map);
   CuAssertIntEquals(tc, 3, map->size);
   CuAssertIntEquals(tc, 3, map->map[0].segno);
-  CuAssertIntEquals(tc, 0, map->map[0].base);
+  CuAssertIntEquals(tc, 0, map->map[0].addr);
   CuAssertIntEquals(tc, 4, map->map[1].segno);
-  CuAssertIntEquals(tc, 0, map->map[1].base);
+  CuAssertIntEquals(tc, 0, map->map[1].addr);
   CuAssertIntEquals(tc, 2, map->map[2].segno);
-  CuAssertIntEquals(tc, 0x20, map->map[2].base);
+  CuAssertIntEquals(tc, 0x20, map->map[2].addr);
 
   CuAssertIntEquals(tc, 5, segment_list_count(program));
 
@@ -740,13 +851,13 @@ static void test_add_symbols(CuTest* tc) {
   SEGMENT_MAP* seg_map = new_segment_map(4);
   CuAssertPtrNotNull(tc, seg_map);
   seg_map->map[0].segno = 3;
-  seg_map->map[0].base = 0x1000;
+  seg_map->map[0].addr = 0x1000;
   seg_map->map[1].segno = 0;
-  seg_map->map[1].base = 0x1100;
+  seg_map->map[1].addr = 0x1100;
   seg_map->map[2].segno = 1;
-  seg_map->map[2].base = 0x1200;
+  seg_map->map[2].addr = 0x1200;
   seg_map->map[3].segno = 2;
-  seg_map->map[3].base = 0x1300;
+  seg_map->map[3].addr = 0x1300;
 
   VECTOR* sym_map = add_module_symbols_to_program(prog_st, module_st, prog_segs, seg_map, 3);
   CuAssertPtrNotNull(tc, sym_map);
@@ -814,7 +925,7 @@ static void test_update_offsets(CuTest* tc) {
   static const BYTE DATA0[] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77 };
   write_segment(seg0, 0x100, DATA0, sizeof DATA0);
 
-// add_offset_fixup(info, holding_seg, holding_offset, addressed_seg)
+  // add_offset_fixup(info, holding_seg, holding_offset, addressed_seg)
   FIXUP* offset0 = add_offset_fixup(module_offsets, 0, 0x104, 1);
   FIXUP* offset1 = add_offset_fixup(module_offsets, 0, 0x106, 0);
 
@@ -827,9 +938,9 @@ static void test_update_offsets(CuTest* tc) {
 
   SEGMENT_MAP* module_to_program = new_segment_map(2);
   module_to_program->map[0].segno = 0;
-  module_to_program->map[0].base = 0x100;
+  module_to_program->map[0].addr = 0x100;
   module_to_program->map[1].segno = 2;
-  module_to_program->map[1].base = 0;
+  module_to_program->map[1].addr = 0;
 
   retarget_module_fixups_to_program(module_offsets, module_segs, module_to_program, NULL, NULL, 0);
 
@@ -887,9 +998,9 @@ static void test_update_externals(CuTest* tc) {
 
   SEGMENT_MAP* module_to_program = new_segment_map(2);
   module_to_program->map[0].segno = 0;
-  module_to_program->map[0].base = 0x100;
+  module_to_program->map[0].addr = 0x100;
   module_to_program->map[1].segno = 2;
-  module_to_program->map[1].base = 0;
+  module_to_program->map[1].addr = 0;
 
   retarget_module_fixups_to_program(ext, module_segs, module_to_program, NULL, NULL, 0);
 
@@ -975,9 +1086,9 @@ static void test_move_data(CuTest* tc) {
 
   SEGMENT_MAP* seg_map = new_segment_map(2);
   seg_map->map[0].segno = 2;
-  seg_map->map[0].base = 0;
+  seg_map->map[0].addr = 0;
   seg_map->map[1].segno = 0;
-  seg_map->map[1].base = 0x120; // not used when appending to program segment 0
+  seg_map->map[1].addr = 0x120; // not used when appending to program segment 0
 
   move_segments_data(dest, src, seg_map, "dummy", 0);
 

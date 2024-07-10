@@ -1,5 +1,5 @@
 // Basic Linker
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-24 Nigel Perks
 // Output raw binary image.
 
 #ifndef BINFILE_H

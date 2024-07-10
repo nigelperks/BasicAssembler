@@ -1,5 +1,5 @@
 // Basic Assembler
-// Copyright (c) 2021 Nigel Perks
+// Copyright (c) 2021-24 Nigel Perks
 // Pass to generate machine encodings into an object file.
 
 #ifndef ENCODING_H
