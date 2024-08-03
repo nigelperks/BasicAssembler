@@ -35,6 +35,10 @@ enum operand_flag {
   OF_REG8,
   OF_REG16,
   OF_SREG,  // segment register
+  OF_CS,
+  OF_SS,
+  OF_DS,
+  OF_ES,
   OF_MEM,   // memory
   OF_MEM8,
   OF_MEM16,

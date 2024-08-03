@@ -469,6 +469,9 @@ static const INSDEF instable[] = {
   { TOK_POPAW,   OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x61, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
   { TOK_POPF,    OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x9D, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
   { TOK_POPFW,   OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x9D, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
+  { TOK_POP,     OF_ES,    OF_NONE,  OF_NONE,  1, NOPR, 0x07, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
+  { TOK_POP,     OF_SS,    OF_NONE,  OF_NONE,  1, NOPR, 0x17, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
+  { TOK_POP,     OF_DS,    OF_NONE,  OF_NONE,  1, NOPR, 0x1F, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
 
 //  instruc      oper1     oper2     oper3     opcodes             +opc R/M reg im1 im2 im3 cpu
   { TOK_PUSH,    OF_MEM16, OF_NONE,  OF_NONE,  1, NOPR, 0xFF, 0x00, 0,  RMC, 6,  0,  0,  0, P86 },
@@ -479,6 +482,10 @@ static const INSDEF instable[] = {
   { TOK_PUSHAW,  OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x60, 0x00, 0,  RMN, 0,  0,  0,  0, P286N },
   { TOK_PUSHF,   OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x9C, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
   { TOK_PUSHFW,  OF_NONE,  OF_NONE,  OF_NONE,  1, NOPR, 0x9C, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
+  { TOK_PUSH,    OF_ES,    OF_NONE,  OF_NONE,  1, NOPR, 0x06, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
+  { TOK_PUSH,    OF_CS,    OF_NONE,  OF_NONE,  1, NOPR, 0x0E, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
+  { TOK_PUSH,    OF_SS,    OF_NONE,  OF_NONE,  1, NOPR, 0x16, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
+  { TOK_PUSH,    OF_DS,    OF_NONE,  OF_NONE,  1, NOPR, 0x1E, 0x00, 0,  RMN, 0,  0,  0,  0, P86 },
 
   { TOK_RCL,     OF_RM8,   OF_1,     OF_NONE,  1, NOPR, 0xD0, 0x00, 0,  RMC, 2,  0,  0,  0, P86 },
   { TOK_RCL,     OF_RM8,   OF_CL,    OF_NONE,  1, NOPR, 0xD2, 0x00, 0,  RMC, 2,  0,  0,  0, P86 },

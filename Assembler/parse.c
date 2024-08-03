@@ -188,6 +188,12 @@ static BOOL parse_operand(STATE* state, IFILE* ifile, LEX* lex, OPERAND* op) {
     op->val.reg.no = lex_reg(lex);
     op->val.reg.size = 2;
     add_flag(op, OF_SREG);
+    switch (lex_reg(lex)) {
+      case SR_ES: add_flag(op, OF_ES); break;
+      case SR_CS: add_flag(op, OF_CS); break;
+      case SR_SS: add_flag(op, OF_SS); break;
+      case SR_DS: add_flag(op, OF_DS); break;
+    }
     lex_next(lex);
     return TRUE;
   }
@@ -2293,8 +2299,9 @@ static void test_parse_operand_register(CuTest* tc) {
   CuAssertIntEquals(tc, OT_SREG, op.opclass.type);
   CuAssertIntEquals(tc, SR_ES, op.val.reg.no);
   CuAssertIntEquals(tc, 2, op.val.reg.size);
-  CuAssertIntEquals(tc, 1, op.opclass.nflag);
+  CuAssertIntEquals(tc, 2, op.opclass.nflag);
   CuAssertIntEquals(tc, OF_SREG, op.opclass.flags[0]);
+  CuAssertIntEquals(tc, OF_ES, op.opclass.flags[1]);
 
   // Cleanup
 

@@ -416,6 +416,10 @@ static unsigned operand_flag_size(int flag) {
     { OF_REG16, 2 },
     // segment register
     { OF_SREG, 2 },
+    { OF_CS, 0 },
+    { OF_SS, 0 },
+    { OF_DS, 0 },
+    { OF_ES, 0 },
     // memory
     { OF_MEM, 0 },
     { OF_MEM8, 1 },

@@ -42,6 +42,10 @@ const char* operand_flag_name(int flag) {
     case OF_REG16: s = "OF_REG16"; break;
     // segment register
     case OF_SREG: s = "OF_SREG"; break;
+    case OF_CS: s = "OF_CS"; break;
+    case OF_SS: s = "OF_SS"; break;
+    case OF_DS: s = "OF_DS"; break;
+    case OF_ES: s = "OF_ES"; break;
     // memory
     case OF_MEM: s = "OF_MEM"; break;
     case OF_MEM8: s = "OF_MEM8"; break;
